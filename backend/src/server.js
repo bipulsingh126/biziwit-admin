@@ -10,16 +10,62 @@ import megatrendSubmissionRoutes from './routes/megatrendSubmissions.js'
 import authRoutes from './routes/auth.js'
 import User from './models/User.js'
 import reportsRoutes from './routes/reports.js'
+import ordersRoutes from './routes/orders.js'
+import Stripe from 'stripe'
+import Order from './models/Order.js'
+import inquiriesRoutes from './routes/inquiries.js'
+import newsletterRoutes from './routes/newsletter.js'
+import postsRoutes from './routes/posts.js'
+import megatrendsRoutes from './routes/megatrends.js'
+import customReportRequestsRoutes from './routes/customReportRequests.js'
 
 dotenv.config()
 
 const app = express()
 const PORT = process.env.PORT || 4000
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || ''
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || ''
+const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null
 
 // Middlewares
 app.use(helmet())
 app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || '*'}))
+// Stripe webhook must be before JSON parser
+app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    if (!stripe || !STRIPE_WEBHOOK_SECRET) return res.status(400).send('Stripe not configured')
+    const sig = req.headers['stripe-signature']
+    const event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET)
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object
+      const orderId = session.metadata?.orderId
+      if (orderId) {
+        await Order.findByIdAndUpdate(orderId, {
+          status: 'paid',
+          payment: {
+            provider: 'stripe',
+            status: 'paid',
+            currency: session.currency,
+            amount: (session.amount_total || 0) / 100,
+            stripe: { paymentIntentId: session.payment_intent, checkoutSessionId: session.id },
+          }
+        })
+      }
+    } else if (event.type === 'checkout.session.expired') {
+      const session = event.data.object
+      const orderId = session.metadata?.orderId
+      if (orderId) {
+        await Order.findByIdAndUpdate(orderId, { status: 'failed', 'payment.status': 'failed' })
+      }
+    }
+    res.json({ received: true })
+  } catch (err) {
+    console.error('Stripe webhook error', err)
+    res.status(400).send(`Webhook Error: ${err.message}`)
+  }
+})
+
 app.use(express.json({ limit: '2mb' }))
 app.use(morgan('dev'))
 app.use('/uploads', express.static(UPLOAD_DIR))
@@ -32,6 +78,12 @@ app.use('/api/auth', authRoutes)
 app.use('/api/custom-reports', customReportRoutes)
 app.use('/api/megatrend-submissions', megatrendSubmissionRoutes)
 app.use('/api/reports', reportsRoutes)
+app.use('/api/orders', ordersRoutes)
+app.use('/api/inquiries', inquiriesRoutes)
+app.use('/api/newsletter', newsletterRoutes)
+app.use('/api/posts', postsRoutes)
+app.use('/api/megatrends', megatrendsRoutes)
+app.use('/api/custom-report-requests', customReportRequestsRoutes)
 
 // Error handler
 // eslint-disable-next-line no-unused-vars

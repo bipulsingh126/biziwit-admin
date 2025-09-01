@@ -2,9 +2,8 @@ import { Router } from 'express'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
-import XLSX from 'xlsx'
 import slugify from 'slugify'
-import Report from '../models/Report.js'
+import Post from '../models/Post.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
 
 const router = Router()
@@ -32,7 +31,7 @@ const uniqueSlug = async (title, desired) => {
   // eslint-disable-next-line no-constant-condition
   while (true) {
     // eslint-disable-next-line no-await-in-loop
-    const exists = await Report.findOne({ slug: i ? `${slug}-${i}` : slug }).lean()
+    const exists = await Post.findOne({ slug: i ? `${slug}-${i}` : slug }).lean()
     if (!exists) return i ? `${slug}-${i}` : slug
     i += 1
   }
@@ -44,51 +43,37 @@ router.use(authenticate, requireRole('admin', 'editor'))
 // List with filters
 router.get('/', async (req, res, next) => {
   try {
-    const { q = '', status, category, tags, tag, featured, popular, from, to, sort, limit = 50, offset = 0 } = req.query
+    const { q = '', type, status, tags, tag, from, to, sort, limit = 50, offset = 0 } = req.query
     const query = {}
 
-    // Status
+    if (type) query.type = type
     if (status) query.status = status
 
-    // Category
-    if (category) query.category = String(category)
-
-    // Tags (supports multiple via comma-separated "tags" or single "tag")
     const tagList = []
     if (tags) tagList.push(...String(tags).split(',').map(t => t.trim().toLowerCase()).filter(Boolean))
     if (tag) tagList.push(String(tag).toLowerCase())
     if (tagList.length) query.tags = { $all: tagList }
 
-    // Featured/Popular flags
-    if (featured !== undefined) query.featured = String(featured) === 'true'
-    if (popular !== undefined) query.popular = String(popular) === 'true'
-
-    // Date range (publishedAt)
     if (from || to) {
       query.publishedAt = {}
       if (from) query.publishedAt.$gte = new Date(from)
       if (to) query.publishedAt.$lte = new Date(to)
     }
 
-    // Full-text search
     const useText = q && q.trim().length > 0
     const findCond = useText ? { $text: { $search: q }, ...query } : query
     const projection = useText ? { score: { $meta: 'textScore' } } : undefined
 
-    // Sorting
-    // sort=newest (default), oldest, popular, featured, relevance (when q provided)
     let sortSpec = { createdAt: -1 }
     if (useText) sortSpec = { score: { $meta: 'textScore' }, createdAt: -1 }
     if (sort === 'oldest') sortSpec = { createdAt: 1 }
-    if (sort === 'popular') sortSpec = { popular: -1, createdAt: -1 }
-    if (sort === 'featured') sortSpec = { featured: -1, createdAt: -1 }
-    if (sort === 'relevance' && useText) sortSpec = { score: { $meta: 'textScore' } }
+    if (sort === 'published') sortSpec = { publishedAt: -1 }
 
-    const items = await Report.find(findCond, projection)
+    const items = await Post.find(findCond, projection)
       .sort(sortSpec)
       .skip(Number(offset))
       .limit(Math.min(200, Number(limit)))
-    const total = await Report.countDocuments(findCond)
+    const total = await Post.countDocuments(findCond)
     res.json({ items, total })
   } catch (e) { next(e) }
 })
@@ -98,15 +83,15 @@ router.post('/', async (req, res, next) => {
   try {
     const body = req.body || {}
     const slug = await uniqueSlug(body.title, body.slug)
-    const doc = await Report.create({ ...body, slug })
+    const doc = await Post.create({ ...body, slug })
     res.status(201).json(doc)
   } catch (e) { next(e) }
 })
 
-// Read one by id
+// Read
 router.get('/:id', async (req, res, next) => {
   try {
-    const doc = await Report.findById(req.params.id)
+    const doc = await Post.findById(req.params.id)
     if (!doc) return res.status(404).json({ error: 'Not found' })
     res.json(doc)
   } catch (e) { next(e) }
@@ -116,10 +101,8 @@ router.get('/:id', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const body = { ...req.body }
-    if (body.title && !body.slug) {
-      body.slug = await uniqueSlug(body.title)
-    }
-    const updated = await Report.findByIdAndUpdate(req.params.id, body, { new: true })
+    if (body.title && !body.slug) body.slug = await uniqueSlug(body.title)
+    const updated = await Post.findByIdAndUpdate(req.params.id, body, { new: true })
     if (!updated) return res.status(404).json({ error: 'Not found' })
     res.json(updated)
   } catch (e) { next(e) }
@@ -128,7 +111,7 @@ router.patch('/:id', async (req, res, next) => {
 // Delete
 router.delete('/:id', async (req, res, next) => {
   try {
-    const r = await Report.findByIdAndDelete(req.params.id)
+    const r = await Post.findByIdAndDelete(req.params.id)
     if (!r) return res.status(404).json({ error: 'Not found' })
     res.json({ ok: true })
   } catch (e) { next(e) }
@@ -138,7 +121,7 @@ router.delete('/:id', async (req, res, next) => {
 router.post('/:id/cover', upload.single('file'), async (req, res, next) => {
   try {
     const fileUrl = `/uploads/${path.basename(req.file.path)}`
-    const updated = await Report.findByIdAndUpdate(
+    const updated = await Post.findByIdAndUpdate(
       req.params.id,
       { coverImage: { url: fileUrl, alt: req.body?.alt || '' } },
       { new: true }
@@ -152,7 +135,7 @@ router.post('/:id/cover', upload.single('file'), async (req, res, next) => {
 router.post('/:id/images', upload.single('file'), async (req, res, next) => {
   try {
     const fileUrl = `/uploads/${path.basename(req.file.path)}`
-    const updated = await Report.findByIdAndUpdate(
+    const updated = await Post.findByIdAndUpdate(
       req.params.id,
       { $push: { images: { url: fileUrl, alt: req.body?.alt || '' } } },
       { new: true }
@@ -166,43 +149,6 @@ router.post('/:id/images', upload.single('file'), async (req, res, next) => {
 router.post('/upload-image', upload.single('file'), (req, res) => {
   const fileUrl = `/uploads/${path.basename(req.file.path)}`
   res.json({ url: fileUrl })
-})
-
-// Bulk upload via Excel (columns: title, summary, content, category, tags, featured, popular, metaTitle, metaDescription, status, publishedAt)
-router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
-  try {
-    const wb = XLSX.readFile(req.file.path)
-    const ws = wb.Sheets[wb.SheetNames[0]]
-    const rows = XLSX.utils.sheet_to_json(ws)
-    const toInsert = []
-    for (const row of rows) {
-      const title = row.title || row.Title
-      if (!title) continue
-      const tagsRaw = row.tags || row.Tags || ''
-      const tags = String(tagsRaw)
-        .split(/[,;]+/)
-        .map(s => s.trim().toLowerCase())
-        .filter(Boolean)
-      const slug = await uniqueSlug(title)
-      toInsert.push({
-        title,
-        slug,
-        summary: row.summary || row.Summary || '',
-        content: row.content || row.Content || '',
-        category: row.category || row.Category || '',
-        tags,
-        featured: String(row.featured || row.Featured || '').toLowerCase() === 'true',
-        popular: String(row.popular || row.Popular || '').toLowerCase() === 'true',
-        metaTitle: row.metaTitle || row.MetaTitle || '',
-        metaDescription: row.metaDescription || row.MetaDescription || '',
-        status: (row.status || row.Status || 'draft').toLowerCase(),
-        publishedAt: row.publishedAt ? new Date(row.publishedAt) : undefined,
-      })
-    }
-    if (!toInsert.length) return res.status(400).json({ error: 'No valid rows found' })
-    const inserted = await Report.insertMany(toInsert)
-    res.json({ inserted: inserted.length })
-  } catch (e) { next(e) }
 })
 
 export default router

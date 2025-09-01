@@ -1,7 +1,7 @@
 import mongoose from 'mongoose'
 
 const MegatrendSubmissionSchema = new mongoose.Schema({
-  megatrendId: { type: Number, required: true },
+  megatrendId: { type: String, required: true, index: true },
   megatrendTitle: { type: String, required: true },
   name: { type: String, required: true },
   email: { type: String, required: true, index: true },
