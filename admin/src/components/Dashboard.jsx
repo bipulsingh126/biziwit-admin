@@ -1,18 +1,63 @@
-const Dashboard = () => {
-  const stats = [
-    { name: 'Total Users', value: '12,345' },
-    { name: 'Revenue', value: '$45,678' },
-    { name: 'Orders', value: '1,234' },
-    { name: 'Growth', value: '23.5%' }
-  ]
+import { useState, useEffect } from 'react'
+import api from '../utils/api'
+import { useAuth } from '../contexts/AuthContext'
 
-  const recentActivities = [
-    { id: 1, user: 'John Smith', action: 'Created new account', time: '2 minutes ago' },
-    { id: 2, user: 'Sarah Johnson', action: 'Made a purchase', time: '5 minutes ago' },
-    { id: 3, user: 'Mike Wilson', action: 'Updated profile', time: '10 minutes ago' },
-    { id: 4, user: 'Emma Davis', action: 'Left a review', time: '15 minutes ago' },
-    { id: 5, user: 'Alex Brown', action: 'Subscribed to newsletter', time: '20 minutes ago' }
-  ]
+const Dashboard = () => {
+  const [stats, setStats] = useState([])
+  const [recentActivities, setRecentActivities] = useState([])
+  const [loading, setLoading] = useState(true)
+  const { user, hasPermission } = useAuth()
+
+  useEffect(() => {
+    loadDashboardData()
+  }, [])
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true)
+      
+      // Simple stats for all users
+      const statsData = [
+        { name: 'Welcome', value: user?.name || 'User' },
+        { name: 'Role', value: user?.role || 'Unknown' }
+      ]
+
+      // Add role-specific stats
+      if (user.role === 'admin') {
+        try {
+          const [users, orders] = await Promise.all([
+            api.getUsers({ limit: 1 }),
+            api.getOrders({ limit: 1 })
+          ])
+          statsData.push(
+            { name: 'Total Users', value: users.total || 0 },
+            { name: 'Orders', value: orders.total || 0 }
+          )
+        } catch (error) {
+          console.error('Admin stats error:', error)
+        }
+      } else if (user.role === 'editor') {
+        statsData.push(
+          { name: 'Reports Access', value: 'Enabled' },
+          { name: 'Blog Access', value: 'Enabled' }
+        )
+      }
+
+      setStats(statsData)
+      setRecentActivities([
+        {
+          id: '1',
+          user: user?.name || 'User',
+          action: 'Logged into dashboard',
+          time: new Date().toLocaleString()
+        }
+      ])
+    } catch (error) {
+      console.error('Dashboard load error:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="p-6">

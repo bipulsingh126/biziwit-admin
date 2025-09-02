@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
+import api from '../utils/api'
 
 const AuthContext = createContext()
 
@@ -14,75 +15,58 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // Mock users for demo purposes
-  const mockUsers = [
-    {
-      id: 1,
-      username: 'admin',
-      password: 'admin123',
-      name: 'John Doe',
-      email: 'admin@biziwit.com',
-      role: 'admin',
-      avatar: 'JD'
-    },
-    {
-      id: 2,
-      username: 'editor',
-      password: 'editor123',
-      name: 'Jane Smith',
-      email: 'editor@biziwit.com',
-      role: 'editor',
-      avatar: 'JS'
-    }
-  ]
-
   // Check for existing session on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem('user')
-    if (savedUser) {
-      setUser(JSON.parse(savedUser))
+    const checkAuth = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        if (token) {
+          api.setToken(token)
+          const result = await api.getMe()
+          setUser(result.user)
+        }
+      } catch (error) {
+        // Token invalid, clear it
+        localStorage.removeItem('token')
+        api.setToken(null)
+      }
+      setLoading(false)
     }
-    setLoading(false)
+    checkAuth()
   }, [])
 
-  const login = async (username, password) => {
+  const login = async (email, password) => {
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const uname = (username || '').trim()
-      const pwd = (password || '').trim()
-      const foundUser = mockUsers.find(
-        u => u.username === uname && u.password === pwd
-      )
-      
-      if (foundUser) {
-        const { password: _, ...userWithoutPassword } = foundUser
-        setUser(userWithoutPassword)
-        localStorage.setItem('user', JSON.stringify(userWithoutPassword))
-        return { success: true }
-      } else {
-        return { success: false, error: 'Invalid username or password' }
-      }
+      const result = await api.login(email, password)
+      setUser(result.user)
+      return { success: true }
     } catch (error) {
-      return { success: false, error: 'Login failed. Please try again.' }
+      return { success: false, error: error.message }
     }
   }
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await api.logout()
+    } catch (error) {
+      // Ignore logout errors
+    }
     setUser(null)
-    localStorage.removeItem('user')
+    api.setToken(null)
   }
 
-  const hasPermission = (requiredRole) => {
+  const hasPermission = (module, action) => {
     if (!user) return false
     
     // Admin has access to everything
     if (user.role === 'admin') return true
     
-    // Editor has limited access
+    // Editor role: only allow reports and posts (blog/news)
     if (user.role === 'editor') {
-      return ['reports', 'blog', 'news'].includes(requiredRole)
+      if (module === 'reports' || module === 'posts') {
+        return user.permissions?.[module]?.[action] || true // Default true for editor's allowed modules
+      }
+      return false // Deny access to all other modules
     }
     
     return false
@@ -94,7 +78,7 @@ export const AuthProvider = ({ children }) => {
     // Admin can access all routes
     if (user.role === 'admin') return true
     
-    // Editor can only access specific routes
+    // Editor role: only allow access to reports, blog, and news
     if (user.role === 'editor') {
       const allowedRoutes = ['/reports', '/blog', '/news']
       return allowedRoutes.includes(route)

@@ -1,26 +1,157 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { Edit, Trash2, Plus, Settings, X, Save } from 'lucide-react'
+import api from '../utils/api'
+import UserPermissions from './UserPermissions'
 
 const Users = () => {
   const [searchTerm, setSearchTerm] = useState('')
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [selectedUser, setSelectedUser] = useState(null)
+  const [showPermissions, setShowPermissions] = useState(false)
+  const [showAddUser, setShowAddUser] = useState(false)
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'editor' })
 
-  const users = [
-    { id: 1, name: 'John Smith', email: 'john.smith@example.com', role: 'Admin', status: 'Active' },
-    { id: 2, name: 'Sarah Johnson', email: 'sarah.johnson@example.com', role: 'Manager', status: 'Active' },
-    { id: 3, name: 'Mike Wilson', email: 'mike.wilson@example.com', role: 'User', status: 'Inactive' },
-    { id: 4, name: 'Emma Davis', email: 'emma.davis@example.com', role: 'User', status: 'Active' },
-    { id: 5, name: 'Alex Brown', email: 'alex.brown@example.com', role: 'Manager', status: 'Active' }
-  ]
+  useEffect(() => {
+    loadUsers()
+  }, [])
 
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const loadUsers = async () => {
+    try {
+      setLoading(true)
+      const result = await api.getUsers({ q: searchTerm })
+      setUsers(result.items || [])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchTerm !== undefined) loadUsers()
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  const handleEditPermissions = (user) => {
+    setSelectedUser(user)
+    setShowPermissions(true)
+  }
+
+  const handleSavePermissions = async (updatedUser) => {
+    try {
+      const userId = updatedUser._id || updatedUser.id
+      const updateData = { 
+        role: updatedUser.role,
+        permissions: updatedUser.permissions 
+      }
+      await api.updateUser(userId, updateData)
+      await loadUsers()
+      setShowPermissions(false)
+      setSelectedUser(null)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const handleCancelPermissions = () => {
+    setShowPermissions(false)
+    setSelectedUser(null)
+  }
+
+  const handleAddUser = () => {
+    setShowAddUser(true)
+  }
+
+  const handleSaveNewUser = async () => {
+    try {
+      if (selectedUser) {
+        await handleUpdateUser()
+      } else {
+        await api.createUser(newUser)
+        await loadUsers()
+        setShowAddUser(false)
+        setNewUser({ name: '', email: '', password: '', role: 'editor' })
+      }
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const handleCancelAddUser = () => {
+    setShowAddUser(false)
+    setNewUser({ name: '', email: '', password: '', role: 'editor' })
+    setSelectedUser(null)
+  }
+
+  const handleDeleteUser = async (userId) => {
+    if (window.confirm('Are you sure you want to delete this user?')) {
+      try {
+        await api.deleteUser(userId)
+        await loadUsers()
+      } catch (err) {
+        setError(err.message)
+      }
+    }
+  }
+
+  const handleEditUser = (user) => {
+    setNewUser({ name: user.name, email: user.email, password: '', role: user.role })
+    setSelectedUser(user)
+    setShowAddUser(true)
+  }
+
+  const handleUpdateUser = async () => {
+    try {
+      const updateData = { name: newUser.name, email: newUser.email, role: newUser.role }
+      if (newUser.password) {
+        updateData.password = newUser.password
+      }
+      await api.updateUser(selectedUser._id, updateData)
+      await loadUsers()
+      setShowAddUser(false)
+      setNewUser({ name: '', email: '', password: '', role: 'editor' })
+      setSelectedUser(null)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const filteredUsers = users
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading users...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded p-4 text-red-700">
+          Error loading users: {error}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Users</h1>
-        <button className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+        <button 
+          onClick={handleAddUser}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          <Plus className="w-4 h-4" />
           Add User
         </button>
       </div>
@@ -42,34 +173,147 @@ const Users = () => {
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Name</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Email</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Role</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Status</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Created</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {filteredUsers.map((user) => (
-              <tr key={user.id} className="hover:bg-gray-50">
+              <tr key={user._id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium">{user.name}</td>
                 <td className="px-4 py-3 text-gray-600">{user.email}</td>
                 <td className="px-4 py-3">
-                  <span className="px-2 py-1 text-xs rounded bg-gray-100">{user.role}</span>
+                  <span className="px-2 py-1 text-xs rounded bg-gray-100 capitalize">{user.role}</span>
+                </td>
+                <td className="px-4 py-3 text-gray-600 text-sm">
+                  {new Date(user.createdAt).toLocaleDateString()}
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`px-2 py-1 text-xs rounded ${
-                    user.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {user.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <button className="text-blue-600 hover:text-blue-800 text-sm mr-3">Edit</button>
-                  <button className="text-red-600 hover:text-red-800 text-sm">Delete</button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => handleEditPermissions(user)}
+                      className="flex items-center gap-1 px-2 py-1 text-blue-600 hover:text-blue-800 text-sm border border-blue-200 rounded hover:bg-blue-50"
+                    >
+                      <Settings className="w-3 h-3" />
+                      Permissions
+                    </button>
+                    <button 
+                      onClick={() => handleEditUser(user)}
+                      className="flex items-center gap-1 px-2 py-1 text-gray-600 hover:text-gray-800 text-sm border border-gray-200 rounded hover:bg-gray-50"
+                    >
+                      <Edit className="w-3 h-3" />
+                      Edit
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteUser(user._id)}
+                      className="flex items-center gap-1 px-2 py-1 text-red-600 hover:text-red-800 text-sm border border-red-200 rounded hover:bg-red-50"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {showPermissions && selectedUser && (
+        <UserPermissions
+          user={selectedUser}
+          onSave={handleSavePermissions}
+          onCancel={handleCancelPermissions}
+        />
+      )}
+
+      {showAddUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold">{selectedUser ? 'Edit User' : 'Add New User'}</h2>
+              <button
+                onClick={handleCancelAddUser}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={newUser.name}
+                  onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter user name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={newUser.email}
+                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter email address"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder={selectedUser ? "Leave blank to keep current password" : "Enter password"}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Role
+                </label>
+                <select
+                  value={newUser.role}
+                  onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="editor">Editor</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={handleSaveNewUser}
+                disabled={!newUser.name || !newUser.email || (!selectedUser && !newUser.password)}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                <Save className="w-4 h-4" />
+                {selectedUser ? 'Update User' : 'Create User'}
+              </button>
+              <button
+                onClick={handleCancelAddUser}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

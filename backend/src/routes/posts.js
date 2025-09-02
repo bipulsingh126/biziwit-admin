@@ -4,7 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import slugify from 'slugify'
 import Post from '../models/Post.js'
-import { authenticate, requireRole } from '../middleware/auth.js'
+import { authenticate, requireRole, requirePermission } from '../middleware/auth.js'
 
 const router = Router()
 
@@ -37,11 +37,11 @@ const uniqueSlug = async (title, desired) => {
   }
 }
 
-// RBAC: admin and editor
-router.use(authenticate, requireRole('admin', 'editor'))
+// Authentication required
+router.use(authenticate)
 
 // List with filters
-router.get('/', async (req, res, next) => {
+router.get('/', requirePermission('posts', 'view'), async (req, res, next) => {
   try {
     const { q = '', type, status, tags, tag, from, to, sort, limit = 50, offset = 0 } = req.query
     const query = {}
@@ -79,7 +79,7 @@ router.get('/', async (req, res, next) => {
 })
 
 // Create
-router.post('/', async (req, res, next) => {
+router.post('/', requirePermission('posts', 'create'), async (req, res, next) => {
   try {
     const body = req.body || {}
     const slug = await uniqueSlug(body.title, body.slug)
@@ -89,7 +89,7 @@ router.post('/', async (req, res, next) => {
 })
 
 // Read
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', requirePermission('posts', 'view'), async (req, res, next) => {
   try {
     const doc = await Post.findById(req.params.id)
     if (!doc) return res.status(404).json({ error: 'Not found' })
@@ -98,7 +98,7 @@ router.get('/:id', async (req, res, next) => {
 })
 
 // Update
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', requirePermission('posts', 'edit'), async (req, res, next) => {
   try {
     const body = { ...req.body }
     if (body.title && !body.slug) body.slug = await uniqueSlug(body.title)
@@ -109,7 +109,7 @@ router.patch('/:id', async (req, res, next) => {
 })
 
 // Delete
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requirePermission('posts', 'delete'), async (req, res, next) => {
   try {
     const r = await Post.findByIdAndDelete(req.params.id)
     if (!r) return res.status(404).json({ error: 'Not found' })
@@ -118,7 +118,7 @@ router.delete('/:id', async (req, res, next) => {
 })
 
 // Upload cover image
-router.post('/:id/cover', upload.single('file'), async (req, res, next) => {
+router.post('/:id/cover', requirePermission('posts', 'edit'), upload.single('file'), async (req, res, next) => {
   try {
     const fileUrl = `/uploads/${path.basename(req.file.path)}`
     const updated = await Post.findByIdAndUpdate(
@@ -132,7 +132,7 @@ router.post('/:id/cover', upload.single('file'), async (req, res, next) => {
 })
 
 // Upload gallery image
-router.post('/:id/images', upload.single('file'), async (req, res, next) => {
+router.post('/:id/images', requirePermission('posts', 'edit'), upload.single('file'), async (req, res, next) => {
   try {
     const fileUrl = `/uploads/${path.basename(req.file.path)}`
     const updated = await Post.findByIdAndUpdate(
@@ -146,7 +146,7 @@ router.post('/:id/images', upload.single('file'), async (req, res, next) => {
 })
 
 // Generic image upload for rich text editors
-router.post('/upload-image', upload.single('file'), (req, res) => {
+router.post('/upload-image', requirePermission('posts', 'create'), upload.single('file'), (req, res) => {
   const fileUrl = `/uploads/${path.basename(req.file.path)}`
   res.json({ url: fileUrl })
 })

@@ -1,39 +1,40 @@
-import { useRef, useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { Search, Plus, Edit, Trash2, Eye } from 'lucide-react'
+import api from '../utils/api'
 
 const Blog = () => {
   const [searchTerm, setSearchTerm] = useState('')
-  const [posts, setPosts] = useState([
-    {
-      id: 1,
-      title: 'Getting Started with React Development',
-      excerpt: 'Learn the fundamentals of React development and build your first application.',
-      author: 'John Doe',
-      category: 'Technology',
-      status: 'published',
-      publishDate: '2024-01-15',
-      tags: ['react', 'basics'],
-      cover: '',
-      content: '<p>Welcome to React!</p>',
-      seo: { title: 'React Basics', description: 'Intro to React', keywords: 'react,js,frontend' }
-    },
-    {
-      id: 2,
-      title: 'Best Practices for UI/UX Design',
-      excerpt: 'Discover the essential principles of modern UI/UX design for better user experience.',
-      author: 'Jane Smith',
-      category: 'Design',
-      status: 'draft',
-      publishDate: '2024-01-12',
-      tags: ['ux','ui'],
-      cover: '',
-      content: '<p>Design matters.</p>',
-      seo: { title: 'UI/UX Best Practices', description: 'Key UI/UX tips', keywords: 'ui,ux,design' }
-    }
-  ])
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [posts, setPosts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editingId, setEditingId] = useState(null)
-  const editorRef = useRef(null)
+  useEffect(() => {
+    loadPosts()
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadPosts()
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm, statusFilter])
+
+  const loadPosts = async () => {
+    try {
+      setLoading(true)
+      const params = { q: searchTerm }
+      if (statusFilter !== 'all') params.status = statusFilter
+      const result = await api.getPosts(params)
+      setPosts(result.items || [])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredPosts = posts
 
   // Form state
   const [title, setTitle] = useState('')
@@ -49,6 +50,10 @@ const Blog = () => {
   const [seoDescription, setSeoDescription] = useState('')
   const [seoKeywords, setSeoKeywords] = useState('')
   const [content, setContent] = useState('')
+
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const editorRef = useRef(null)
 
   const openNew = () => {
     setEditingId(null)
@@ -69,7 +74,7 @@ const Blog = () => {
   }
 
   const openEdit = (post) => {
-    setEditingId(post.id)
+    setEditingId(post._id)
     setTitle(post.title)
     setExcerpt(post.excerpt)
     setAuthor(post.author)
@@ -109,24 +114,20 @@ const Blog = () => {
 
   const savePost = () => {
     const post = {
-      id: editingId ?? Math.max(0, ...posts.map(p => p.id)) + 1,
+      id: editingId ?? Math.max(0, ...posts.map(p => p._id)) + 1,
       title, excerpt, author, category, status, publishDate,
       tags, cover, content,
       seo: { title: seoTitle, description: seoDescription, keywords: seoKeywords }
     }
     if (editingId) {
-      setPosts(posts.map(p => p.id === editingId ? post : p))
+      setPosts(posts.map(p => p._id === editingId ? post : p))
     } else {
       setPosts([post, ...posts])
     }
     setModalOpen(false)
   }
 
-  const deletePost = (id) => setPosts(posts.filter(p => p.id !== id))
-
-  const filteredPosts = posts.filter(post =>
-    `${post.title} ${post.excerpt} ${(post.tags||[]).join(' ')}`.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const deletePost = (id) => setPosts(posts.filter(p => p._id !== id))
 
   return (
     <div className="p-6">
@@ -149,7 +150,7 @@ const Blog = () => {
 
       <div className="grid gap-4">
         {filteredPosts.map((post) => (
-          <div key={post.id} className="bg-white border rounded p-4">
+          <div key={post._id} className="bg-white border rounded p-4">
             <div className="flex justify-between items-start mb-2">
               <h3 className="text-lg font-semibold">{post.title}</h3>
               <span className={`px-2 py-1 text-xs rounded ${
@@ -165,7 +166,7 @@ const Blog = () => {
               <span>By {post.author} • {post.category} • {post.publishDate}</span>
               <div className="space-x-2">
                 <button onClick={() => openEdit(post)} className="text-blue-600 hover:text-blue-800">Edit</button>
-                <button onClick={() => deletePost(post.id)} className="text-red-600 hover:text-red-800">Delete</button>
+                <button onClick={() => deletePost(post._id)} className="text-red-600 hover:text-red-800">Delete</button>
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">

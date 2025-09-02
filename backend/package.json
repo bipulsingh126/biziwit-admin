@@ -1,12 +1,12 @@
 {
   "name": "biziwit-backend",
   "version": "1.0.0",
-  "description": "Backend API for BiziWit Admin - Node.js, Express, MongoDB",
+  "description": "Backend for BiziWit Admin ",
   "main": "src/server.js",
   "type": "module",
   "scripts": {
     "dev": "nodemon --watch src src/server.js",
-    "start": "nodemrb src/server.js",
+    "start": "node src/server.js",
     "lint": "echo 'add linter if needed'"
   },
   "dependencies": {

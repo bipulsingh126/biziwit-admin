@@ -6,6 +6,20 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, index: true },
   password: { type: String, required: true },
   role: { type: String, enum: ['admin', 'editor'], default: 'editor', index: true },
+  permissions: {
+    reports: {
+      view: { type: Boolean, default: true },
+      create: { type: Boolean, default: true },
+      edit: { type: Boolean, default: true },
+      delete: { type: Boolean, default: true }
+    },
+    posts: {
+      view: { type: Boolean, default: true },
+      create: { type: Boolean, default: true },
+      edit: { type: Boolean, default: true },
+      delete: { type: Boolean, default: true }
+    }
+  }
 }, { timestamps: true })
 
 UserSchema.pre('save', async function (next) {
@@ -19,9 +33,17 @@ UserSchema.methods.comparePassword = async function (candidate) {
   return bcrypt.compare(candidate, this.password)
 }
 
+UserSchema.methods.hasPermission = function (module, action) {
+  // Admin has all permissions
+  if (this.role === 'admin') return true
+  
+  // Check specific permission
+  return this.permissions?.[module]?.[action] || false
+}
+
 UserSchema.methods.toSafeJSON = function () {
-  const { _id, name, email, role, createdAt, updatedAt } = this
-  return { id: _id.toString(), name, email, role, createdAt, updatedAt }
+  const { _id, name, email, role, permissions, createdAt, updatedAt } = this
+  return { id: _id.toString(), name, email, role, permissions, createdAt, updatedAt }
 }
 
 const User = mongoose.model('User', UserSchema)

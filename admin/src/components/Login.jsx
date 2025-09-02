@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Eye, EyeOff, Lock, User, AlertCircle } from 'lucide-react'
 
 const Login = () => {
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
@@ -14,17 +14,17 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setError('')
-    setLoading(true)
+    if (loading) return
 
-    const result = await login(username, password)
+    setLoading(true)
+    setError('')
+
+    const result = await login(email, password)
     
-    if (!result.success) {
-      setError(result.error)
-      console.error('Login failed:', result.error)
+    if (result.success) {
+      // Login successful - AuthContext will handle redirect
     } else {
-      // Navigate to root. App will redirect based on role in App.jsx
-      navigate('/', { replace: true })
+      setError(result.error)
     }
     
     setLoading(false)
@@ -42,12 +42,6 @@ const Login = () => {
           <p className="text-gray-600">Please sign in to continue</p>
         </div>
 
-        {/* Demo Credentials */}
-        <div className="bg-gray-50 border border-gray-200 rounded p-3 mb-6">
-          <p className="text-sm text-gray-700 mb-2"><strong>Demo Login:</strong></p>
-          <p className="text-xs text-gray-600">Admin: admin / admin123</p>
-          <p className="text-xs text-gray-600">Editor: editor / editor123</p>
-        </div>
 
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -58,16 +52,16 @@ const Login = () => {
           )}
 
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-              Username
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              Email
             </label>
             <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter username"
+              placeholder="Enter email"
               required
             />
           </div>

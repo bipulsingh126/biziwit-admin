@@ -1,8 +1,14 @@
-import { useRef, useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { Search, Plus, Edit, Trash2, Eye } from 'lucide-react'
+import api from '../utils/api'
 import { Link } from 'react-router-dom'
 
 const Megatrends = () => {
-  const [search, setSearch] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [megatrends, setMegatrends] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [items, setItems] = useState([
     {
       id: 1,
@@ -43,8 +49,34 @@ const Megatrends = () => {
   const [hero, setHero] = useState('')
   const [content, setContent] = useState('')
 
+  useEffect(() => {
+    loadMegatrends()
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadMegatrends()
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm, statusFilter])
+
+  const loadMegatrends = async () => {
+    try {
+      setLoading(true)
+      const params = { q: searchTerm }
+      if (statusFilter !== 'all') params.status = statusFilter
+      const result = await api.getMegatrends(params)
+      setMegatrends(result.items || [])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredMegatrends = megatrends
   const filtered = items.filter(i =>
-    `${i.title} ${i.summary} ${(i.tags||[]).join(' ')}`.toLowerCase().includes(search.toLowerCase())
+    `${i.title} ${i.summary} ${(i.tags||[]).join(' ')}`.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const openNew = () => {
@@ -115,16 +147,16 @@ const Megatrends = () => {
 
       <div className="mb-4">
         <input
-          value={search}
-          onChange={e=>setSearch(e.target.value)}
+          value={searchTerm}
+          onChange={e=>setSearchTerm(e.target.value)}
           placeholder="Search megatrends..."
           className="w-full max-w-md px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
       <div className="grid gap-4">
-        {filtered.map(it => (
-          <div key={it.id} className="bg-white border rounded p-4">
+        {filteredMegatrends.map(it => (
+          <div key={it._id} className="bg-white border rounded p-4">
             <div className="flex justify-between items-start mb-2">
               <h3 className="text-lg font-semibold">{it.title}</h3>
               <span className={`px-2 py-1 text-xs rounded ${

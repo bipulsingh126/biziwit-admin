@@ -18,6 +18,7 @@ import newsletterRoutes from './routes/newsletter.js'
 import postsRoutes from './routes/posts.js'
 import megatrendsRoutes from './routes/megatrends.js'
 import customReportRequestsRoutes from './routes/customReportRequests.js'
+import usersRoutes from './routes/users.js'
 
 dotenv.config()
 
@@ -84,6 +85,7 @@ app.use('/api/newsletter', newsletterRoutes)
 app.use('/api/posts', postsRoutes)
 app.use('/api/megatrends', megatrendsRoutes)
 app.use('/api/custom-report-requests', customReportRequestsRoutes)
+app.use('/api/users', usersRoutes)
 
 // Error handler
 // eslint-disable-next-line no-unused-vars
@@ -94,16 +96,60 @@ app.use((err, req, res, next) => {
 
 // Start
 connectDB().then(() => {
-  // Seed a default admin if specified
+  // Seed default admin and sub-admin if specified
   const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env
+  
+  // Create main admin
   if (ADMIN_EMAIL && ADMIN_PASSWORD) {
     User.findOne({ email: ADMIN_EMAIL.toLowerCase() }).then(async (existing) => {
       if (!existing) {
-        await User.create({ name: 'Admin', email: ADMIN_EMAIL, password: ADMIN_PASSWORD, role: 'admin' })
+        await User.create({ 
+          name: 'Admin', 
+          email: ADMIN_EMAIL, 
+          password: ADMIN_PASSWORD, 
+          role: 'admin'
+        })
         console.log('Seeded default admin user')
       }
     }).catch(() => {})
   }
+
+  // Create sub-admin
+  const SUB_ADMIN_EMAIL = 'subadmin@biziwit.com'
+  const SUB_ADMIN_PASSWORD = 'SubAdmin@123'
+  
+  User.findOne({ email: SUB_ADMIN_EMAIL.toLowerCase() }).then(async (existing) => {
+    if (!existing) {
+      await User.create({ 
+        name: 'Sub Admin', 
+        email: SUB_ADMIN_EMAIL, 
+        password: SUB_ADMIN_PASSWORD, 
+        role: 'admin'
+      })
+      console.log('Seeded sub-admin user with full access')
+    }
+  }).catch(() => {})
+
+  // Create test editor user
+  const EDITOR_EMAIL = 'editor@biziwit.com'
+  const EDITOR_PASSWORD = 'Editor@123'
+  
+  User.findOne({ email: EDITOR_EMAIL.toLowerCase() }).then(async (existing) => {
+    if (!existing) {
+      const editorPermissions = {
+        reports: { view: true, create: true, edit: true, delete: true },
+        posts: { view: true, create: true, edit: true, delete: true }
+      }
+      await User.create({ 
+        name: 'Editor User', 
+        email: EDITOR_EMAIL, 
+        password: EDITOR_PASSWORD, 
+        role: 'editor',
+        permissions: editorPermissions
+      })
+      console.log('Seeded editor user with reports and posts access')
+    }
+  }).catch(() => {})
 
   app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`))
 }).catch((err) => {
