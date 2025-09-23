@@ -33,18 +33,34 @@ class ApiClient {
       config.body = JSON.stringify(config.body)
     }
 
-    const response = await fetch(url, config)
-    
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Request failed' }))
-      throw new Error(error.error || `HTTP ${response.status}`)
-    }
+    try {
+      const response = await fetch(url, config)
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Request failed' }))
+        
+        // Handle specific error cases
+        if (response.status === 401) {
+          // Token expired or invalid - clear auth state
+          this.setToken(null)
+          window.location.reload()
+          throw new Error('Session expired. Please login again.')
+        }
+        
+        throw new Error(error.error || error.message || `HTTP ${response.status}`)
+      }
 
-    const contentType = response.headers.get('content-type')
-    if (contentType?.includes('application/json')) {
-      return response.json()
+      const contentType = response.headers.get('content-type')
+      if (contentType?.includes('application/json')) {
+        return response.json()
+      }
+      return response
+    } catch (error) {
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        throw new Error('Network error. Please check your connection and try again.')
+      }
+      throw error
     }
-    return response
   }
 
   // Auth
@@ -104,6 +120,39 @@ class ApiClient {
     return this.request(`/api/posts/${id}`, { method: 'DELETE' })
   }
 
+  // Reports
+  async getReports(params = {}) {
+    const query = new URLSearchParams(params).toString()
+    return this.request(`/api/reports${query ? `?${query}` : ''}`)
+  }
+
+  async getReport(id) {
+    return this.request(`/api/reports/${id}`)
+  }
+
+  async createReport(data) {
+    return this.request('/api/reports', { method: 'POST', body: data })
+  }
+
+  async updateReport(id, data) {
+    return this.request(`/api/reports/${id}`, { method: 'PATCH', body: data })
+  }
+
+  async deleteReport(id) {
+    return this.request(`/api/reports/${id}`, { method: 'DELETE' })
+  }
+
+  async uploadReportCover(id, file, alt = '') {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (alt) formData.append('alt', alt)
+    return this.request(`/api/reports/${id}/cover`, {
+      method: 'POST',
+      body: formData,
+      headers: {}
+    })
+  }
+
   async uploadPostCover(id, file, alt = '') {
     const formData = new FormData()
     formData.append('file', file)
@@ -119,6 +168,10 @@ class ApiClient {
   async getMegatrends(params = {}) {
     const query = new URLSearchParams(params).toString()
     return this.request(`/api/megatrends${query ? `?${query}` : ''}`)
+  }
+
+  async getMegatrend(id) {
+    return this.request(`/api/megatrends/${id}`)
   }
 
   async createMegatrend(data) {
@@ -154,10 +207,21 @@ class ApiClient {
     })
   }
 
+  async requestWhitepaper(megatrendId, requestData) {
+    return this.request(`/api/megatrends/${megatrendId}/whitepaper-request`, {
+      method: 'POST',
+      body: requestData
+    })
+  }
+
   // Custom Report Requests
   async getCustomReportRequests(params = {}) {
     const query = new URLSearchParams(params).toString()
     return this.request(`/api/custom-report-requests${query ? `?${query}` : ''}`)
+  }
+
+  async createCustomReportRequest(data) {
+    return this.request('/api/custom-report-requests/submit', { method: 'POST', body: data })
   }
 
   async updateCustomReportRequest(id, data) {
@@ -183,6 +247,10 @@ class ApiClient {
 
   async addSubscriber(data) {
     return this.request('/api/newsletter', { method: 'POST', body: data })
+  }
+
+  async removeSubscriber(id) {
+    return this.request(`/api/newsletter/${id}`, { method: 'DELETE' })
   }
 
   async deleteSubscriber(id) {
@@ -215,6 +283,52 @@ class ApiClient {
 
   async deleteInquiry(id) {
     return this.request(`/api/inquiries/${id}`, { method: 'DELETE' })
+  }
+
+  // Analytics
+  async getAnalytics(params = {}) {
+    const query = new URLSearchParams(params).toString()
+    return this.request(`/api/analytics${query ? `?${query}` : ''}`)
+  }
+
+  // SEO Pages
+  async getSeoPages(params = {}) {
+    const query = new URLSearchParams(params).toString()
+    return this.request(`/api/seo-pages${query ? `?${query}` : ''}`)
+  }
+
+  async getSeoPage(id) {
+    return this.request(`/api/seo-pages/${id}`)
+  }
+
+  async createSeoPage(data) {
+    return this.request('/api/seo-pages', { method: 'POST', body: data })
+  }
+
+  async updateSeoPage(id, data) {
+    return this.request(`/api/seo-pages/${id}`, { method: 'PATCH', body: data })
+  }
+
+  async deleteSeoPage(id) {
+    return this.request(`/api/seo-pages/${id}`, { method: 'DELETE' })
+  }
+
+  async uploadSeoImage(id, file) {
+    const formData = new FormData()
+    formData.append('image', file)
+    return this.request(`/api/seo-pages/${id}/upload-image`, {
+      method: 'POST',
+      body: formData,
+      headers: {}
+    })
+  }
+
+  async auditSeoPage(id) {
+    return this.request(`/api/seo-pages/${id}/audit`, { method: 'POST' })
+  }
+
+  async getSeoAnalytics() {
+    return this.request('/api/seo-pages/analytics/summary')
   }
 }
 

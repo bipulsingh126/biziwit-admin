@@ -36,9 +36,9 @@ const Login = () => {
         {/* Logo and Title */}
         <div className="text-center mb-8">
           <div className="w-12 h-12 bg-blue-600 rounded flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-xl">A</span>
+            <span className="text-white font-bold text-xl">B</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Admin Panel</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">BiziWit Admin</h1>
           <p className="text-gray-600">Please sign in to continue</p>
         </div>
 
@@ -90,10 +90,17 @@ const Login = () => {
           </button>
         </form>
 
+        {/* Default Credentials Info */}
+        <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+          <p className="font-medium text-blue-800 mb-1">Default Credentials:</p>
+          <p className="text-blue-700">Email: admin@example.com</p>
+          <p className="text-blue-700">Password: Admin@123</p>
+        </div>
+
         {/* Footer */}
-        <div className="mt-6 text-center">
+        <div className="mt-4 text-center">
           <p className="text-xs text-gray-500">
-            © 2024 Admin Panel
+            © 2024 BiziWit Admin Panel
           </p>
         </div>
       </div>

@@ -1,29 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-
-const STORAGE_KEY = 'megatrend_submissions'
+import api from '../utils/api'
 
 const MegatrendDetail = () => {
   const { id } = useParams()
   const navigate = useNavigate()
 
-  // In a real app this would come from a store/API. For demo, reuse a tiny mock here.
-  const [items] = useState([
-    {
-      id: 1,
-      title: 'AI Everywhere',
-      summary: 'How AI permeates products, workflows, and industries.',
-      content: '<p>AI is reshaping every industry...</p>',
-    },
-    {
-      id: 2,
-      title: 'Sustainable Tech',
-      summary: 'Green software, low-carbon infra, and circular devices.',
-      content: '<p>Sustainability is now a core requirement...</p>',
-    },
-  ])
-
-  const item = useMemo(() => items.find(i => String(i.id) === String(id)), [items, id])
+  const [item, setItem] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   const [modalOpen, setModalOpen] = useState(false)
   const [name, setName] = useState('')
@@ -32,13 +17,25 @@ const MegatrendDetail = () => {
   const [role, setRole] = useState('')
   const [agree, setAgree] = useState(false)
   const [errors, setErrors] = useState({})
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (!item) {
-      // If not found, go back to list
-      navigate('/megatrends')
+    loadMegatrend()
+  }, [id])
+
+  const loadMegatrend = async () => {
+    try {
+      setLoading(true)
+      const result = await api.getMegatrend(id)
+      setItem(result)
+    } catch (err) {
+      setError(err.message)
+      // If not found, go back to list after a delay
+      setTimeout(() => navigate('/admin/megatrends'), 2000)
+    } finally {
+      setLoading(false)
     }
-  }, [item, navigate])
+  }
 
   const validate = () => {
     const e = {}
@@ -51,13 +48,12 @@ const MegatrendDetail = () => {
     return Object.keys(e).length === 0
   }
 
-  const storeSubmission = (record) => {
+  const submitWhitepaperRequest = async (requestData) => {
     try {
-      const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-      existing.push(record)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing))
+      await api.requestWhitepaper(id, requestData)
     } catch (err) {
-      console.error('Failed to store submission', err)
+      console.error('Failed to submit whitepaper request:', err)
+      throw err
     }
   }
 
@@ -74,20 +70,60 @@ const MegatrendDetail = () => {
     URL.revokeObjectURL(url)
   }
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault()
     if (!validate()) return
-    const rec = {
-      id: Date.now(),
-      megatrendId: item.id,
-      megatrendTitle: item.title,
-      name, email, company, role,
-      agreed: agree,
-      timestamp: new Date().toISOString(),
+    
+    setSubmitting(true)
+    try {
+      const requestData = {
+        name: name.trim(),
+        email: email.trim(),
+        company: company.trim(),
+        role: role.trim()
+      }
+      
+      await submitWhitepaperRequest(requestData)
+      setModalOpen(false)
+      triggerDownload()
+      
+      // Reset form
+      setName('')
+      setEmail('')
+      setCompany('')
+      setRole('')
+      setAgree(false)
+    } catch (err) {
+      setErrors({ submit: err.message || 'Failed to submit request. Please try again.' })
+    } finally {
+      setSubmitting(false)
     }
-    storeSubmission(rec)
-    setModalOpen(false)
-    triggerDownload()
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="max-w-3xl mx-auto text-center">
+          <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading megatrend...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="max-w-3xl mx-auto text-center">
+          <div className="bg-red-50 border border-red-200 rounded p-4 text-red-700 mb-4">
+            Error: {error}
+          </div>
+          <button onClick={() => navigate('/admin/megatrends')} className="text-blue-600 hover:text-blue-800">
+            ← Back to Megatrends
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (!item) return null
@@ -95,7 +131,7 @@ const MegatrendDetail = () => {
   return (
     <div className="p-6">
       <div className="max-w-3xl mx-auto">
-        <button onClick={() => navigate('/megatrends')} className="text-sm text-gray-600 hover:text-gray-800">← Back to Megatrends</button>
+        <button onClick={() => navigate('/admin/megatrends')} className="text-sm text-gray-600 hover:text-gray-800">← Back to Megatrends</button>
         <h1 className="text-3xl font-bold mt-2">{item.title}</h1>
         <p className="text-gray-600 mt-2">{item.summary}</p>
 
@@ -142,10 +178,18 @@ const MegatrendDetail = () => {
                   I agree to be contacted about related products and services.
                 </label>
                 {errors.agree && <p className="text-xs text-red-600">{errors.agree}</p>}
+                
+                {errors.submit && (
+                  <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm">
+                    {errors.submit}
+                  </div>
+                )}
 
                 <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={()=>setModalOpen(false)} className="px-4 py-2 border rounded">Cancel</button>
-                  <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">Get Whitepaper</button>
+                  <button type="button" onClick={()=>setModalOpen(false)} className="px-4 py-2 border rounded" disabled={submitting}>Cancel</button>
+                  <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50" disabled={submitting}>
+                    {submitting ? 'Submitting...' : 'Get Whitepaper'}
+                  </button>
                 </div>
               </form>
             </div>

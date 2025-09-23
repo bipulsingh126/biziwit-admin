@@ -1,17 +1,19 @@
 import { useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import ErrorBoundary from './components/ErrorBoundary'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import Dashboard from './components/Dashboard'
 import Users from './components/Users'
 import Analytics from './components/Analytics'
 import Reports from './components/Reports'
+import ReportCreate from './components/ReportCreate'
+import SEOManagement from './components/SEOManagement'
 import Blog from './components/Blog'
 import News from './components/News'
 import Megatrends from './components/Megatrends'
 import MegatrendDetail from './components/MegatrendDetail'
-import CustomReportRequestForm from './components/CustomReportRequestForm'
 import CustomReportRequests from './components/CustomReportRequests'
 import Login from './components/Login'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -36,10 +38,6 @@ const AppContent = () => {
   }
 
   if (!user) {
-    // Public route: allow access to request-report without login
-    if (location.pathname === '/request-report') {
-      return <CustomReportRequestForm />
-    }
     return <Login />
   }
 
@@ -54,8 +52,6 @@ const AppContent = () => {
           <main className="flex-1 overflow-y-auto bg-gray-50">
             <div className="max-w-7xl mx-auto">
               <Routes>
-                {/* Public route is also available while authenticated */}
-                <Route path="/request-report" element={<CustomReportRequestForm />} />
                 <Route path="/" element={<Navigate to={user?.role === 'admin' ? '/dashboard' : '/reports'} replace />} />
                 <Route 
                   path="/dashboard" 
@@ -98,6 +94,30 @@ const AppContent = () => {
                   } 
                 />
                 <Route 
+                  path="/reports/create" 
+                  element={
+                    <ProtectedRoute route="/reports">
+                      <ReportCreate />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/reports/:id/edit" 
+                  element={
+                    <ProtectedRoute route="/reports">
+                      <ReportCreate />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/seo-management" 
+                  element={
+                    <ProtectedRoute route="/seo-management">
+                      <SEOManagement />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
                   path="/blog" 
                   element={
                     <ProtectedRoute route="/blog">
@@ -130,7 +150,7 @@ const AppContent = () => {
                   } 
                 />
                 <Route 
-                  path="/megatrends" 
+                  path="/admin/megatrends" 
                   element={
                     <ProtectedRoute route="/megatrends">
                       <Megatrends />
@@ -138,7 +158,7 @@ const AppContent = () => {
                   } 
                 />
                 <Route 
-                  path="/megatrends/:id" 
+                  path="/admin/megatrends/:id" 
                   element={
                     <ProtectedRoute route="/megatrends">
                       <MegatrendDetail />
@@ -146,7 +166,7 @@ const AppContent = () => {
                   } 
                 />
                 <Route 
-                  path="/custom-reports" 
+                  path="/admin/custom-report-requests" 
                   element={
                     <ProtectedRoute route="/custom-reports">
                       <CustomReportRequests />
@@ -164,11 +184,13 @@ const AppContent = () => {
 
 function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </Router>
+    </ErrorBoundary>
   )
 }
 

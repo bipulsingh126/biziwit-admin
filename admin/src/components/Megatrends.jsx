@@ -9,30 +9,7 @@ const Megatrends = () => {
   const [megatrends, setMegatrends] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [items, setItems] = useState([
-    {
-      id: 1,
-      title: 'AI Everywhere',
-      slug: 'ai-everywhere',
-      summary: 'How AI permeates products, workflows, and industries.',
-      status: 'published',
-      publishDate: '2025-08-01',
-      tags: ['ai', 'automation'],
-      hero: '',
-      content: '<p>AI is reshaping every industry...</p>'
-    },
-    {
-      id: 2,
-      title: 'Sustainable Tech',
-      slug: 'sustainable-tech',
-      summary: 'Green software, low-carbon infra, and circular devices.',
-      status: 'draft',
-      publishDate: '2025-09-10',
-      tags: ['sustainability', 'green'],
-      hero: '',
-      content: '<p>Sustainability is now a core requirement...</p>'
-    }
-  ])
+  const [uploading, setUploading] = useState(false)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -47,6 +24,7 @@ const Megatrends = () => {
   const [tags, setTags] = useState([])
   const [tagInput, setTagInput] = useState('')
   const [hero, setHero] = useState('')
+  const [heroFile, setHeroFile] = useState(null)
   const [content, setContent] = useState('')
 
   useEffect(() => {
@@ -74,8 +52,7 @@ const Megatrends = () => {
     }
   }
 
-  const filteredMegatrends = megatrends
-  const filtered = items.filter(i =>
+  const filteredMegatrends = megatrends.filter(i =>
     `${i.title} ${i.summary} ${(i.tags||[]).join(' ')}`.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
@@ -89,19 +66,20 @@ const Megatrends = () => {
     setTags([])
     setTagInput('')
     setHero('')
+    setHeroFile(null)
     setContent('')
     setModalOpen(true)
   }
 
   const openEdit = (it) => {
-    setEditingId(it.id)
-    setTitle(it.title)
-    setSlug(it.slug)
-    setSummary(it.summary)
-    setStatus(it.status)
-    setPublishDate(it.publishDate)
+    setEditingId(it._id)
+    setTitle(it.title || '')
+    setSlug(it.slug || '')
+    setSummary(it.summary || '')
+    setStatus(it.status || 'draft')
+    setPublishDate(it.publishDate || new Date().toISOString().slice(0,10))
     setTags(it.tags || [])
-    setHero(it.hero || '')
+    setHero(it.heroImage?.url || '')
     setContent(it.content || '')
     setModalOpen(true)
   }
@@ -109,6 +87,18 @@ const Megatrends = () => {
   const onImageChange = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
+    
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file')
+      return
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image file size must be less than 5MB')
+      return
+    }
+    
+    setHeroFile(file)
     const reader = new FileReader()
     reader.onload = () => setHero(reader.result)
     reader.readAsDataURL(file)
@@ -127,16 +117,43 @@ const Megatrends = () => {
     setContent(editorRef.current?.innerHTML || '')
   }
 
-  const save = () => {
-    const id = editingId ?? Math.max(0, ...items.map(p => p.id)) + 1
-    const slugVal = (slug || title.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,''))
-    const rec = { id, title, slug: slugVal, summary, status, publishDate, tags, hero, content }
-    if (editingId) setItems(items.map(p => p.id === editingId ? rec : p))
-    else setItems([rec, ...items])
-    setModalOpen(false)
+  const save = async () => {
+    try {
+      setUploading(true)
+      const slugVal = slug || title.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'')
+      const megatrendData = {
+        title, slug: slugVal, summary, status, publishDate, tags, content
+      }
+      
+      let savedMegatrend
+      if (editingId) {
+        savedMegatrend = await api.updateMegatrend(editingId, megatrendData)
+      } else {
+        savedMegatrend = await api.createMegatrend(megatrendData)
+      }
+      
+      if (heroFile && savedMegatrend._id) {
+        await api.uploadMegatrendHero(savedMegatrend._id, heroFile, title)
+      }
+      
+      setModalOpen(false)
+      loadMegatrends()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setUploading(false)
+    }
   }
 
-  const del = (id) => setItems(items.filter(p => p.id !== id))
+  const del = async (id) => {
+    if (!confirm('Are you sure you want to delete this megatrend?')) return
+    try {
+      await api.deleteMegatrend(id)
+      setMegatrends(prev => prev.filter(m => m._id !== id))
+    } catch (err) {
+      setError(err.message)
+    }
+  }
 
   return (
     <div className="p-6">
@@ -145,14 +162,38 @@ const Megatrends = () => {
         <button onClick={openNew} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">New Megatrend</button>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 flex gap-4">
         <input
           value={searchTerm}
           onChange={e=>setSearchTerm(e.target.value)}
           placeholder="Search megatrends..."
-          className="w-full max-w-md px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 max-w-md px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-2 border rounded"
+        >
+          <option value="all">All Status</option>
+          <option value="draft">Draft</option>
+          <option value="published">Published</option>
+          <option value="scheduled">Scheduled</option>
+        </select>
       </div>
+
+      {loading && (
+        <div className="text-center py-8">
+          <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading megatrends...</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded p-4 text-red-700 mb-4">
+          Error: {error}
+          <button onClick={loadMegatrends} className="ml-4 px-3 py-1 bg-red-600 text-white rounded text-sm">Retry</button>
+        </div>
+      )}
 
       <div className="grid gap-4">
         {filteredMegatrends.map(it => (
@@ -170,9 +211,9 @@ const Megatrends = () => {
             <div className="flex justify-between items-center text-sm text-gray-500">
               <span>{it.publishDate}</span>
               <div className="space-x-2">
-                <Link to={`/megatrends/${it.id}`} className="text-indigo-600 hover:text-indigo-800">Open</Link>
+                <Link to={`/admin/megatrends/${it._id}`} className="text-indigo-600 hover:text-indigo-800">Open</Link>
                 <button onClick={()=>openEdit(it)} className="text-blue-600 hover:text-blue-800">Edit</button>
-                <button onClick={()=>del(it.id)} className="text-red-600 hover:text-red-800">Delete</button>
+                <button onClick={()=>del(it._id)} className="text-red-600 hover:text-red-800">Delete</button>
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -222,8 +263,23 @@ const Megatrends = () => {
 
               <div>
                 <label className="block text-sm font-medium mb-1">Hero Image</label>
-                <input type="file" accept="image/*" onChange={onImageChange} />
-                {hero && <img src={hero} alt="hero" className="mt-2 h-32 object-cover rounded border" />}
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={onImageChange}
+                  className="w-full px-3 py-2 border rounded"
+                />
+                {hero && (
+                  <div className="mt-2">
+                    <img src={hero} alt="hero" className="h-32 object-cover rounded border" />
+                    <button 
+                      onClick={() => {setHero(''); setHeroFile(null)}}
+                      className="mt-1 text-sm text-red-600 hover:text-red-800"
+                    >
+                      Remove image
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -259,8 +315,14 @@ const Megatrends = () => {
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <button onClick={()=>setModalOpen(false)} className="px-4 py-2 border rounded">Cancel</button>
-                <button onClick={save} className="px-4 py-2 bg-blue-600 text-white rounded">Save</button>
+                <button onClick={()=>setModalOpen(false)} className="px-4 py-2 border rounded" disabled={uploading}>Cancel</button>
+                <button 
+                  onClick={save} 
+                  className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+                  disabled={uploading}
+                >
+                  {uploading ? 'Saving...' : 'Save'}
+                </button>
               </div>
             </div>
           </div>

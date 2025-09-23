@@ -1,35 +1,12 @@
 import { useRef, useState, useEffect } from 'react'
+import api from '../utils/api'
 
 const News = () => {
   const [searchTerm, setSearchTerm] = useState('')
-  const [articles, setArticles] = useState([
-    {
-      id: 1,
-      title: 'Company Announces New Product Launch',
-      excerpt: 'We are excited to announce the launch of our latest product that will revolutionize the industry.',
-      author: 'Marketing Team',
-      status: 'published',
-      publishDate: '2024-01-15',
-      category: 'Product News',
-      tags: ['product','launch'],
-      cover: '',
-      content: '<p>Launching soon!</p>',
-      seo: { title: 'Product Launch', description: 'Announcing new product', keywords: 'launch,product' }
-    },
-    {
-      id: 2,
-      title: 'Q4 Financial Results Released',
-      excerpt: 'Our Q4 financial results show strong growth across all business segments.',
-      author: 'Finance Team',
-      status: 'draft',
-      publishDate: '2024-01-12',
-      category: 'Financial News',
-      tags: ['finance','results'],
-      cover: '',
-      content: '<p>Strong performance.</p>',
-      seo: { title: 'Q4 Results', description: 'Quarter highlights', keywords: 'finance,q4' }
-    }
-  ])
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [articles, setArticles] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -45,10 +22,41 @@ const News = () => {
   const [tags, setTags] = useState([])
   const [tagInput, setTagInput] = useState('')
   const [cover, setCover] = useState('')
+  const [coverFile, setCoverFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
   const [seoTitle, setSeoTitle] = useState('')
   const [seoDescription, setSeoDescription] = useState('')
   const [seoKeywords, setSeoKeywords] = useState('')
   const [content, setContent] = useState('')
+
+  useEffect(() => {
+    loadArticles()
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadArticles()
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchTerm, statusFilter])
+
+  const loadArticles = async () => {
+    try {
+      setLoading(true)
+      const params = { q: searchTerm, type: 'news' }
+      if (statusFilter !== 'all') params.status = statusFilter
+      console.log('Loading news articles with params:', params)
+      const result = await api.getPosts(params)
+      console.log('API response:', result)
+      setArticles(result.items || [])
+      console.log('Articles set:', result.items || [])
+    } catch (err) {
+      console.error('Error loading articles:', err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const openNew = () => {
     setEditingId(null)
@@ -61,6 +69,7 @@ const News = () => {
     setTags([])
     setTagInput('')
     setCover('')
+    setCoverFile(null)
     setSeoTitle('')
     setSeoDescription('')
     setSeoKeywords('')
@@ -69,18 +78,18 @@ const News = () => {
   }
 
   const openEdit = (a) => {
-    setEditingId(a.id)
-    setTitle(a.title)
-    setExcerpt(a.excerpt)
-    setAuthor(a.author)
-    setCategory(a.category)
-    setStatus(a.status)
-    setPublishDate(a.publishDate)
+    setEditingId(a._id)
+    setTitle(a.title || '')
+    setExcerpt(a.excerpt || '')
+    setAuthor(a.author || 'Team')
+    setCategory(a.category || 'General')
+    setStatus(a.status || 'draft')
+    setPublishDate(a.publishDate || new Date().toISOString().slice(0,10))
     setTags(a.tags || [])
-    setCover(a.cover || '')
-    setSeoTitle(a.seo?.title || '')
-    setSeoDescription(a.seo?.description || '')
-    setSeoKeywords(a.seo?.keywords || '')
+    setCover(a.coverImage?.url || '')
+    setSeoTitle(a.metaTitle || '')
+    setSeoDescription(a.metaDescription || '')
+    setSeoKeywords(a.metaKeywords || '')
     setContent(a.content || '')
     setModalOpen(true)
   }
@@ -88,6 +97,18 @@ const News = () => {
   const onImageChange = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
+    
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file')
+      return
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image file size must be less than 5MB')
+      return
+    }
+    
+    setCoverFile(file)
     const reader = new FileReader()
     reader.onload = () => setCover(reader.result)
     reader.readAsDataURL(file)
@@ -107,22 +128,51 @@ const News = () => {
     setContent(editorRef.current?.innerHTML || '')
   }
 
-  const saveArticle = () => {
-    const article = {
-      id: editingId ?? Math.max(0, ...articles.map(p => p.id)) + 1,
-      title, excerpt, author, category, status, publishDate,
-      tags, cover, content,
-      seo: { title: seoTitle, description: seoDescription, keywords: seoKeywords }
+  const saveArticle = async () => {
+    try {
+      setUploading(true)
+      const articleData = {
+        title, excerpt, author, category, status, publishDate,
+        tags, content, type: 'news',
+        metaTitle: seoTitle,
+        metaDescription: seoDescription,
+        metaKeywords: seoKeywords
+      }
+      
+      console.log('Saving article data:', articleData)
+      
+      let savedArticle
+      if (editingId) {
+        savedArticle = await api.updatePost(editingId, articleData)
+      } else {
+        savedArticle = await api.createPost(articleData)
+      }
+      
+      console.log('Saved article:', savedArticle)
+      
+      if (coverFile && savedArticle._id) {
+        await api.uploadPostCover(savedArticle._id, coverFile, title)
+      }
+      
+      setModalOpen(false)
+      loadArticles()
+    } catch (err) {
+      console.error('Error saving article:', err)
+      setError(err.message)
+    } finally {
+      setUploading(false)
     }
-    if (editingId) {
-      setArticles(articles.map(p => p.id === editingId ? article : p))
-    } else {
-      setArticles([article, ...articles])
-    }
-    setModalOpen(false)
   }
 
-  const deleteArticle = (id) => setArticles(articles.filter(p => p.id !== id))
+  const deleteArticle = async (id) => {
+    if (!confirm('Are you sure you want to delete this article?')) return
+    try {
+      await api.deletePost(id)
+      setArticles(prev => prev.filter(p => p._id !== id))
+    } catch (err) {
+      setError(err.message)
+    }
+  }
 
   const filteredArticles = articles.filter(article =>
     `${article.title} ${article.excerpt} ${(article.tags||[]).join(' ')}`.toLowerCase().includes(searchTerm.toLowerCase())
@@ -137,19 +187,44 @@ const News = () => {
         </button>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 flex gap-4">
         <input
           type="text"
           placeholder="Search articles..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full max-w-md px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 max-w-md px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-2 border rounded"
+        >
+          <option value="all">All Status</option>
+          <option value="draft">Draft</option>
+          <option value="published">Published</option>
+          <option value="scheduled">Scheduled</option>
+        </select>
       </div>
 
+      {loading && (
+        <div className="text-center py-8">
+          <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading articles...</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded p-4 text-red-700 mb-4">
+          Error: {error}
+          <button onClick={loadArticles} className="ml-4 px-3 py-1 bg-red-600 text-white rounded text-sm">Retry</button>
+        </div>
+      )}
+
+
       <div className="grid gap-4">
-        {filteredArticles.map((article) => (
-          <div key={article.id} className="bg-white border rounded p-4">
+        {articles.map((article) => (
+          <div key={article._id} className="bg-white border rounded p-4">
             <div className="flex justify-between items-start mb-2">
               <h3 className="text-lg font-semibold">{article.title}</h3>
               <span className={`px-2 py-1 text-xs rounded ${
@@ -165,7 +240,7 @@ const News = () => {
               <span>By {article.author} • {article.category} • {article.publishDate}</span>
               <div className="space-x-2">
                 <button onClick={() => openEdit(article)} className="text-blue-600 hover:text-blue-800">Edit</button>
-                <button onClick={() => deleteArticle(article.id)} className="text-red-600 hover:text-red-800">Delete</button>
+                <button onClick={() => deleteArticle(article._id)} className="text-red-600 hover:text-red-800">Delete</button>
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -219,8 +294,23 @@ const News = () => {
 
               <div>
                 <label className="block text-sm font-medium mb-1">Cover Image</label>
-                <input type="file" accept="image/*" onChange={onImageChange} />
-                {cover && <img src={cover} alt="cover" className="mt-2 h-32 object-cover rounded border" />}
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={onImageChange}
+                  className="w-full px-3 py-2 border rounded"
+                />
+                {cover && (
+                  <div className="mt-2">
+                    <img src={cover} alt="cover" className="h-32 object-cover rounded border" />
+                    <button 
+                      onClick={() => {setCover(''); setCoverFile(null)}}
+                      className="mt-1 text-sm text-red-600 hover:text-red-800"
+                    >
+                      Remove image
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -271,8 +361,14 @@ const News = () => {
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <button onClick={() => setModalOpen(false)} className="px-4 py-2 border rounded">Cancel</button>
-                <button onClick={saveArticle} className="px-4 py-2 bg-blue-600 text-white rounded">Save</button>
+                <button onClick={() => setModalOpen(false)} className="px-4 py-2 border rounded" disabled={uploading}>Cancel</button>
+                <button 
+                  onClick={saveArticle} 
+                  className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+                  disabled={uploading}
+                >
+                  {uploading ? 'Saving...' : 'Save'}
+                </button>
               </div>
             </div>
           </div>

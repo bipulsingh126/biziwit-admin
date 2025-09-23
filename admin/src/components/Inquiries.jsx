@@ -34,14 +34,25 @@ const Inquiries = () => {
     }
   }
 
-  const filteredInquiries = inquiries.filter(inquiry => {
-    const matchText = [inquiry.id, inquiry.name, inquiry.email, inquiry.subject, inquiry.message].some(v => v.toLowerCase().includes(searchTerm.toLowerCase()))
-    const matchStatus = statusFilter === 'all' || inquiry.status === statusFilter
-    return matchText && matchStatus
-  })
+  const filteredInquiries = inquiries
 
-  const markResolved = (id) => setInquiries(prev => prev.map(i => i.id === id ? { ...i, status: 'resolved' } : i))
-  const markOpen = (id) => setInquiries(prev => prev.map(i => i.id === id ? { ...i, status: 'open' } : i))
+  const markResolved = async (id) => {
+    try {
+      await api.updateInquiry(id, { status: 'resolved' })
+      setInquiries(prev => prev.map(i => i._id === id ? { ...i, status: 'resolved' } : i))
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const markOpen = async (id) => {
+    try {
+      await api.updateInquiry(id, { status: 'open' })
+      setInquiries(prev => prev.map(i => i._id === id ? { ...i, status: 'open' } : i))
+    } catch (err) {
+      setError(err.message)
+    }
+  }
 
   return (
     <div className="p-6">
@@ -62,6 +73,20 @@ const Inquiries = () => {
         </div>
       </div>
 
+      {loading && (
+        <div className="text-center py-8">
+          <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading inquiries...</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded p-4 text-red-700 mb-4">
+          Error: {error}
+          <button onClick={loadInquiries} className="ml-4 px-3 py-1 bg-red-600 text-white rounded text-sm">Retry</button>
+        </div>
+      )}
+
       <div className="bg-white border rounded divide-y">
         {filteredInquiries.map(inquiry => (
           <div key={inquiry._id} className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -75,18 +100,19 @@ const Inquiries = () => {
               {inquiry.status === 'open' ? (
                 <button onClick={() => markResolved(inquiry._id)} className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700">Mark Resolved</button>
               ) : (
-                <button onClick={() => markOpen(i.id)} className="px-2 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700">Reopen</button>
+                <button onClick={() => markOpen(inquiry._id)} className="px-2 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700">Reopen</button>
               )}
-              <a href={`mailto:${i.email}`} className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 inline-flex items-center"><Mail className="w-3.5 h-3.5 mr-1"/>Reply</a>
+              <a href={`mailto:${inquiry.email}`} className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 inline-flex items-center"><Mail className="w-3.5 h-3.5 mr-1"/>Reply</a>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="mt-8 bg-blue-50 border border-blue-100 text-blue-800 rounded p-4 text-sm">
-        <p className="font-semibold mb-1">Frontend-only note</p>
-        <p>Hook this into your backend to persist inquiries and send email notifications.</p>
-      </div>
+      {filteredInquiries.length === 0 && !loading && (
+        <div className="text-center py-8 text-gray-500">
+          <p>No inquiries found</p>
+        </div>
+      )}
     </div>
   )
 }

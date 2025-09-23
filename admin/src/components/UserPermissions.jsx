@@ -2,17 +2,18 @@ import { useState, useEffect } from 'react'
 import { Check, X, Save, User } from 'lucide-react'
 
 const UserPermissions = ({ user, onSave, onCancel }) => {
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [role, setRole] = useState('editor')
   const [permissions, setPermissions] = useState({
     reports: { view: false, create: false, edit: false, delete: false },
-    posts: { view: false, create: false, edit: false, delete: false }
+    posts: { view: false, create: false, edit: false, delete: false },
+    users: { view: false, create: false, edit: false, delete: false }
   })
 
   useEffect(() => {
     if (user?.permissions) {
       setPermissions(user.permissions)
     }
-    setIsAdmin(user?.role === 'admin')
+    setRole(user?.role || 'editor')
   }, [user])
 
   const handlePermissionChange = (module, action, value) => {
@@ -28,8 +29,8 @@ const UserPermissions = ({ user, onSave, onCancel }) => {
   const handleSave = () => {
     const updatedUser = {
       ...user,
-      role: isAdmin ? 'admin' : 'editor',
-      permissions: isAdmin ? {} : permissions
+      role: role,
+      permissions: (role === 'super_admin' || role === 'admin') ? {} : permissions
     }
     onSave(updatedUser)
   }
@@ -43,6 +44,11 @@ const UserPermissions = ({ user, onSave, onCancel }) => {
     {
       name: 'posts',
       label: 'Blog & News',
+      actions: ['view', 'create', 'edit', 'delete']
+    },
+    {
+      name: 'users',
+      label: 'User Management',
       actions: ['view', 'create', 'edit', 'delete']
     }
   ]
@@ -76,27 +82,56 @@ const UserPermissions = ({ user, onSave, onCancel }) => {
           </div>
         </div>
 
-        {/* Admin Role Toggle */}
+        {/* Role Selection */}
         <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isAdmin}
-              onChange={(e) => setIsAdmin(e.target.checked)}
-              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-            />
-            <div>
-              <span className="text-lg font-semibold text-blue-800">
-                Admin User
-              </span>
-              <p className="text-sm text-blue-600">
-                Admin users have full access to all features. Editors can only manage reports and blog/news.
-              </p>
-            </div>
-          </label>
+          <h3 className="text-lg font-semibold text-blue-800 mb-3">User Role</h3>
+          <div className="space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="role"
+                value="editor"
+                checked={role === 'editor'}
+                onChange={(e) => setRole(e.target.value)}
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+              />
+              <div>
+                <span className="font-medium text-gray-800">Editor</span>
+                <p className="text-sm text-gray-600">Custom permissions for specific modules</p>
+              </div>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="role"
+                value="admin"
+                checked={role === 'admin'}
+                onChange={(e) => setRole(e.target.value)}
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+              />
+              <div>
+                <span className="font-medium text-gray-800">Admin</span>
+                <p className="text-sm text-gray-600">Full access to content management (reports, posts) but no user management</p>
+              </div>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="role"
+                value="super_admin"
+                checked={role === 'super_admin'}
+                onChange={(e) => setRole(e.target.value)}
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+              />
+              <div>
+                <span className="font-medium text-gray-800">Super Admin</span>
+                <p className="text-sm text-gray-600">Full access to all features including user management</p>
+              </div>
+            </label>
+          </div>
         </div>
 
-        <div className={`space-y-6 ${isAdmin ? 'opacity-50 pointer-events-none' : ''}`}>
+        <div className={`space-y-6 ${(role === 'admin' || role === 'super_admin') ? 'opacity-50 pointer-events-none' : ''}`}>
           {permissionModules.map((module) => (
             <div key={module.name} className="border rounded-lg p-4">
               <h3 className="font-semibold text-lg mb-3 text-gray-800">
@@ -126,7 +161,11 @@ const UserPermissions = ({ user, onSave, onCancel }) => {
 
         <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded">
           <p className="text-sm text-yellow-800">
-            <strong>Note:</strong> {isAdmin ? 'Admin users automatically have all permissions. Individual permissions are disabled.' : 'Editor users can only access Reports and Blog/News management.'}
+            <strong>Note:</strong> {
+              role === 'super_admin' ? 'Super Admin users have full access to all features including user management.' :
+              role === 'admin' ? 'Admin users have full access to content management but cannot manage users or permissions.' :
+              'Editor users can access modules based on assigned permissions below.'
+            }
           </p>
         </div>
       </div>

@@ -10,7 +10,7 @@ const toCSV = (rows) => {
   const lines = [headers.join(',')]
   rows.forEach(r => {
     lines.push([
-      r.id, r.createdAt, r.name, r.email, r.company, r.industry, r.requirements, r.deadline || '', r.status, r.notes || ''
+      r._id, r.createdAt, r.name, r.email, r.company, r.industry, r.requirements, r.deadline || '', r.status, r.notes || ''
     ].map(v => `"${escape(v)}"`).join(','))
   })
   return lines.join('\n')
@@ -28,11 +28,20 @@ const CustomReportRequests = () => {
   }, [])
 
   useEffect(() => {
+    if (searchTerm === '') {
+      loadRequests()
+      return
+    }
+    
     const timer = setTimeout(() => {
       loadRequests()
-    }, 300)
+    }, 500)
     return () => clearTimeout(timer)
-  }, [searchTerm, statusFilter])
+  }, [searchTerm])
+
+  useEffect(() => {
+    loadRequests()
+  }, [statusFilter])
 
   const loadRequests = async () => {
     try {
@@ -62,17 +71,20 @@ const CustomReportRequests = () => {
   const updateNotes = async (id, notes) => {
     try {
       await api.updateCustomReportRequest(id, { notes })
-      loadRequests()
+      // Don't reload all requests for notes update - just update locally
+      setRequests(prev => prev.map(req => 
+        req._id === id ? { ...req, notes } : req
+      ))
     } catch (err) {
       setError(err.message)
     }
   }
 
   const deleteRequest = async (id) => {
-    if (!confirm('Delete this request?')) return
+    if (!confirm('Are you sure you want to delete this request? This action cannot be undone.')) return
     try {
       await api.deleteCustomReportRequest(id)
-      loadRequests()
+      setRequests(prev => prev.filter(req => req._id !== id))
     } catch (err) {
       setError(err.message)
     }
@@ -156,9 +168,18 @@ const CustomReportRequests = () => {
                 <a href={`mailto:${r.email}?subject=Re:%20Custom%20Report%20Request&body=Hi%20${encodeURIComponent(r.name)},%0D%0A`} className="text-blue-600 hover:text-blue-800 text-sm">Reply via Email</a>
               </div>
             </div>
-            <div className="mt-3">
-              <label className="block text-sm font-medium mb-1">Internal Notes</label>
-              <textarea value={r.notes || ''} onChange={e=>updateNotes(r._id, e.target.value)} rows={2} className="w-full px-3 py-2 border rounded" />
+            <div className="mt-3 flex items-start gap-2">
+              <div className="flex-1">
+                <label className="block text-sm font-medium mb-1">Internal Notes</label>
+                <textarea value={r.notes || ''} onChange={e=>updateNotes(r._id, e.target.value)} rows={2} className="w-full px-3 py-2 border rounded" placeholder="Add internal notes..." />
+              </div>
+              <button 
+                onClick={() => deleteRequest(r._id)}
+                className="mt-6 p-2 text-red-600 hover:bg-red-50 rounded"
+                title="Delete request"
+              >
+                <Trash2 size={16} />
+              </button>
             </div>
           </div>
         ))}

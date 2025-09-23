@@ -39,12 +39,31 @@ const Newsletter = () => {
     (statusFilter === 'all' || sub.status === statusFilter)
   )
 
-  const addSubscriber = () => {
-    // implement add subscriber logic here
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [newName, setNewName] = useState('')
+
+  const addSubscriber = async () => {
+    if (!newEmail.trim()) return
+    try {
+      await api.addSubscriber({ email: newEmail.trim(), name: newName.trim() || undefined })
+      setNewEmail('')
+      setNewName('')
+      setShowAddModal(false)
+      loadSubscribers()
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
-  const removeSubscriber = (id) => {
-    // implement remove subscriber logic here
+  const removeSubscriber = async (id) => {
+    if (!confirm('Are you sure you want to remove this subscriber?')) return
+    try {
+      await api.removeSubscriber(id)
+      setSubscribers(prev => prev.filter(s => s._id !== id))
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   return (
@@ -57,7 +76,7 @@ const Newsletter = () => {
       <div className="bg-white border rounded p-4 mb-4 grid md:grid-cols-3 gap-3">
         <div className="flex">
           <input value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Search subscribers" className="flex-1 px-3 py-2 border rounded-l focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          <button onClick={addSubscriber} className="px-3 bg-green-600 text-white rounded-r hover:bg-green-700 inline-flex items-center"><UserPlus className="w-4 h-4"/></button>
+          <button onClick={() => setShowAddModal(true)} className="px-3 bg-green-600 text-white rounded-r hover:bg-green-700 inline-flex items-center"><UserPlus className="w-4 h-4"/></button>
         </div>
         <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="all">All</option>
@@ -66,6 +85,20 @@ const Newsletter = () => {
         </select>
         <div className="text-sm text-gray-500 flex items-center">{filteredSubscribers.length} of {subscribers.length} subscribers</div>
       </div>
+
+      {loading && (
+        <div className="text-center py-8">
+          <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading subscribers...</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded p-4 text-red-700 mb-4">
+          Error: {error}
+          <button onClick={loadSubscribers} className="ml-4 px-3 py-1 bg-red-600 text-white rounded text-sm">Retry</button>
+        </div>
+      )}
 
       <div className="bg-white border rounded overflow-x-auto">
         <table className="min-w-full text-sm">
@@ -102,10 +135,49 @@ const Newsletter = () => {
         </table>
       </div>
 
-      <div className="mt-8 bg-blue-50 border border-blue-100 text-blue-800 rounded p-4 text-sm">
-        <p className="font-semibold mb-1">Optional integration</p>
-        <p>Connect Mailchimp or a similar service via their SDK/API to sync subscribers and send campaigns.</p>
-      </div>
+      {filteredSubscribers.length === 0 && !loading && (
+        <div className="text-center py-8 text-gray-500">
+          <p>No subscribers found</p>
+        </div>
+      )}
+
+      {/* Add Subscriber Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded shadow-lg">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Add Subscriber</h2>
+              <button onClick={() => setShowAddModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Email *</label>
+                <input 
+                  type="email" 
+                  value={newEmail} 
+                  onChange={e => setNewEmail(e.target.value)}
+                  className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="subscriber@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Name (Optional)</label>
+                <input 
+                  type="text" 
+                  value={newName} 
+                  onChange={e => setNewName(e.target.value)}
+                  className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="John Doe"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setShowAddModal(false)} className="px-4 py-2 border rounded">Cancel</button>
+                <button onClick={addSubscriber} className="px-4 py-2 bg-blue-600 text-white rounded" disabled={!newEmail.trim()}>Add Subscriber</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

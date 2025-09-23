@@ -19,11 +19,11 @@ const Dashboard = () => {
       // Simple stats for all users
       const statsData = [
         { name: 'Welcome', value: user?.name || 'User' },
-        { name: 'Role', value: user?.role || 'Unknown' }
+        { name: 'Role', value: user?.role?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown' }
       ]
 
       // Add role-specific stats
-      if (user.role === 'admin') {
+      if (user.role === 'super_admin') {
         try {
           const [users, orders] = await Promise.all([
             api.getUsers({ limit: 1 }),
@@ -31,15 +31,31 @@ const Dashboard = () => {
           ])
           statsData.push(
             { name: 'Total Users', value: users.total || 0 },
-            { name: 'Orders', value: orders.total || 0 }
+            { name: 'Total Orders', value: orders.total || 0 }
+          )
+        } catch (error) {
+          console.error('Super Admin stats error:', error)
+        }
+      } else if (user.role === 'admin') {
+        try {
+          const orders = await api.getOrders({ limit: 1 })
+          statsData.push(
+            { name: 'Total Orders', value: orders.total || 0 },
+            { name: 'Content Access', value: 'Full' }
           )
         } catch (error) {
           console.error('Admin stats error:', error)
         }
       } else if (user.role === 'editor') {
+        const permissions = user.permissions || {}
+        const accessList = []
+        if (permissions.reports?.view) accessList.push('Reports')
+        if (permissions.posts?.view) accessList.push('Blog/News')
+        if (permissions.users?.view) accessList.push('Users')
+        
         statsData.push(
-          { name: 'Reports Access', value: 'Enabled' },
-          { name: 'Blog Access', value: 'Enabled' }
+          { name: 'Access Level', value: 'Editor' },
+          { name: 'Modules', value: accessList.join(', ') || 'None' }
         )
       }
 

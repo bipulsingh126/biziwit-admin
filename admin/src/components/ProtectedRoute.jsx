@@ -22,7 +22,7 @@ const ProtectedRoute = ({ children, requiredRole, route }) => {
             You don't have permission to access this page.
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-500">
-            Current role: <span className="font-semibold capitalize">{user.role}</span>
+            Current role: <span className="font-semibold capitalize">{user.role?.replace('_', ' ')}</span>
           </p>
         </div>
       </div>

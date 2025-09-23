@@ -52,21 +52,25 @@ export const AuthProvider = ({ children }) => {
       // Ignore logout errors
     }
     setUser(null)
+    localStorage.removeItem('token')
     api.setToken(null)
   }
 
   const hasPermission = (module, action) => {
     if (!user) return false
     
-    // Admin has access to everything
-    if (user.role === 'admin') return true
+    // Super Admin has access to everything
+    if (user.role === 'super_admin') return true
     
-    // Editor role: only allow reports and posts (blog/news)
+    // Regular Admin has access to everything except user management
+    if (user.role === 'admin') {
+      if (module === 'users') return false
+      return true
+    }
+    
+    // Editor role: check specific permissions
     if (user.role === 'editor') {
-      if (module === 'reports' || module === 'posts') {
-        return user.permissions?.[module]?.[action] || true // Default true for editor's allowed modules
-      }
-      return false // Deny access to all other modules
+      return user.permissions?.[module]?.[action] || false
     }
     
     return false
@@ -75,13 +79,23 @@ export const AuthProvider = ({ children }) => {
   const canAccessRoute = (route) => {
     if (!user) return false
     
-    // Admin can access all routes
-    if (user.role === 'admin') return true
+    // Super Admin can access all routes
+    if (user.role === 'super_admin') return true
     
-    // Editor role: only allow access to reports, blog, and news
+    // Regular Admin can access all routes except users
+    if (user.role === 'admin') {
+      if (route === '/users') return false
+      return true
+    }
+    
+    // Editor role: check based on permissions
     if (user.role === 'editor') {
-      const allowedRoutes = ['/reports', '/blog', '/news']
-      return allowedRoutes.includes(route)
+      if (route === '/reports' && hasPermission('reports', 'view')) return true
+      if ((route === '/blog' || route === '/news') && hasPermission('posts', 'view')) return true
+      if (route === '/users' && hasPermission('users', 'view')) return true
+      if (route === '/analytics' && hasPermission('analytics', 'view')) return true
+      if (route === '/dashboard') return true
+      return false
     }
     
     return false
@@ -94,6 +108,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     hasPermission,
     canAccessRoute,
+    isSuperAdmin: user?.role === 'super_admin',
     isAdmin: user?.role === 'admin',
     isEditor: user?.role === 'editor'
   }

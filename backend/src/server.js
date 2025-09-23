@@ -19,8 +19,20 @@ import postsRoutes from './routes/posts.js'
 import megatrendsRoutes from './routes/megatrends.js'
 import customReportRequestsRoutes from './routes/customReportRequests.js'
 import usersRoutes from './routes/users.js'
+import analyticsRoutes from './routes/analytics.js'
+import seoPagesRoutes from './routes/seoPages.js'
 
 dotenv.config()
+
+// Validate required environment variables
+const requiredEnvVars = ['JWT_SECRET', 'MONGODB_URI']
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar])
+
+if (missingEnvVars.length > 0) {
+  console.error('Missing required environment variables:', missingEnvVars.join(', '))
+  console.error('Please copy .env.example to .env and configure the required variables')
+  process.exit(1)
+}
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -86,6 +98,8 @@ app.use('/api/posts', postsRoutes)
 app.use('/api/megatrends', megatrendsRoutes)
 app.use('/api/custom-report-requests', customReportRequestsRoutes)
 app.use('/api/users', usersRoutes)
+app.use('/api/analytics', analyticsRoutes)
+app.use('/api/seo-pages', seoPagesRoutes)
 
 // Error handler
 // eslint-disable-next-line no-unused-vars
@@ -95,61 +109,47 @@ app.use((err, req, res, next) => {
 })
 
 // Start
-connectDB().then(() => {
-  // Seed default admin and sub-admin if specified
-  const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env
+connectDB().then(async () => {
+  // Only seed users if no admin users exist in the database
+  const adminCount = await User.countDocuments({ role: { $in: ['admin', 'super_admin'] } })
   
-  // Create main admin
-  if (ADMIN_EMAIL && ADMIN_PASSWORD) {
-    User.findOne({ email: ADMIN_EMAIL.toLowerCase() }).then(async (existing) => {
-      if (!existing) {
+  if (adminCount === 0) {
+    console.log('No admin users found. Seeding default admin users...')
+    
+    // Seed default admin from environment variables
+    const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env
+    if (ADMIN_EMAIL && ADMIN_PASSWORD) {
+      try {
         await User.create({ 
           name: 'Admin', 
           email: ADMIN_EMAIL, 
           password: ADMIN_PASSWORD, 
-          role: 'admin'
+          role: 'super_admin'
         })
         console.log('Seeded default admin user')
+      } catch (err) {
+        console.error('Failed to seed admin user:', err.message)
       }
-    }).catch(() => {})
-  }
+    }
 
-  // Create sub-admin
-  const SUB_ADMIN_EMAIL = 'subadmin@biziwit.com'
-  const SUB_ADMIN_PASSWORD = 'SubAdmin@123'
-  
-  User.findOne({ email: SUB_ADMIN_EMAIL.toLowerCase() }).then(async (existing) => {
-    if (!existing) {
+    // Seed sub-admin only if no admin exists
+    const SUB_ADMIN_EMAIL = 'subadmin@biziwit.com'
+    const SUB_ADMIN_PASSWORD = 'SubAdmin@123'
+    
+    try {
       await User.create({ 
         name: 'Sub Admin', 
         email: SUB_ADMIN_EMAIL, 
         password: SUB_ADMIN_PASSWORD, 
         role: 'admin'
       })
-      console.log('Seeded sub-admin user with full access')
+      console.log('Seeded sub-admin user')
+    } catch (err) {
+      console.error('Failed to seed sub-admin user:', err.message)
     }
-  }).catch(() => {})
-
-  // Create test editor user
-  const EDITOR_EMAIL = 'editor@biziwit.com'
-  const EDITOR_PASSWORD = 'Editor@123'
-  
-  User.findOne({ email: EDITOR_EMAIL.toLowerCase() }).then(async (existing) => {
-    if (!existing) {
-      const editorPermissions = {
-        reports: { view: true, create: true, edit: true, delete: true },
-        posts: { view: true, create: true, edit: true, delete: true }
-      }
-      await User.create({ 
-        name: 'Editor User', 
-        email: EDITOR_EMAIL, 
-        password: EDITOR_PASSWORD, 
-        role: 'editor',
-        permissions: editorPermissions
-      })
-      console.log('Seeded editor user with reports and posts access')
-    }
-  }).catch(() => {})
+  } else {
+    console.log(`Found ${adminCount} admin user(s). Skipping user seeding.`)
+  }
 
   app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`))
 }).catch((err) => {

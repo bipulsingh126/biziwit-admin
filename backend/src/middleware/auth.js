@@ -23,6 +23,12 @@ export const requireRole = (...roles) => (req, res, next) => {
   next()
 }
 
+export const requireSuperAdmin = (req, res, next) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  if (req.user.role !== 'super_admin') return res.status(403).json({ error: 'Super Admin access required' })
+  next()
+}
+
 export const requirePermission = (module, action) => (req, res, next) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
   if (!req.user.hasPermission(module, action)) {

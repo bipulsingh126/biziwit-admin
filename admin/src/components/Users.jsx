@@ -68,13 +68,39 @@ const Users = () => {
 
   const handleSaveNewUser = async () => {
     try {
+      // Validate email format on frontend
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(newUser.email)) {
+        setError('Please enter a valid email address')
+        return
+      }
+
+      // Validate required fields
+      if (!newUser.name.trim()) {
+        setError('Name is required')
+        return
+      }
+
+      if (!selectedUser && !newUser.password) {
+        setError('Password is required for new users')
+        return
+      }
+
       if (selectedUser) {
         await handleUpdateUser()
       } else {
-        await api.createUser(newUser)
+        const userData = {
+          name: newUser.name.trim(),
+          email: newUser.email.toLowerCase().trim(),
+          password: newUser.password,
+          role: newUser.role
+        }
+
+        await api.createUser(userData)
         await loadUsers()
         setShowAddUser(false)
         setNewUser({ name: '', email: '', password: '', role: 'editor' })
+        setError('') // Clear any previous errors
       }
     } catch (err) {
       setError(err.message)
@@ -106,7 +132,24 @@ const Users = () => {
 
   const handleUpdateUser = async () => {
     try {
-      const updateData = { name: newUser.name, email: newUser.email, role: newUser.role }
+      // Validate email format on frontend
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(newUser.email)) {
+        setError('Please enter a valid email address')
+        return
+      }
+
+      // Validate required fields
+      if (!newUser.name.trim()) {
+        setError('Name is required')
+        return
+      }
+
+      const updateData = { 
+        name: newUser.name.trim(), 
+        email: newUser.email.toLowerCase().trim(), 
+        role: newUser.role 
+      }
       if (newUser.password) {
         updateData.password = newUser.password
       }
@@ -115,6 +158,7 @@ const Users = () => {
       setShowAddUser(false)
       setNewUser({ name: '', email: '', password: '', role: 'editor' })
       setSelectedUser(null)
+      setError('') // Clear any previous errors
     } catch (err) {
       setError(err.message)
     }
@@ -240,10 +284,16 @@ const Users = () => {
               </button>
             </div>
 
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name
+                  Name *
                 </label>
                 <input
                   type="text"
@@ -251,32 +301,35 @@ const Users = () => {
                   onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Enter user name"
+                  required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
+                  Email *
                 </label>
                 <input
                   type="email"
                   value={newUser.email}
                   onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter email address"
+                  placeholder="Enter valid email address"
+                  required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
+                  Password {!selectedUser && '*'}
                 </label>
                 <input
                   type="password"
                   value={newUser.password}
                   onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder={selectedUser ? "Leave blank to keep current password" : "Enter password"}
+                  placeholder={selectedUser ? "Leave blank to keep current password" : "Enter secure password"}
+                  required={!selectedUser}
                 />
               </div>
 
@@ -291,7 +344,13 @@ const Users = () => {
                 >
                   <option value="editor">Editor</option>
                   <option value="admin">Admin</option>
+                  <option value="super_admin">Super Admin</option>
                 </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {newUser.role === 'super_admin' && 'Full access to all features including user management'}
+                  {newUser.role === 'admin' && 'Full access to content management, no user management'}
+                  {newUser.role === 'editor' && 'Custom permissions can be set after creation'}
+                </p>
               </div>
             </div>
 

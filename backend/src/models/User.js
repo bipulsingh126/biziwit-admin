@@ -5,7 +5,7 @@ const UserSchema = new mongoose.Schema({
   name: { type: String, trim: true },
   email: { type: String, required: true, unique: true, lowercase: true, index: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ['admin', 'editor'], default: 'editor', index: true },
+  role: { type: String, enum: ['super_admin', 'admin', 'editor'], default: 'editor', index: true },
   permissions: {
     reports: {
       view: { type: Boolean, default: true },
@@ -18,6 +18,12 @@ const UserSchema = new mongoose.Schema({
       create: { type: Boolean, default: true },
       edit: { type: Boolean, default: true },
       delete: { type: Boolean, default: true }
+    },
+    users: {
+      view: { type: Boolean, default: false },
+      create: { type: Boolean, default: false },
+      edit: { type: Boolean, default: false },
+      delete: { type: Boolean, default: false }
     }
   }
 }, { timestamps: true })
@@ -34,10 +40,16 @@ UserSchema.methods.comparePassword = async function (candidate) {
 }
 
 UserSchema.methods.hasPermission = function (module, action) {
-  // Admin has all permissions
-  if (this.role === 'admin') return true
+  // Super Admin has all permissions
+  if (this.role === 'super_admin') return true
   
-  // Check specific permission
+  // Regular Admin has all permissions except user management
+  if (this.role === 'admin') {
+    if (module === 'users') return false
+    return true
+  }
+  
+  // Check specific permission for editors
   return this.permissions?.[module]?.[action] || false
 }
 

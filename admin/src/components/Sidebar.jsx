@@ -11,7 +11,8 @@ import {
   CreditCard,
   Inbox,
   Send,
-  TrendingUp
+  TrendingUp,
+  Search
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -25,10 +26,11 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: 'Orders', href: '/orders', icon: CreditCard },
     { name: 'Reports', href: '/reports', icon: FileText },
+    { name: 'SEO Management', href: '/seo-management', icon: Search },
     { name: 'Blog', href: '/blog', icon: Edit },
     { name: 'News', href: '/news', icon: Newspaper },
-    { name: 'Custom Reports', href: '/custom-reports', icon: FileText },
-    { name: 'Megatrends', href: '/megatrends', icon: TrendingUp },
+    { name: 'Custom Reports', href: '/admin/custom-report-requests', icon: FileText },
+    { name: 'Megatrends', href: '/admin/megatrends', icon: TrendingUp },
     { name: 'Inquiries', href: '/inquiries', icon: Inbox },
     { name: 'Newsletter', href: '/newsletter', icon: Send },
     { name: 'Settings', href: '/settings', icon: Settings },

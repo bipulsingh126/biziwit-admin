@@ -190,6 +190,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         summary: row.summary || row.Summary || '',
         content: row.content || row.Content || '',
         category: row.category || row.Category || '',
+        subCategory: row.subCategory || row.SubCategory || '',
         tags,
         featured: String(row.featured || row.Featured || '').toLowerCase() === 'true',
         popular: String(row.popular || row.Popular || '').toLowerCase() === 'true',
@@ -197,6 +198,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         metaDescription: row.metaDescription || row.MetaDescription || '',
         status: (row.status || row.Status || 'draft').toLowerCase(),
         publishedAt: row.publishedAt ? new Date(row.publishedAt) : undefined,
+        author: row.author || row.Author || '',
       })
     }
     if (!toInsert.length) return res.status(400).json({ error: 'No valid rows found' })

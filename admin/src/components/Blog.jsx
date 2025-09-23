@@ -23,7 +23,7 @@ const Blog = () => {
   const loadPosts = async () => {
     try {
       setLoading(true)
-      const params = { q: searchTerm }
+      const params = { q: searchTerm, type: 'blog' }
       if (statusFilter !== 'all') params.status = statusFilter
       const result = await api.getPosts(params)
       setPosts(result.items || [])
@@ -46,6 +46,8 @@ const Blog = () => {
   const [tags, setTags] = useState([])
   const [tagInput, setTagInput] = useState('')
   const [cover, setCover] = useState('')
+  const [coverFile, setCoverFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
   const [seoTitle, setSeoTitle] = useState('')
   const [seoDescription, setSeoDescription] = useState('')
   const [seoKeywords, setSeoKeywords] = useState('')
@@ -66,6 +68,7 @@ const Blog = () => {
     setTags([])
     setTagInput('')
     setCover('')
+    setCoverFile(null)
     setSeoTitle('')
     setSeoDescription('')
     setSeoKeywords('')
@@ -75,17 +78,17 @@ const Blog = () => {
 
   const openEdit = (post) => {
     setEditingId(post._id)
-    setTitle(post.title)
-    setExcerpt(post.excerpt)
-    setAuthor(post.author)
-    setCategory(post.category)
-    setStatus(post.status)
-    setPublishDate(post.publishDate)
+    setTitle(post.title || '')
+    setExcerpt(post.excerpt || '')
+    setAuthor(post.author || 'Admin')
+    setCategory(post.category || 'General')
+    setStatus(post.status || 'draft')
+    setPublishDate(post.publishDate || new Date().toISOString().slice(0,10))
     setTags(post.tags || [])
-    setCover(post.cover || '')
-    setSeoTitle(post.seo?.title || '')
-    setSeoDescription(post.seo?.description || '')
-    setSeoKeywords(post.seo?.keywords || '')
+    setCover(post.coverImage?.url || '')
+    setSeoTitle(post.metaTitle || '')
+    setSeoDescription(post.metaDescription || '')
+    setSeoKeywords(post.metaKeywords || '')
     setContent(post.content || '')
     setModalOpen(true)
   }
@@ -93,6 +96,22 @@ const Blog = () => {
   const onImageChange = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file')
+      return
+    }
+    
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image file size must be less than 5MB')
+      return
+    }
+    
+    setCoverFile(file)
+    
+    // Show preview
     const reader = new FileReader()
     reader.onload = () => setCover(reader.result)
     reader.readAsDataURL(file)
@@ -112,22 +131,55 @@ const Blog = () => {
     setContent(editorRef.current?.innerHTML || '')
   }
 
-  const savePost = () => {
-    const post = {
-      id: editingId ?? Math.max(0, ...posts.map(p => p._id)) + 1,
-      title, excerpt, author, category, status, publishDate,
-      tags, cover, content,
-      seo: { title: seoTitle, description: seoDescription, keywords: seoKeywords }
+  const savePost = async () => {
+    try {
+      setUploading(true)
+      
+      const postData = {
+        title, 
+        excerpt, 
+        author, 
+        category, 
+        status, 
+        publishDate,
+        tags, 
+        content,
+        type: 'blog',
+        metaTitle: seoTitle,
+        metaDescription: seoDescription,
+        metaKeywords: seoKeywords
+      }
+      
+      let savedPost
+      if (editingId) {
+        savedPost = await api.updatePost(editingId, postData)
+      } else {
+        savedPost = await api.createPost(postData)
+      }
+      
+      // Upload cover image if selected
+      if (coverFile && savedPost._id) {
+        await api.uploadPostCover(savedPost._id, coverFile, title)
+      }
+      
+      setModalOpen(false)
+      loadPosts() // Reload posts from API
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setUploading(false)
     }
-    if (editingId) {
-      setPosts(posts.map(p => p._id === editingId ? post : p))
-    } else {
-      setPosts([post, ...posts])
-    }
-    setModalOpen(false)
   }
 
-  const deletePost = (id) => setPosts(posts.filter(p => p._id !== id))
+  const deletePost = async (id) => {
+    if (!confirm('Are you sure you want to delete this post?')) return
+    try {
+      await api.deletePost(id)
+      setPosts(prev => prev.filter(p => p._id !== id))
+    } catch (err) {
+      setError(err.message)
+    }
+  }
 
   return (
     <div className="p-6">
@@ -138,15 +190,39 @@ const Blog = () => {
         </button>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 flex gap-4">
         <input
           type="text"
           placeholder="Search posts..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full max-w-md px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 max-w-md px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-2 border rounded"
+        >
+          <option value="all">All Status</option>
+          <option value="draft">Draft</option>
+          <option value="published">Published</option>
+          <option value="scheduled">Scheduled</option>
+        </select>
       </div>
+
+      {loading && (
+        <div className="text-center py-8">
+          <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading posts...</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded p-4 text-red-700 mb-4">
+          Error: {error}
+          <button onClick={loadPosts} className="ml-4 px-3 py-1 bg-red-600 text-white rounded text-sm">Retry</button>
+        </div>
+      )}
 
       <div className="grid gap-4">
         {filteredPosts.map((post) => (
@@ -220,8 +296,23 @@ const Blog = () => {
 
               <div>
                 <label className="block text-sm font-medium mb-1">Cover Image</label>
-                <input type="file" accept="image/*" onChange={onImageChange} />
-                {cover && <img src={cover} alt="cover" className="mt-2 h-32 object-cover rounded border" />}
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={onImageChange}
+                  className="w-full px-3 py-2 border rounded"
+                />
+                {cover && (
+                  <div className="mt-2">
+                    <img src={cover} alt="cover" className="h-32 object-cover rounded border" />
+                    <button 
+                      onClick={() => {setCover(''); setCoverFile(null)}}
+                      className="mt-1 text-sm text-red-600 hover:text-red-800"
+                    >
+                      Remove image
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -272,8 +363,14 @@ const Blog = () => {
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <button onClick={() => setModalOpen(false)} className="px-4 py-2 border rounded">Cancel</button>
-                <button onClick={savePost} className="px-4 py-2 bg-blue-600 text-white rounded">Save</button>
+                <button onClick={() => setModalOpen(false)} className="px-4 py-2 border rounded" disabled={uploading}>Cancel</button>
+                <button 
+                  onClick={savePost} 
+                  className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+                  disabled={uploading}
+                >
+                  {uploading ? 'Saving...' : 'Save'}
+                </button>
               </div>
             </div>
           </div>
