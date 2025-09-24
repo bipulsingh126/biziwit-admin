@@ -1,78 +1,242 @@
 import mongoose from 'mongoose'
 
-const ImageSchema = new mongoose.Schema({
-  url: { type: String, required: true },
-  alt: { type: String, trim: true },
-}, { _id: false })
+const reportSchema = new mongoose.Schema({
+  // Basic required fields
+  title: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  slug: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+    lowercase: true
+  },
 
-const ReportSchema = new mongoose.Schema({
-  title: { type: String, required: true, trim: true },
-  subTitle: { type: String, trim: true },
-  slug: { type: String, required: true, unique: true, lowercase: true, index: true },
-  summary: { type: String, trim: true },
-  content: { type: String }, // HTML or rich text JSON string
-  coverImage: ImageSchema,
-  images: [ImageSchema],
-  category: { type: String, trim: true }, // This will be used as 'domain'
-  subCategory: { type: String, trim: true }, // This will be used as 'subDomain'
-  tags: [{ type: String, trim: true, lowercase: true }],
-  featured: { type: Boolean, default: false },
-  popular: { type: Boolean, default: false },
+  // Content fields
+  subTitle: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  summary: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  content: {
+    type: String,
+    default: ''
+  },
+  tableOfContents: {
+    type: String,
+    default: ''
+  },
+
+  // Categories
+  category: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  subCategory: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+
+  // Domain and Region fields
+  domain: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  subdomain: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  region: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+
+  // Tags as simple string array
+  tags: [String],
+
+  // Images
+  coverImage: {
+    url: String,
+    alt: String
+  },
+  images: [{
+    url: String,
+    alt: String,
+    caption: String
+  }],
+
+  // Report Details
+  reportCode: {
+    type: String,
+    trim: true,
+    unique: true,
+    sparse: true
+  },
+  numberOfPages: {
+    type: Number,
+    min: 1,
+    default: 1
+  },
+  publishDate: {
+    type: Date,
+    default: Date.now
+  },
+
+  // Pricing fields
+  excelDatapackPrice: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  singleUserPrice: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  enterprisePrice: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  internetHandlingCharges: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+
+  // Homepage display
+  trendingReportForHomePage: {
+    type: Boolean,
+    default: false
+  },
+
+  // Status and flags
+  status: {
+    type: String,
+    enum: ['draft', 'published', 'archived'],
+    default: 'draft'
+  },
+  featured: {
+    type: Boolean,
+    default: false
+  },
+  popular: {
+    type: Boolean,
+    default: false
+  },
+
+  // SEO basic fields
+  metaTitle: {
+    type: String,
+    trim: true
+  },
+  metaDescription: {
+    type: String,
+    trim: true
+  },
+
+  // Publishing info
+  author: {
+    type: String,
+    trim: true
+  },
+  publishedAt: Date,
+
+  // Access control
+  visibility: {
+    type: String,
+    enum: ['public', 'private'],
+    default: 'public'
+  },
+
+  // Report specific
+  industry: {
+    type: String,
+    trim: true
+  },
+  reportType: {
+    type: String,
+    default: 'market-research'
+  },
+  price: {
+    type: Number,
+    default: 0
+  },
+  currency: {
+    type: String,
+    default: 'USD'
+  },
+  format: {
+    type: String,
+    enum: ['pdf', 'html', 'docx'],
+    default: 'pdf'
+  },
+
   // License fields
-  excelDataPackLicense: { type: String, trim: true },
-  singleUserLicense: { type: String, trim: true },
-  enterpriseLicensePrice: { type: String, trim: true },
-  // SEO
-  metaTitle: { type: String, trim: true },
-  metaDescription: { type: String, trim: true },
-  metaKeywords: { type: String, trim: true },
-  canonicalUrl: { type: String, trim: true },
-  focusKeyword: { type: String, trim: true },
-  // Open Graph
-  ogTitle: { type: String, trim: true },
-  ogDescription: { type: String, trim: true },
-  ogImage: { type: String, trim: true },
-  // Twitter Cards
-  twitterTitle: { type: String, trim: true },
-  twitterDescription: { type: String, trim: true },
-  twitterImage: { type: String, trim: true },
-  // Advanced SEO
-  schema: { type: String, enum: ['Article', 'BlogPosting', 'NewsArticle', 'Report', 'WebPage'], default: 'Article' },
-  noIndex: { type: Boolean, default: false },
-  noFollow: { type: Boolean, default: false },
-  altText: { type: String, trim: true },
-  // Publishing
-  status: { type: String, enum: ['draft', 'published', 'active', 'archived'], default: 'draft', index: true },
-  publishedAt: { type: Date },
-  lastUpdated: { type: Date, default: Date.now },
-  author: { type: String, trim: true },
-  // Additional Settings
-  visibility: { type: String, enum: ['public', 'private', 'unlisted', 'members-only'], default: 'public' },
-  accessLevel: { type: String, enum: ['free', 'premium', 'subscription', 'one-time-purchase'], default: 'free' },
-  downloadable: { type: Boolean, default: true },
-  commentsEnabled: { type: Boolean, default: true },
-  socialSharing: { type: Boolean, default: true },
-  printable: { type: Boolean, default: true },
-  language: { type: String, default: 'en' },
-  region: { type: String, default: 'global' },
-  industry: { type: String, trim: true },
-  reportType: { type: String, default: 'market-research' },
-  pages: { type: Number },
-  format: { type: String, enum: ['pdf', 'html', 'docx', 'pptx', 'xlsx'], default: 'pdf' },
-  price: { type: Number, default: 0 },
-  currency: { type: String, default: 'USD' },
-  validUntil: { type: Date },
-  version: { type: String, default: '1.0' },
-  lastReviewed: { type: Date },
-  reviewedBy: { type: String, trim: true },
-  approvalRequired: { type: Boolean, default: false },
-  autoPublish: { type: Boolean, default: false },
-  notifySubscribers: { type: Boolean, default: false },
-  trackAnalytics: { type: Boolean, default: true },
-  allowIndexing: { type: Boolean, default: true },
-}, { timestamps: true })
+  excelDataPackLicense: {
+    type: String,
+    default: ''
+  },
+  singleUserLicense: {
+    type: String,
+    default: ''
+  },
+  enterpriseLicensePrice: {
+    type: String,
+    default: ''
+  }
+}, {
+  timestamps: true
+})
 
-// Full-text search index
-ReportSchema.index({ title: 'text', summary: 'text', content: 'text', tags: 'text', category: 'text' })
+// Simple text index for search
+reportSchema.index({
+  title: 'text',
+  summary: 'text',
+  content: 'text'
+})
 
-export default mongoose.model('Report', ReportSchema)
+// Basic indexes
+reportSchema.index({ status: 1 })
+reportSchema.index({ category: 1 })
+reportSchema.index({ domain: 1 })
+reportSchema.index({ region: 1 })
+reportSchema.index({ slug: 1 })
+reportSchema.index({ reportCode: 1 })
+reportSchema.index({ trendingReportForHomePage: 1 })
+
+// Auto-generate slug from title
+reportSchema.pre('save', function (next) {
+  if (this.isModified('title') && !this.slug) {
+    this.slug = this.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+  }
+
+  // Auto-generate report code if not provided
+  if (this.isModified('title') && !this.reportCode) {
+    const prefix = 'RPT'
+    const timestamp = Date.now().toString().slice(-6)
+    this.reportCode = `${prefix}${timestamp}`
+  }
+
+  next()
+})
+
+const Report = mongoose.model('Report', reportSchema)
+
+export default Report

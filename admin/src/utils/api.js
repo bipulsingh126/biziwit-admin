@@ -277,12 +277,39 @@ class ApiClient {
     return this.request(`/api/inquiries${query ? `?${query}` : ''}`)
   }
 
+  async getInquiry(id) {
+    return this.request(`/api/inquiries/${id}`)
+  }
+
+  async createInquiry(data) {
+    return this.request('/api/inquiries/submit', { method: 'POST', body: data })
+  }
+
   async updateInquiry(id, data) {
     return this.request(`/api/inquiries/${id}`, { method: 'PATCH', body: data })
   }
 
   async deleteInquiry(id) {
     return this.request(`/api/inquiries/${id}`, { method: 'DELETE' })
+  }
+
+  async bulkUpdateInquiries(action, ids, data = {}) {
+    return this.request('/api/inquiries/bulk', {
+      method: 'POST',
+      body: { action, ids, data }
+    })
+  }
+
+  async exportInquiries(params = {}) {
+    const query = new URLSearchParams(params).toString()
+    const response = await this.request(`/api/inquiries/export/csv${query ? `?${query}` : ''}`, {
+      headers: { 'Accept': 'text/csv' }
+    })
+    return response
+  }
+
+  async getInquiryMetadata() {
+    return this.request('/api/inquiries/metadata')
   }
 
   // Analytics

@@ -3,7 +3,7 @@ import mongoose from 'mongoose'
 const ImageSchema = new mongoose.Schema({
   url: { type: String, required: true },
   alt: { type: String, trim: true },
-}, { _id: false })
+})
 
 const PostSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
@@ -11,8 +11,14 @@ const PostSchema = new mongoose.Schema({
   type: { type: String, enum: ['blog', 'news'], default: 'blog', index: true },
   excerpt: { type: String, trim: true },
   content: { type: String }, // HTML or rich text JSON string
-  coverImage: ImageSchema,
-  images: [ImageSchema],
+  coverImage: {
+    type: ImageSchema,
+    default: null
+  },
+  images: {
+    type: [ImageSchema],
+    default: []
+  },
   tags: [{ type: String, trim: true, lowercase: true, index: true }],
   // SEO
   metaTitle: { type: String, trim: true },

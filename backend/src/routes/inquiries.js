@@ -44,12 +44,15 @@ router.post('/submit', async (req, res, next) => {
       company: req.body.company,
       subject: req.body.subject,
       message,
+      inquiryType: req.body.inquiryType || 'General Inquiry',
+      pageReportTitle: req.body.pageReportTitle,
       source: req.body.source || 'website',
+      priority: req.body.priority || 'medium',
       meta: req.body.meta || {},
     })
     // Send email notification (non-blocking)
     sendNotification(doc).catch(() => {})
-    res.status(201).json({ ok: true })
+    res.status(201).json({ ok: true, inquiry: doc })
   } catch (e) { next(e) }
 })
 
@@ -59,21 +62,55 @@ router.use(authenticate, requireRole('admin'))
 // List
 router.get('/', async (req, res, next) => {
   try {
-    const { q = '', status, limit = 50, offset = 0 } = req.query
+    const { q = '', status, inquiryType, priority, limit = 50, offset = 0, sortBy = 'createdAt', sortOrder = 'desc' } = req.query
     const query = {}
-    if (status) query.status = status
+    
+    // Filters
+    if (status && status !== 'all') query.status = status
+    if (inquiryType && inquiryType !== 'all') query.inquiryType = inquiryType
+    if (priority && priority !== 'all') query.priority = priority
+    
+    // Search
     if (q) {
       const rx = new RegExp(q, 'i')
       query.$or = [
-        { name: rx }, { email: rx }, { phone: rx }, { company: rx }, { subject: rx }, { message: rx }
+        { name: rx }, 
+        { email: rx }, 
+        { phone: rx }, 
+        { company: rx }, 
+        { subject: rx }, 
+        { message: rx },
+        { inquiryNumber: rx },
+        { pageReportTitle: rx }
       ]
     }
+    
+    // Sort
+    const sortOptions = {}
+    sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1
+    
     const items = await Inquiry.find(query)
-      .sort({ createdAt: -1 })
+      .populate('assignedTo', 'name email')
+      .sort(sortOptions)
       .skip(Number(offset))
       .limit(Math.min(200, Number(limit)))
+      
     const total = await Inquiry.countDocuments(query)
-    res.json({ items, total })
+    
+    // Get summary stats
+    const stats = await Inquiry.aggregate([
+      { $group: { 
+        _id: '$status', 
+        count: { $sum: 1 } 
+      }}
+    ])
+    
+    const statusCounts = stats.reduce((acc, stat) => {
+      acc[stat._id] = stat.count
+      return acc
+    }, {})
+    
+    res.json({ items, total, statusCounts })
   } catch (e) { next(e) }
 })
 
@@ -101,6 +138,126 @@ router.delete('/:id', async (req, res, next) => {
     const r = await Inquiry.findByIdAndDelete(req.params.id)
     if (!r) return res.status(404).json({ error: 'Not found' })
     res.json({ ok: true })
+  } catch (e) { next(e) }
+})
+
+// Bulk operations
+router.post('/bulk', async (req, res, next) => {
+  try {
+    const { action, ids, data } = req.body
+    if (!action || !ids || !Array.isArray(ids)) {
+      return res.status(400).json({ error: 'Action and ids array are required' })
+    }
+
+    let result
+    switch (action) {
+      case 'delete':
+        result = await Inquiry.deleteMany({ _id: { $in: ids } })
+        break
+      case 'update_status':
+        if (!data?.status) return res.status(400).json({ error: 'Status is required' })
+        result = await Inquiry.updateMany(
+          { _id: { $in: ids } }, 
+          { status: data.status, ...(data.status === 'resolved' ? { resolvedAt: new Date() } : {}) }
+        )
+        break
+      case 'update_priority':
+        if (!data?.priority) return res.status(400).json({ error: 'Priority is required' })
+        result = await Inquiry.updateMany({ _id: { $in: ids } }, { priority: data.priority })
+        break
+      case 'assign':
+        result = await Inquiry.updateMany({ _id: { $in: ids } }, { assignedTo: data.assignedTo })
+        break
+      default:
+        return res.status(400).json({ error: 'Invalid action' })
+    }
+
+    res.json({ ok: true, modified: result.modifiedCount })
+  } catch (e) { next(e) }
+})
+
+// Export inquiries
+router.get('/export/csv', async (req, res, next) => {
+  try {
+    const { q = '', status, inquiryType, priority } = req.query
+    const query = {}
+    
+    // Apply same filters as list endpoint
+    if (status && status !== 'all') query.status = status
+    if (inquiryType && inquiryType !== 'all') query.inquiryType = inquiryType
+    if (priority && priority !== 'all') query.priority = priority
+    
+    if (q) {
+      const rx = new RegExp(q, 'i')
+      query.$or = [
+        { name: rx }, { email: rx }, { phone: rx }, { company: rx }, 
+        { subject: rx }, { message: rx }, { inquiryNumber: rx }, { pageReportTitle: rx }
+      ]
+    }
+    
+    const inquiries = await Inquiry.find(query)
+      .populate('assignedTo', 'name email')
+      .sort({ createdAt: -1 })
+      .limit(1000) // Limit export to 1000 records
+    
+    // Generate CSV
+    const csvHeaders = [
+      'Inquiry Number', 'Date', 'Name', 'Email', 'Phone', 'Company', 
+      'Inquiry Type', 'Page/Report Title', 'Subject', 'Message', 
+      'Status', 'Priority', 'Assigned To', 'Source'
+    ]
+    
+    const csvRows = inquiries.map(inquiry => [
+      inquiry.inquiryNumber || '',
+      inquiry.createdAt.toISOString().split('T')[0],
+      inquiry.name || '',
+      inquiry.email || '',
+      inquiry.phone || '',
+      inquiry.company || '',
+      inquiry.inquiryType || '',
+      inquiry.pageReportTitle || '',
+      inquiry.subject || '',
+      `"${(inquiry.message || '').replace(/"/g, '""')}"`, // Escape quotes in message
+      inquiry.status || '',
+      inquiry.priority || '',
+      inquiry.assignedTo?.name || '',
+      inquiry.source || ''
+    ])
+    
+    const csvContent = [csvHeaders, ...csvRows]
+      .map(row => row.join(','))
+      .join('\n')
+    
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Disposition', `attachment; filename="inquiries-${new Date().toISOString().split('T')[0]}.csv"`)
+    res.send(csvContent)
+  } catch (e) { next(e) }
+})
+
+// Get inquiry types and priorities for filters
+router.get('/metadata', async (req, res, next) => {
+  try {
+    const inquiryTypes = [
+      'General Inquiry', 
+      'Report Request', 
+      'Custom Report', 
+      'Technical Support', 
+      'Partnership', 
+      'Media Inquiry',
+      'Inquiry Before Buying',
+      'Request for Sample',
+      'Talk to Analyst/Expert',
+      'Buy Now',
+      'Contact Us',
+      'Submit Your Profile',
+      'Download White Paper',
+      'Individual Service Page',
+      'Other'
+    ]
+    const priorities = ['low', 'medium', 'high', 'urgent']
+    const statuses = ['new', 'open', 'in_progress', 'resolved', 'closed']
+    
+    res.json({ inquiryTypes, priorities, statuses })
   } catch (e) { next(e) }
 })
 

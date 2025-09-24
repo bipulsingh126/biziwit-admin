@@ -128,9 +128,9 @@ const Reports = () => {
         const transformedReports = result.items?.map(report => ({
           _id: report._id,
           title: report.title,
-          domain: report.category || 'N/A',
-          subDomain: report.subCategory || 'N/A',
-          publishDate: report.publishedAt ? new Date(report.publishedAt).toLocaleString() : 'N/A',
+          domain: report.domain || 'N/A',
+          subDomain: report.subdomain || 'N/A',
+          publishDate: report.publishDate ? new Date(report.publishDate).toLocaleString() : 'N/A',
           lastUpdated: report.lastUpdated ? new Date(report.lastUpdated).toLocaleString() : new Date(report.updatedAt).toLocaleString(),
           status: report.status === 'published' ? 'Active' : report.status
         })) || []

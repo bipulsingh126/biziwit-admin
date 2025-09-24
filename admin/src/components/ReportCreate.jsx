@@ -1,69 +1,57 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { 
-  ArrowLeft, 
-  Save, 
-  ChevronDown, 
-  FileText, 
-  Globe, 
-  Settings
-} from 'lucide-react'
+import { ArrowLeft, Save, CheckCircle, AlertCircle } from 'lucide-react'
 import api from '../utils/api'
 import RichTextEditor from './RichTextEditor'
-import SEOSettings from './SEOSettings'
-import ReportSettings from './ReportSettings'
 
 const ReportCreate = () => {
   const navigate = useNavigate()
   const { id } = useParams()
   const isEdit = Boolean(id)
 
-  // Form state
   const [formData, setFormData] = useState({
     title: '',
     subTitle: '',
-    description: '',
+    summary: '',
+    content: '',
+    tableOfContents: '',
+    segmentationContent: '',
+    // Legacy category fields
     category: '',
     subCategory: '',
+    // New domain/region fields
+    domain: '',
+    subdomain: '',
+    region: '',
+    // Report details
+    author: '',
+    publishDate: new Date().toISOString().split('T')[0],
+    reportCode: '',
+    numberOfPages: '',
+    // Pricing fields
+    excelDatapackPrice: '',
+    singleUserPrice: '',
+    enterprisePrice: '',
+    internetHandlingCharges: '',
+    // Legacy license fields (keeping for compatibility)
     excelDataPackLicense: '',
     singleUserLicense: '',
     enterpriseLicensePrice: '',
-    content: '',
+    // Status and checkboxes
     status: 'draft',
-    // SEO fields
-    metaTitle: '',
-    metaDescription: '',
-    metaKeywords: '',
-    slug: '',
-    canonicalUrl: '',
-    ogTitle: '',
-    ogDescription: '',
-    ogImage: '',
-    twitterTitle: '',
-    twitterDescription: '',
-    twitterImage: '',
-    focusKeyword: '',
-    altText: '',
-    schema: 'Article',
-    noIndex: false,
-    noFollow: false
+    trendingReportForHomePage: false
   })
 
-  // UI state
   const [activeTab, setActiveTab] = useState('overview')
-  const [activeSidebarItem, setActiveSidebarItem] = useState('report')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [validationErrors, setValidationErrors] = useState({})
 
-  // Categories data (you can fetch this from API)
   const categories = [
-    'Life Sciences',
-    'Food and Beverages', 
-    'ICT and Media',
-    'Consumer Goods',
-    'Energy and Power',
-    'Construction and Manufacturing'
+    'Life Sciences', 'Food and Beverages', 'ICT and Media',
+    'Consumer Goods', 'Energy and Power', 'Construction and Manufacturing'
   ]
 
   const subCategories = {
@@ -75,85 +63,179 @@ const ReportCreate = () => {
     'Construction and Manufacturing': ['Engineering, Equipment and Machinery', 'HVAC', 'Building Materials']
   }
 
+  const domains = [
+    'Healthcare & Life Sciences', 'Pharmaceuticals', 'Food and Beverages', 
+    'ICT and Media', 'Consumer Goods', 'Energy and Power', 
+    'Construction and Manufacturing', 'Automotive', 'Aerospace & Defense'
+  ]
+
+  const subdomains = {
+    'Healthcare & Life Sciences': ['Diagnostics and Biotech', 'Medical Devices and Supplies', 'Healthcare IT'],
+    'Pharmaceuticals': ['Drug Discovery', 'Clinical Trials', 'Generic Drugs', 'Specialty Pharmaceuticals'],
+    'Food and Beverages': ['Food Ingredients', 'Beverages', 'Food Processing', 'Organic Foods'],
+    'ICT and Media': ['Software and Services', 'Hardware', 'Telecommunications', 'Digital Media'],
+    'Consumer Goods': ['Home Products', 'Personal Care', 'Apparel', 'Electronics'],
+    'Energy and Power': ['Equipment and Devices', 'Renewable Energy', 'Oil and Gas', 'Smart Grid'],
+    'Construction and Manufacturing': ['Engineering Equipment', 'HVAC', 'Building Materials', 'Industrial Automation'],
+    'Automotive': ['Electric Vehicles', 'Autonomous Vehicles', 'Auto Parts', 'Automotive Software'],
+    'Aerospace & Defense': ['Commercial Aviation', 'Defense Systems', 'Space Technology', 'Drones']
+  }
+
+  const regions = [
+    'Global', 'North America', 'Europe', 'Asia Pacific', 'Latin America', 
+    'Middle East & Africa', 'United States', 'China', 'India', 'Japan'
+  ]
+
   useEffect(() => {
-    if (isEdit) {
-      loadReport()
-    }
-  }, [id])
+    if (isEdit && id) loadReport()
+  }, [id, isEdit])
 
   const loadReport = async () => {
     try {
       setLoading(true)
-      const report = await api.getReport(id)
+      setError('')
+      const response = await api.getReport(id)
+      const report = response.data || response
+      
       setFormData({
         title: report.title || '',
         subTitle: report.subTitle || '',
-        description: report.summary || '',
+        summary: report.summary || '',
+        content: report.content || '',
+        tableOfContents: report.tableOfContents || '',
+        segmentationContent: report.segmentationContent || '',
+        // Legacy category fields
         category: report.category || '',
         subCategory: report.subCategory || '',
+        // New domain/region fields
+        domain: report.domain || '',
+        subdomain: report.subdomain || '',
+        region: report.region || '',
+        // Report details
+        author: report.author || '',
+        publishDate: report.publishDate ? new Date(report.publishDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        reportCode: report.reportCode || '',
+        numberOfPages: report.numberOfPages || '',
+        // Pricing fields
+        excelDatapackPrice: report.excelDatapackPrice || '',
+        singleUserPrice: report.singleUserPrice || '',
+        enterprisePrice: report.enterprisePrice || '',
+        internetHandlingCharges: report.internetHandlingCharges || '',
+        // Legacy license fields
         excelDataPackLicense: report.excelDataPackLicense || '',
         singleUserLicense: report.singleUserLicense || '',
         enterpriseLicensePrice: report.enterpriseLicensePrice || '',
-        content: report.content || '',
-        status: report.status || 'draft'
+        // Status and checkboxes
+        status: report.status || 'draft',
+        trendingReportForHomePage: report.trendingReportForHomePage || false
       })
     } catch (err) {
-      setError(err.message)
+      setError(err.message || 'Failed to load report')
     } finally {
       setLoading(false)
     }
   }
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }))
+    setFormData(prev => ({ ...prev, [field]: value }))
+    if (validationErrors[field]) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors[field]
+        return newErrors
+      })
+    }
+    if (error) setError('')
   }
 
-  const handleSEOUpdate = (seoData) => {
-    setFormData(prev => ({
-      ...prev,
-      ...seoData
-    }))
+  const validateForm = () => {
+    const errors = {}
+    if (!formData.title.trim()) errors.title = 'Title is required'
+    if (!formData.domain) errors.domain = 'Domain is required'
+    if (!formData.subdomain) errors.subdomain = 'Subdomain is required'
+    if (!formData.region) errors.region = 'Region is required'
+    if (!formData.author.trim()) errors.author = 'Author Name is required'
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
   }
 
-  const handleSettingsUpdate = (settingsData) => {
-    setFormData(prev => ({
-      ...prev,
-      ...settingsData
-    }))
-  }
-
-  const handleSave = async (status = 'draft') => {
+  const handleSave = async (status = null) => {
     try {
       setSaving(true)
-      const dataToSave = {
-        ...formData,
-        status,
-        summary: formData.description
+      setError('')
+      setSuccess('')
+      
+      const finalStatus = status || formData.status
+      
+      if (!validateForm()) {
+        setError('Please fill in all required fields')
+        return
       }
-
+      
+      const submitData = {
+        title: formData.title.trim(),
+        subTitle: formData.subTitle.trim(),
+        summary: formData.summary.trim(),
+        content: formData.content,
+        tableOfContents: formData.tableOfContents,
+        segmentationContent: formData.segmentationContent,
+        // Legacy category fields
+        category: formData.category,
+        subCategory: formData.subCategory,
+        // New domain/region fields
+        domain: formData.domain,
+        subdomain: formData.subdomain,
+        region: formData.region,
+        // Report details
+        author: formData.author.trim(),
+        publishDate: formData.publishDate,
+        reportCode: formData.reportCode.trim(),
+        numberOfPages: formData.numberOfPages ? parseInt(formData.numberOfPages) : 1,
+        // Pricing fields
+        excelDatapackPrice: formData.excelDatapackPrice.trim(),
+        singleUserPrice: formData.singleUserPrice.trim(),
+        enterprisePrice: formData.enterprisePrice.trim(),
+        internetHandlingCharges: formData.internetHandlingCharges.trim(),
+        // Legacy license fields
+        excelDataPackLicense: formData.excelDataPackLicense.trim(),
+        singleUserLicense: formData.singleUserLicense.trim(),
+        enterpriseLicensePrice: formData.enterpriseLicensePrice.trim(),
+        // Status and checkboxes
+        status: finalStatus,
+        trendingReportForHomePage: formData.trendingReportForHomePage
+      }
+      
       if (isEdit) {
-        await api.updateReport(id, dataToSave)
+        await api.updateReport(id, submitData)
       } else {
-        await api.createReport(dataToSave)
+        await api.createReport(submitData)
       }
-
-      navigate('/reports')
+      
+      setSuccess(`Report ${isEdit ? 'updated' : 'created'} successfully!`)
+      setTimeout(() => navigate('/reports'), 1500)
+      
     } catch (err) {
-      setError(err.message)
+      if (err.message.includes('Validation Error')) {
+        setError('Please check your input data and try again')
+      } else if (err.message.includes('Duplicate')) {
+        setError('A report with this title already exists')
+      } else {
+        setError(err.message || 'Failed to save report')
+      }
     } finally {
       setSaving(false)
     }
   }
 
+  const handleCategoryChange = (category) => {
+    handleInputChange('category', category)
+    handleInputChange('subCategory', '')
+  }
 
-  const sidebarItems = [
-    { id: 'report', label: 'Report', icon: FileText },
-    { id: 'seo', label: 'SEO', icon: Globe },
-    { id: 'settings', label: 'Settings', icon: Settings }
-  ]
+  const handleDomainChange = (domain) => {
+    handleInputChange('domain', domain)
+    handleInputChange('subdomain', '')
+  }
 
   if (loading) {
     return (
@@ -172,258 +254,388 @@ const ReportCreate = () => {
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/reports')}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
+            <button onClick={() => navigate('/reports')} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <ArrowLeft className="w-5 h-5" />
             </button>
             <h1 className="text-xl font-semibold text-gray-900">
-              {isEdit ? 'Edit Report' : 'Reports Create'}
+              {isEdit ? 'Edit Report' : 'Create New Report'}
             </h1>
           </div>
           
           <div className="flex items-center gap-3">
             <button
+              onClick={() => handleSave('draft')}
+              disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {saving ? 'Saving...' : 'Save as Draft'}
+            </button>
+            
+            <button
               onClick={() => handleSave('published')}
               disabled={saving}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
-              <Save className="w-4 h-4" />
-              {saving ? 'SAVING...' : 'SAVE'}
+              <CheckCircle className="w-4 h-4" />
+              {saving ? 'Publishing...' : 'Publish'}
             </button>
-            
-            <div className="relative">
-              <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                Draft
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            </div>
           </div>
         </div>
       </div>
 
-      <div className="flex">
-        {/* Left Sidebar */}
-        <div className="w-64 bg-white border-r border-gray-200 min-h-screen">
-          <div className="p-4">
-            <nav className="space-y-2">
-              {sidebarItems.map((item) => {
-                const Icon = item.icon
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveSidebarItem(item.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors ${
-                      activeSidebarItem === item.id
-                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {item.label}
-                  </button>
-                )
-              })}
-            </nav>
+      {/* Main Content */}
+      <div className="max-w-6xl mx-auto p-6">
+        {success && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 flex items-center gap-2">
+            <CheckCircle className="w-5 h-5" />
+            {success}
           </div>
-        </div>
+        )}
+        
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5" />
+            {error}
+          </div>
+        )}
 
-        {/* Main Content */}
-        <div className="flex-1">
-          {activeSidebarItem === 'report' && (
-            <div className="p-6">
-              {error && (
-                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-                  {error}
-                </div>
-              )}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          {/* Form Section */}
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 mb-6">Report Details</h2>
+            
+            <div className="grid grid-cols-1 gap-6">
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Report Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => handleInputChange('title', e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    validationErrors.title ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter report title"
+                  disabled={saving}
+                />
+                {validationErrors.title && (
+                  <p className="mt-1 text-sm text-red-600">{validationErrors.title}</p>
+                )}
+              </div>
 
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                {/* Form Section */}
-                <div className="p-6 border-b border-gray-200">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-6">Report Details</h2>
-                  
-                  <div className="grid grid-cols-1 gap-6">
-                    {/* Title */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Title <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.title}
-                        onChange={(e) => handleInputChange('title', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Enter report title"
-                      />
-                    </div>
+              {/* Sub Title */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Report Sub Title</label>
+                <input
+                  type="text"
+                  value={formData.subTitle}
+                  onChange={(e) => handleInputChange('subTitle', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter report sub title"
+                  disabled={saving}
+                />
+              </div>
 
-                    {/* Sub Title */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Sub Title <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.subTitle}
-                        onChange={(e) => handleInputChange('subTitle', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Enter sub title"
-                      />
-                    </div>
-
-                    {/* Report Description */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Report Description
-                      </label>
-                      <textarea
-                        value={formData.description}
-                        onChange={(e) => handleInputChange('description', e.target.value)}
-                        rows={4}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Enter report description"
-                      />
-                    </div>
-
-                    {/* Categories */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Categories <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                          value={formData.category}
-                          onChange={(e) => {
-                            handleInputChange('category', e.target.value)
-                            handleInputChange('subCategory', '') // Reset subcategory
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="">Select category</option>
-                          {categories.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Sub Categories <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                          value={formData.subCategory}
-                          onChange={(e) => handleInputChange('subCategory', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          disabled={!formData.category}
-                        >
-                          <option value="">Select sub category</option>
-                          {formData.category && subCategories[formData.category]?.map(subCat => (
-                            <option key={subCat} value={subCat}>{subCat}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* License Fields */}
-                    <div className="grid grid-cols-1 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Excel Data Pack License <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.excelDataPackLicense}
-                          onChange={(e) => handleInputChange('excelDataPackLicense', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="Enter Excel Data Pack License"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Single User License <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.singleUserLicense}
-                          onChange={(e) => handleInputChange('singleUserLicense', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="Enter Single User License"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Enterprise License Price <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.enterpriseLicensePrice}
-                          onChange={(e) => handleInputChange('enterpriseLicensePrice', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="Enter Enterprise License Price"
-                        />
-                      </div>
-                    </div>
-                  </div>
+              {/* Domain and Subdomain */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Domain <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.domain}
+                    onChange={(e) => handleDomainChange(e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      validationErrors.domain ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    disabled={saving}
+                  >
+                    <option value="">Select domain</option>
+                    {domains.map(domain => (
+                      <option key={domain} value={domain}>{domain}</option>
+                    ))}
+                  </select>
+                  {validationErrors.domain && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.domain}</p>
+                  )}
                 </div>
 
-                {/* Editor Section */}
-                <div className="p-6">
-                  {/* Tabs */}
-                  <div className="flex border-b border-gray-200 mb-6">
-                    <button
-                      onClick={() => setActiveTab('overview')}
-                      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                        activeTab === 'overview'
-                          ? 'border-blue-500 text-blue-600 bg-blue-50'
-                          : 'border-transparent text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      REPORT OVERVIEW
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('contents')}
-                      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                        activeTab === 'contents'
-                          ? 'border-blue-500 text-blue-600 bg-blue-50'
-                          : 'border-transparent text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      TABLE OF CONTENTS
-                    </button>
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Subdomain <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.subdomain}
+                    onChange={(e) => handleInputChange('subdomain', e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      validationErrors.subdomain ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    disabled={!formData.domain || saving}
+                  >
+                    <option value="">Select subdomain</option>
+                    {formData.domain && subdomains[formData.domain]?.map(subdomain => (
+                      <option key={subdomain} value={subdomain}>{subdomain}</option>
+                    ))}
+                  </select>
+                  {validationErrors.subdomain && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.subdomain}</p>
+                  )}
+                </div>
+              </div>
 
-                  {/* Rich Text Editor */}
-                  <RichTextEditor
-                    value={formData.content}
-                    onChange={(value) => handleInputChange('content', value)}
-                    placeholder="Start writing your report content..."
+              {/* Region and Author */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Region <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.region}
+                    onChange={(e) => handleInputChange('region', e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      validationErrors.region ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    disabled={saving}
+                  >
+                    <option value="">Select region</option>
+                    {regions.map(region => (
+                      <option key={region} value={region}>{region}</option>
+                    ))}
+                  </select>
+                  {validationErrors.region && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.region}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Author Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.author}
+                    onChange={(e) => handleInputChange('author', e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      validationErrors.author ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    placeholder="Enter author name"
+                    disabled={saving}
+                  />
+                  {validationErrors.author && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.author}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Publish Date, Report Code, Number of Pages */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Publish Date</label>
+                  <input
+                    type="date"
+                    value={formData.publishDate}
+                    onChange={(e) => handleInputChange('publishDate', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={saving}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Report Code</label>
+                  <input
+                    type="text"
+                    value={formData.reportCode}
+                    onChange={(e) => handleInputChange('reportCode', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Auto-generated if empty"
+                    disabled={saving}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Number of Pages</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.numberOfPages}
+                    onChange={(e) => handleInputChange('numberOfPages', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter number of pages"
+                    disabled={saving}
                   />
                 </div>
               </div>
-            </div>
-          )}
 
-          {activeSidebarItem === 'seo' && (
-            <div className="p-6">
-              <SEOSettings 
-                formData={formData}
-                onUpdate={handleSEOUpdate}
-              />
-            </div>
-          )}
+              {/* Pricing Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Excel Datapack Price</label>
+                  <input
+                    type="text"
+                    value={formData.excelDatapackPrice}
+                    onChange={(e) => handleInputChange('excelDatapackPrice', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="$2,999"
+                    disabled={saving}
+                  />
+                </div>
 
-          {activeSidebarItem === 'settings' && (
-            <div className="p-6">
-              <ReportSettings 
-                formData={formData}
-                onUpdate={handleSettingsUpdate}
-              />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Single User Price</label>
+                  <input
+                    type="text"
+                    value={formData.singleUserPrice}
+                    onChange={(e) => handleInputChange('singleUserPrice', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="$4,999"
+                    disabled={saving}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Enterprise Price</label>
+                  <input
+                    type="text"
+                    value={formData.enterprisePrice}
+                    onChange={(e) => handleInputChange('enterprisePrice', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="$9,999"
+                    disabled={saving}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Internet Handling Charges</label>
+                  <input
+                    type="text"
+                    value={formData.internetHandlingCharges}
+                    onChange={(e) => handleInputChange('internetHandlingCharges', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="$99"
+                    disabled={saving}
+                  />
+                </div>
+              </div>
+
+              {/* Trending Report Checkbox with Yes/No */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Trending Report Check Box for Home Page
+                </label>
+                <div className="flex items-center gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="trendingReport"
+                      value="yes"
+                      checked={formData.trendingReportForHomePage === true}
+                      onChange={(e) => handleInputChange('trendingReportForHomePage', true)}
+                      className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 focus:ring-2"
+                      disabled={saving}
+                    />
+                    <span className="text-sm font-medium text-gray-700">Yes</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="trendingReport"
+                      value="no"
+                      checked={formData.trendingReportForHomePage === false}
+                      onChange={(e) => handleInputChange('trendingReportForHomePage', false)}
+                      className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 focus:ring-2"
+                      disabled={saving}
+                    />
+                    <span className="text-sm font-medium text-gray-700">No</span>
+                  </label>
+                </div>
+                
+                <div className="mt-2 text-xs text-gray-500">
+                  {formData.trendingReportForHomePage 
+                    ? "✓ This report will be displayed as trending on the home page" 
+                    : "○ This report will not be displayed as trending on the home page"
+                  }
+                </div>
+              </div>
             </div>
-          )}
+          </div>
+
+          {/* Content Editor Section */}
+          <div className="p-6">
+            {/* Tabs */}
+            <div className="flex border-b border-gray-200 mb-6">
+              <button
+                onClick={() => setActiveTab('overview')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'overview'
+                    ? 'border-blue-500 text-blue-600 bg-blue-50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+                disabled={saving}
+              >
+                REPORT OVERVIEW
+              </button>
+              <button
+                onClick={() => setActiveTab('contents')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'contents'
+                    ? 'border-blue-500 text-blue-600 bg-blue-50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+                disabled={saving}
+              >
+                TABLE OF CONTENTS
+              </button>
+              <button
+                onClick={() => setActiveTab('segmentation')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'segmentation'
+                    ? 'border-blue-500 text-blue-600 bg-blue-50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+                disabled={saving}
+              >
+                SEGMENTATION
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                <RichTextEditor
+                  value={formData.content}
+                  onChange={(value) => handleInputChange('content', value)}
+                  placeholder="Write your report overview here..."
+                  disabled={saving}
+                />
+              </div>
+            )}
+
+            {activeTab === 'contents' && (
+              <div>
+                <RichTextEditor
+                  value={formData.tableOfContents}
+                  onChange={(value) => handleInputChange('tableOfContents', value)}
+                  placeholder="1. Introduction\n2. Market Analysis\n3. Key Findings\n4. Conclusion"
+                  disabled={saving}
+                />
+              </div>
+            )}
+
+            {activeTab === 'segmentation' && (
+              <div>
+                <RichTextEditor
+                  value={formData.segmentationContent}
+                  onChange={(value) => handleInputChange('segmentationContent', value)}
+                  placeholder="Describe market segments here..."
+                  disabled={saving}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

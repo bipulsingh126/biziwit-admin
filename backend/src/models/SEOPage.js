@@ -1,50 +1,187 @@
 import mongoose from 'mongoose'
 
 const SEOPageSchema = new mongoose.Schema({
-  pageName: { type: String, required: true, trim: true },
-  titleMetaTag: { type: String, required: true, trim: true },
-  url: { type: String, required: true, trim: true, unique: true },
-  featuredImage: { type: String, trim: true },
-  metaDescription: { type: String, trim: true },
-  keywords: { type: String, trim: true },
+  // Core SEO fields
+  pageName: { 
+    type: String, 
+    required: true, 
+    trim: true 
+  },
+  titleMetaTag: { 
+    type: String, 
+    required: true, 
+    trim: true,
+    maxlength: 60
+  },
+  url: { 
+    type: String, 
+    required: true, 
+    trim: true, 
+    unique: true 
+  },
+  featuredImage: { 
+    type: String, 
+    trim: true 
+  },
+  metaDescription: { 
+    type: String, 
+    trim: true,
+    maxlength: 160
+  },
+  keywords: { 
+    type: String, 
+    trim: true 
+  },
+  
   // Additional SEO fields
-  metaKeywords: [{ type: String, trim: true }],
-  canonicalUrl: { type: String, trim: true },
-  ogTitle: { type: String, trim: true },
-  ogDescription: { type: String, trim: true },
-  ogImage: { type: String, trim: true },
-  twitterTitle: { type: String, trim: true },
-  twitterDescription: { type: String, trim: true },
-  twitterImage: { type: String, trim: true },
-  schema: { type: String, enum: ['WebPage', 'Article', 'BlogPosting', 'Product', 'Service'], default: 'WebPage' },
-  noIndex: { type: Boolean, default: false },
-  noFollow: { type: Boolean, default: false },
+  metaKeywords: [{
+    type: String,
+    trim: true
+  }],
+  canonicalUrl: { 
+    type: String, 
+    trim: true 
+  },
+  
+  // Open Graph fields
+  ogTitle: { 
+    type: String, 
+    trim: true 
+  },
+  ogDescription: { 
+    type: String, 
+    trim: true 
+  },
+  ogImage: { 
+    type: String, 
+    trim: true 
+  },
+  
+  // Twitter fields
+  twitterTitle: { 
+    type: String, 
+    trim: true 
+  },
+  twitterDescription: { 
+    type: String, 
+    trim: true 
+  },
+  twitterImage: { 
+    type: String, 
+    trim: true 
+  },
+  
+  // Schema markup type
+  schemaType: { 
+    type: String, 
+    enum: ['WebPage', 'Article', 'BlogPosting', 'Product', 'Service'], 
+    default: 'WebPage' 
+  },
+  
+  // Robot directives
+  noIndex: { 
+    type: Boolean, 
+    default: false 
+  },
+  noFollow: { 
+    type: Boolean, 
+    default: false 
+  },
+  
   // Status and management
-  isActive: { type: Boolean, default: true },
-  priority: { type: Number, default: 0.5, min: 0, max: 1 },
-  changeFrequency: { type: String, enum: ['always', 'hourly', 'daily', 'weekly', 'monthly', 'yearly', 'never'], default: 'weekly' },
-  // Analytics
-  lastCrawled: { type: Date },
-  crawlStatus: { type: String, enum: ['pending', 'success', 'error'], default: 'pending' },
-  crawlErrors: [{ type: String }],
+  isActive: { 
+    type: Boolean, 
+    default: true 
+  },
+  priority: { 
+    type: Number, 
+    default: 0.5, 
+    min: 0, 
+    max: 1 
+  },
+  changeFrequency: { 
+    type: String, 
+    enum: ['always', 'hourly', 'daily', 'weekly', 'monthly', 'yearly', 'never'], 
+    default: 'weekly' 
+  },
+  
+  // Analytics and crawling
+  lastCrawled: { 
+    type: Date 
+  },
+  crawlStatus: { 
+    type: String, 
+    enum: ['pending', 'success', 'error'], 
+    default: 'pending' 
+  },
+  crawlErrors: [{
+    type: String,
+    trim: true
+  }],
+  
   // Performance metrics
-  pageLoadTime: { type: Number },
-  mobileUsability: { type: Boolean, default: true },
-  sslSecure: { type: Boolean, default: true },
+  pageLoadTime: { 
+    type: Number 
+  },
+  mobileUsability: { 
+    type: Boolean, 
+    default: true 
+  },
+  sslSecure: { 
+    type: Boolean, 
+    default: true 
+  },
+  
   // Content analysis
-  contentLength: { type: Number },
-  headingsCount: { type: Number },
-  imagesCount: { type: Number },
-  linksCount: { type: Number },
+  contentLength: { 
+    type: Number 
+  },
+  headingsCount: { 
+    type: Number 
+  },
+  imagesCount: { 
+    type: Number 
+  },
+  linksCount: { 
+    type: Number 
+  },
+  
   // SEO scores
-  seoScore: { type: Number, min: 0, max: 100, default: 0 },
-  performanceScore: { type: Number, min: 0, max: 100, default: 0 },
-  accessibilityScore: { type: Number, min: 0, max: 100, default: 0 },
+  seoScore: { 
+    type: Number, 
+    min: 0, 
+    max: 100, 
+    default: 0 
+  },
+  performanceScore: { 
+    type: Number, 
+    min: 0, 
+    max: 100, 
+    default: 0 
+  },
+  accessibilityScore: { 
+    type: Number, 
+    min: 0, 
+    max: 100, 
+    default: 0 
+  },
+  
   // Audit information
-  lastAuditDate: { type: Date },
-  auditedBy: { type: String, trim: true },
-  auditNotes: { type: String, trim: true },
-}, { timestamps: true })
+  lastAuditDate: { 
+    type: Date 
+  },
+  auditedBy: { 
+    type: String, 
+    trim: true 
+  },
+  auditNotes: { 
+    type: String, 
+    trim: true 
+  }
+}, { 
+  timestamps: true,
+  collection: 'seopages'
+})
 
 // Indexes for better query performance
 SEOPageSchema.index({ pageName: 'text', titleMetaTag: 'text', metaDescription: 'text', keywords: 'text' })
@@ -106,14 +243,22 @@ SEOPageSchema.methods.calculateSEOScore = function() {
     score += 5
   }
   
-  this.seoScore = score
-  return score
+  this.seoScore = Math.min(score, 100) // Cap at 100
+  return this.seoScore
 }
 
 // Pre-save middleware to calculate SEO score
 SEOPageSchema.pre('save', function(next) {
-  this.calculateSEOScore()
-  next()
+  try {
+    this.calculateSEOScore()
+    next()
+  } catch (error) {
+    next(error)
+  }
 })
+
+// Ensure virtual fields are serialized
+SEOPageSchema.set('toJSON', { virtuals: true })
+SEOPageSchema.set('toObject', { virtuals: true })
 
 export default mongoose.model('SEOPage', SEOPageSchema)
