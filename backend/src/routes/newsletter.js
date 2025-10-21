@@ -82,7 +82,7 @@ router.post('/unsubscribe', async (req, res, next) => {
 })
 
 // Admin-only below
-router.use(authenticate, requireRole('admin'))
+router.use(authenticate, requireRole('super_admin', 'admin'))
 
 // List subscribers
 router.get('/', async (req, res, next) => {

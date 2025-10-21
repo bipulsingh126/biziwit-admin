@@ -37,7 +37,7 @@ const upload = multer({
 })
 
 // RBAC: admin and editor
-router.use(authenticate, requireRole('admin', 'editor'))
+router.use(authenticate, requireRole('super_admin', 'admin', 'editor'))
 
 // Get all SEO pages with filtering and search
 router.get('/', async (req, res, next) => {

@@ -92,9 +92,19 @@ const Login = () => {
 
         {/* Default Credentials Info */}
         <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
-          <p className="font-medium text-blue-800 mb-1">Default Credentials:</p>
-          <p className="text-blue-700">Email: admin@example.com</p>
-          <p className="text-blue-700">Password: Admin@123</p>
+          <p className="font-medium text-blue-800 mb-2">Available Accounts:</p>
+          <div className="space-y-2">
+            <div>
+              <p className="text-blue-800 font-medium">🔑 Main Admin (Full Access):</p>
+              <p className="text-blue-700">Email: mainadmin@biziwit.com</p>
+              <p className="text-blue-700">Password: MainAdmin@2024</p>
+            </div>
+            <div>
+              <p className="text-blue-800 font-medium">🔑 Admin (Limited Access):</p>
+              <p className="text-blue-700">Email: admin@biziwit.com</p>
+              <p className="text-blue-700">Password: Admin@123</p>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}

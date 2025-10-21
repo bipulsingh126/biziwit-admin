@@ -8,7 +8,7 @@ const router = Router()
 router.use(authenticate)
 
 // List with basic filtering
-router.get('/', requireRole('admin', 'editor'), async (req, res, next) => {
+router.get('/', requireRole('super_admin', 'admin', 'editor'), async (req, res, next) => {
   try {
     const { q = '', status, limit = 50, offset = 0 } = req.query
     const query = {}
@@ -30,7 +30,7 @@ router.get('/', requireRole('admin', 'editor'), async (req, res, next) => {
 })
 
 // Create
-router.post('/', requireRole('admin', 'editor'), async (req, res, next) => {
+router.post('/', requireRole('super_admin', 'admin', 'editor'), async (req, res, next) => {
   try {
     const body = req.body || {}
     const created = await CustomReportRequest.create(body)
@@ -39,7 +39,7 @@ router.post('/', requireRole('admin', 'editor'), async (req, res, next) => {
 })
 
 // Read one
-router.get('/:id', requireRole('admin', 'editor'), async (req, res, next) => {
+router.get('/:id', requireRole('super_admin', 'admin', 'editor'), async (req, res, next) => {
   try {
     const doc = await CustomReportRequest.findById(req.params.id)
     if (!doc) return res.status(404).json({ error: 'Not found' })
@@ -48,7 +48,7 @@ router.get('/:id', requireRole('admin', 'editor'), async (req, res, next) => {
 })
 
 // Update
-router.patch('/:id', requireRole('admin', 'editor'), async (req, res, next) => {
+router.patch('/:id', requireRole('super_admin', 'admin', 'editor'), async (req, res, next) => {
   try {
     const updated = await CustomReportRequest.findByIdAndUpdate(
       req.params.id,
@@ -61,7 +61,7 @@ router.patch('/:id', requireRole('admin', 'editor'), async (req, res, next) => {
 })
 
 // Delete
-router.delete('/:id', requireRole('admin', 'editor'), async (req, res, next) => {
+router.delete('/:id', requireRole('super_admin', 'admin', 'editor'), async (req, res, next) => {
   try {
     const r = await CustomReportRequest.findByIdAndDelete(req.params.id)
     if (!r) return res.status(404).json({ error: 'Not found' })

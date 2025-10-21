@@ -5,7 +5,7 @@ import { authenticate, requireRole } from '../middleware/auth.js'
 const router = Router()
 
 // Admin-only management
-router.use(authenticate, requireRole('admin'))
+router.use(authenticate, requireRole('super_admin', 'admin'))
 
 // List
 router.get('/', async (req, res, next) => {

@@ -7,7 +7,7 @@ import { authenticate, requireRole } from '../middleware/auth.js'
 const router = Router()
 
 // Auth: allow admin/editor
-router.use(authenticate, requireRole('admin', 'editor'))
+router.use(authenticate, requireRole('super_admin', 'admin', 'editor'))
 
 // Stripe init (optional if not configured)
 const stripeSecret = process.env.STRIPE_SECRET_KEY || ''

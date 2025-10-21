@@ -11,15 +11,15 @@ import Reports from './components/Reports'
 import ReportCreate from './components/ReportCreate'
 import SEOManagement from './components/SEOManagement'
 import Blog from './components/Blog'
-import News from './components/News'
 import Megatrends from './components/Megatrends'
+import MegatrendCreate from './components/MegatrendCreate'
 import MegatrendDetail from './components/MegatrendDetail'
-import CustomReportRequests from './components/CustomReportRequests'
+import CaseStudies from './components/CaseStudies'
+import CaseStudyCreate from './components/CaseStudyCreate'
 import Login from './components/Login'
 import ProtectedRoute from './components/ProtectedRoute'
-import OrdersPayments from './components/OrdersPayments'
 import Inquiries from './components/Inquiries'
-import Newsletter from './components/Newsletter'
+import Categories from './components/Categories'
 
 const AppContent = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -78,14 +78,6 @@ const AppContent = () => {
                   } 
                 />
                 <Route 
-                  path="/orders" 
-                  element={
-                    <ProtectedRoute route="/orders">
-                      <OrdersPayments />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
                   path="/reports" 
                   element={
                     <ProtectedRoute route="/reports">
@@ -126,14 +118,6 @@ const AppContent = () => {
                   } 
                 />
                 <Route 
-                  path="/news" 
-                  element={
-                    <ProtectedRoute route="/news">
-                      <News />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
                   path="/inquiries" 
                   element={
                     <ProtectedRoute route="/inquiries">
@@ -142,10 +126,10 @@ const AppContent = () => {
                   } 
                 />
                 <Route 
-                  path="/newsletter" 
+                  path="/categories" 
                   element={
-                    <ProtectedRoute route="/newsletter">
-                      <Newsletter />
+                    <ProtectedRoute route="/categories">
+                      <Categories />
                     </ProtectedRoute>
                   } 
                 />
@@ -158,6 +142,22 @@ const AppContent = () => {
                   } 
                 />
                 <Route 
+                  path="/admin/megatrends/create" 
+                  element={
+                    <ProtectedRoute route="/megatrends">
+                      <MegatrendCreate />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/admin/megatrends/:id/edit" 
+                  element={
+                    <ProtectedRoute route="/megatrends">
+                      <MegatrendCreate />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
                   path="/admin/megatrends/:id" 
                   element={
                     <ProtectedRoute route="/megatrends">
@@ -166,10 +166,26 @@ const AppContent = () => {
                   } 
                 />
                 <Route 
-                  path="/admin/custom-report-requests" 
+                  path="/admin/case-studies" 
                   element={
-                    <ProtectedRoute route="/custom-reports">
-                      <CustomReportRequests />
+                    <ProtectedRoute route="/case-studies">
+                      <CaseStudies />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/admin/case-studies/create" 
+                  element={
+                    <ProtectedRoute route="/case-studies">
+                      <CaseStudyCreate />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/admin/case-studies/:id/edit" 
+                  element={
+                    <ProtectedRoute route="/case-studies">
+                      <CaseStudyCreate />
                     </ProtectedRoute>
                   } 
                 />

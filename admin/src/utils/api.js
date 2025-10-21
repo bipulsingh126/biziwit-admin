@@ -17,20 +17,21 @@ class ApiClient {
 
   async request(endpoint, options = {}) {
     const url = `${API_BASE}${endpoint}`
+    const isFormData = options.body instanceof FormData;
     const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers: { ...options.headers },
       ...options,
-    }
+    };
 
     if (this.token) {
-      config.headers.Authorization = `Bearer ${this.token}`
+      config.headers.Authorization = `Bearer ${this.token}`;
     }
 
-    if (config.body && typeof config.body === 'object' && !(config.body instanceof FormData)) {
-      config.body = JSON.stringify(config.body)
+    if (isFormData) {
+      // Let the browser set the Content-Type for FormData
+    } else if (config.body && typeof config.body === 'object') {
+      config.headers['Content-Type'] = 'application/json';
+      config.body = JSON.stringify(config.body);
     }
 
     try {
@@ -142,6 +143,20 @@ class ApiClient {
     return this.request(`/api/reports/${id}`, { method: 'DELETE' })
   }
 
+  async importReports(formData) {
+    return this.request('/api/reports/bulk-upload', {
+      method: 'POST',
+      body: formData,
+      headers: {}
+    })
+  }
+
+  async exportReports(params = {}) {
+    const query = new URLSearchParams(params).toString()
+    const response = await this.request(`/api/reports/export${query ? `?${query}` : ''}`)
+    return response
+  }
+
   async uploadReportCover(id, file, alt = '') {
     const formData = new FormData()
     formData.append('file', file)
@@ -159,6 +174,17 @@ class ApiClient {
     if (alt) formData.append('alt', alt)
     return this.request(`/api/posts/${id}/cover`, {
       method: 'POST',
+      body: formData,
+      headers: {} // Let browser set Content-Type for FormData
+    })
+  }
+
+  // Upload image for rich text editor
+  async uploadImageForEditor(file) {
+    const formData = new FormData()
+    formData.append('file', file)
+    return this.request('/api/posts/upload-image', {
+      method: 'POST', 
       body: formData,
       headers: {} // Let browser set Content-Type for FormData
     })
@@ -232,6 +258,45 @@ class ApiClient {
     return this.request(`/api/custom-report-requests/${id}`, { method: 'DELETE' })
   }
 
+  // Case Studies
+  async getCaseStudies(params = {}) {
+    const query = new URLSearchParams(params).toString()
+    return this.request(`/api/case-studies${query ? `?${query}` : ''}`)
+  }
+
+  async getCaseStudy(id) {
+    return this.request(`/api/case-studies/${id}`)
+  }
+
+  async createCaseStudy(data) {
+    return this.request('/api/case-studies', { method: 'POST', body: data })
+  }
+
+  async updateCaseStudy(id, data) {
+    return this.request(`/api/case-studies/${id}`, { method: 'PATCH', body: data })
+  }
+
+  async deleteCaseStudy(id) {
+    return this.request(`/api/case-studies/${id}`, { method: 'DELETE' })
+  }
+
+  async uploadCaseStudyImage(id, file, alt = '') {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (alt) formData.append('alt', alt)
+    return this.request(`/api/case-studies/${id}/image`, {
+      method: 'POST',
+      body: formData,
+      headers: {}
+    })
+  }
+
+  // Service Pages
+  async getServicePages(params = {}) {
+    const query = new URLSearchParams(params).toString()
+    return this.request(`/api/service-pages${query ? `?${query}` : ''}`)
+  }
+
   async respondToCustomReportRequest(id, subject, message, status) {
     return this.request(`/api/custom-report-requests/${id}/respond`, {
       method: 'POST',
@@ -257,19 +322,6 @@ class ApiClient {
     return this.request(`/api/newsletter/${id}`, { method: 'DELETE' })
   }
 
-  // Orders
-  async getOrders(params = {}) {
-    const query = new URLSearchParams(params).toString()
-    return this.request(`/api/orders${query ? `?${query}` : ''}`)
-  }
-
-  async createOrder(data) {
-    return this.request('/api/orders', { method: 'POST', body: data })
-  }
-
-  async updateOrder(id, data) {
-    return this.request(`/api/orders/${id}`, { method: 'PATCH', body: data })
-  }
 
   // Inquiries
   async getInquiries(params = {}) {
@@ -356,6 +408,100 @@ class ApiClient {
 
   async getSeoAnalytics() {
     return this.request('/api/seo-pages/analytics/summary')
+  }
+
+  // Categories API
+  async getCategories(params = {}) {
+    const query = new URLSearchParams(params).toString()
+    return this.request(`/api/categories${query ? `?${query}` : ''}`)
+  }
+
+  async getCategory(id) {
+    return this.request(`/api/categories/${id}`)
+  }
+
+  async createCategory(data) {
+    return this.request('/api/categories', { method: 'POST', body: data })
+  }
+
+  async updateCategory(id, data) {
+    return this.request(`/api/categories/${id}`, { method: 'PUT', body: data })
+  }
+
+  async deleteCategory(id) {
+    return this.request(`/api/categories/${id}`, { method: 'DELETE' })
+  }
+
+  async addSubcategory(categoryId, data) {
+    return this.request(`/api/categories/${categoryId}/subcategories`, { method: 'POST', body: data })
+  }
+
+  async deleteSubcategory(categoryId, subcategoryId) {
+    return this.request(`/api/categories/${categoryId}/subcategories/${subcategoryId}`, { method: 'DELETE' })
+  }
+
+  async seedCategories() {
+    return this.request('/api/categories/seed', { method: 'POST' })
+  }
+
+  async getTrendingIndustries() {
+    return this.request('/api/categories/trending')
+  }
+
+  // Blog API methods
+  async getBlogs(params = {}) {
+    const queryString = new URLSearchParams(params).toString()
+    return this.request(`/api/blogs${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getBlog(id) {
+    return this.request(`/api/blogs/${id}`)
+  }
+
+  async createBlog(blogData) {
+    return this.request('/api/blogs', {
+      method: 'POST',
+      body: blogData
+    })
+  }
+
+  async updateBlog(id, blogData) {
+    return this.request(`/api/blogs/${id}`, {
+      method: 'PUT',
+      body: blogData
+    })
+  }
+
+  async deleteBlog(id) {
+    return this.request(`/api/blogs/${id}`, { method: 'DELETE' })
+  }
+
+  async uploadBlogCover(id, file, alt = '') {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (alt) formData.append('alt', alt)
+    return this.request(`/api/blogs/${id}/cover`, {
+      method: 'POST',
+      body: formData
+    })
+  }
+
+  async exportBlogs(format) {
+    const response = await fetch(`${API_BASE}/api/blogs/export/${format}`, {
+      headers: {
+        'Authorization': `Bearer ${this.token}`
+      }
+    })
+    
+    if (!response.ok) {
+      throw new Error('Export failed')
+    }
+    
+    return response.blob()
+  }
+
+  async getBlogStats() {
+    return this.request('/api/blogs/stats/overview')
   }
 }
 

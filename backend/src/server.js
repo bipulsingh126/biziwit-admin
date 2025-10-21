@@ -21,6 +21,10 @@ import customReportRequestsRoutes from './routes/customReportRequests.js'
 import usersRoutes from './routes/users.js'
 import analyticsRoutes from './routes/analytics.js'
 import seoPagesRoutes from './routes/seoPages.js'
+import categoriesRoutes from './routes/categories.js'
+import blogsRoutes from './routes/blogs.js'
+import caseStudiesRoutes from './routes/caseStudies.js'
+import servicePagesRoutes from './routes/servicePages.js'
 
 dotenv.config()
 
@@ -100,6 +104,10 @@ app.use('/api/custom-report-requests', customReportRequestsRoutes)
 app.use('/api/users', usersRoutes)
 app.use('/api/analytics', analyticsRoutes)
 app.use('/api/seo-pages', seoPagesRoutes)
+app.use('/api/categories', categoriesRoutes)
+app.use('/api/blogs', blogsRoutes)
+app.use('/api/case-studies', caseStudiesRoutes)
+app.use('/api/service-pages', servicePagesRoutes)
 
 // Error handler
 // eslint-disable-next-line no-unused-vars
@@ -110,50 +118,56 @@ app.use((err, req, res, next) => {
 
 // Start
 connectDB().then(async () => {
-  // Only seed users if no admin users exist in the database
+  // Only create admin user if none exists and environment variables are provided
   const adminCount = await User.countDocuments({ role: { $in: ['admin', 'super_admin'] } })
   
   if (adminCount === 0) {
-    console.log('No admin users found. Seeding default admin users...')
+    console.log('📝 No admin users found. Creating default admin users...')
     
-    // Seed default admin from environment variables
-    const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env
-    if (ADMIN_EMAIL && ADMIN_PASSWORD) {
+    // Create both mainadmin and admin users
+    const defaultAdmins = [
+      {
+        name: 'Main Admin',
+        email: 'mainadmin@biziwit.com',
+        password: 'MainAdmin@2024',
+        role: 'super_admin'
+      },
+      {
+        name: 'Admin',
+        email: 'admin@biziwit.com',
+        password: 'Admin@123',
+        role: 'admin'
+      }
+    ]
+
+    for (const adminData of defaultAdmins) {
       try {
-        await User.create({ 
-          name: 'Admin', 
-          email: ADMIN_EMAIL, 
-          password: ADMIN_PASSWORD, 
-          role: 'super_admin'
-        })
-        console.log('Seeded default admin user')
+        await User.create(adminData)
+        console.log(`✅ Created ${adminData.role}: ${adminData.email}`)
       } catch (err) {
-        console.error('Failed to seed admin user:', err.message)
+        console.error(`❌ Failed to create ${adminData.email}:`, err.message)
       }
     }
 
-    // Seed sub-admin only if no admin exists
-    const SUB_ADMIN_EMAIL = 'subadmin@biziwit.com'
-    const SUB_ADMIN_PASSWORD = 'SubAdmin@123'
-    
-    try {
-      await User.create({ 
-        name: 'Sub Admin', 
-        email: SUB_ADMIN_EMAIL, 
-        password: SUB_ADMIN_PASSWORD, 
-        role: 'admin'
-      })
-      console.log('Seeded sub-admin user')
-    } catch (err) {
-      console.error('Failed to seed sub-admin user:', err.message)
-    }
+    console.log('\n📋 LOGIN CREDENTIALS:')
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.log('🔑 MAIN ADMIN (Full Access):')
+    console.log('   Email: mainadmin@biziwit.com')
+    console.log('   Password: MainAdmin@2024')
+    console.log('   Role: super_admin (ALL features)')
+    console.log('')
+    console.log('🔑 ADMIN (Limited Access):')
+    console.log('   Email: admin@biziwit.com')
+    console.log('   Password: Admin@123')
+    console.log('   Role: admin (No user management)')
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
   } else {
-    console.log(`Found ${adminCount} admin user(s). Skipping user seeding.`)
+    console.log(`✅ Found ${adminCount} admin user(s)`)
   }
 
-  app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`))
+  app.listen(PORT, () => console.log(`🚀 API running on http://localhost:${PORT}`))
 }).catch((err) => {
-  console.error('Failed to connect DB', err)
+  console.error('❌ Failed to connect to database:', err)
   process.exit(1)
 })
 

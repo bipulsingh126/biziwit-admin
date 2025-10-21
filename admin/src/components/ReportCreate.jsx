@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Save, CheckCircle, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Save, CheckCircle, AlertCircle, Upload, Image, X } from 'lucide-react'
 import api from '../utils/api'
 import RichTextEditor from './RichTextEditor'
 
@@ -16,12 +16,18 @@ const ReportCreate = () => {
     content: '',
     tableOfContents: '',
     segmentationContent: '',
+    // Backend-compatible fields
+    reportDescription: '',
+    segment: '',
+    // SEO fields
+    titleTag: '',
+    url: '',
+    metaDescription: '',
+    keywords: '',
     // Legacy category fields
     category: '',
     subCategory: '',
-    // New domain/region fields
-    domain: '',
-    subdomain: '',
+    // New region field
     region: '',
     // Report details
     author: '',
@@ -48,6 +54,9 @@ const ReportCreate = () => {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [validationErrors, setValidationErrors] = useState({})
+  const [coverImage, setCoverImage] = useState(null)
+  const [coverImagePreview, setCoverImagePreview] = useState('')
+  const [uploadingCover, setUploadingCover] = useState(false)
 
   const categories = [
     'Life Sciences', 'Food and Beverages', 'ICT and Media',
@@ -61,24 +70,6 @@ const ReportCreate = () => {
     'Consumer Goods': ['Home Products', 'Personal Care', 'Apparel'],
     'Energy and Power': ['Equipment and Devices', 'Renewable Energy', 'Oil and Gas'],
     'Construction and Manufacturing': ['Engineering, Equipment and Machinery', 'HVAC', 'Building Materials']
-  }
-
-  const domains = [
-    'Healthcare & Life Sciences', 'Pharmaceuticals', 'Food and Beverages', 
-    'ICT and Media', 'Consumer Goods', 'Energy and Power', 
-    'Construction and Manufacturing', 'Automotive', 'Aerospace & Defense'
-  ]
-
-  const subdomains = {
-    'Healthcare & Life Sciences': ['Diagnostics and Biotech', 'Medical Devices and Supplies', 'Healthcare IT'],
-    'Pharmaceuticals': ['Drug Discovery', 'Clinical Trials', 'Generic Drugs', 'Specialty Pharmaceuticals'],
-    'Food and Beverages': ['Food Ingredients', 'Beverages', 'Food Processing', 'Organic Foods'],
-    'ICT and Media': ['Software and Services', 'Hardware', 'Telecommunications', 'Digital Media'],
-    'Consumer Goods': ['Home Products', 'Personal Care', 'Apparel', 'Electronics'],
-    'Energy and Power': ['Equipment and Devices', 'Renewable Energy', 'Oil and Gas', 'Smart Grid'],
-    'Construction and Manufacturing': ['Engineering Equipment', 'HVAC', 'Building Materials', 'Industrial Automation'],
-    'Automotive': ['Electric Vehicles', 'Autonomous Vehicles', 'Auto Parts', 'Automotive Software'],
-    'Aerospace & Defense': ['Commercial Aviation', 'Defense Systems', 'Space Technology', 'Drones']
   }
 
   const regions = [
@@ -103,13 +94,19 @@ const ReportCreate = () => {
         summary: report.summary || '',
         content: report.content || '',
         tableOfContents: report.tableOfContents || '',
-        segmentationContent: report.segmentationContent || '',
+        // Backend-compatible fields
+        reportDescription: report.reportDescription || report.content || '',
+        segment: report.segment || '',
+        segmentationContent: report.segment || report.segmentationContent || '',
+        // SEO fields
+        titleTag: report.titleTag || '',
+        url: report.url || '',
+        metaDescription: report.metaDescription || '',
+        keywords: report.keywords || '',
         // Legacy category fields
         category: report.category || '',
         subCategory: report.subCategory || '',
-        // New domain/region fields
-        domain: report.domain || '',
-        subdomain: report.subdomain || '',
+        // New region field
         region: report.region || '',
         // Report details
         author: report.author || '',
@@ -151,8 +148,8 @@ const ReportCreate = () => {
   const validateForm = () => {
     const errors = {}
     if (!formData.title.trim()) errors.title = 'Title is required'
-    if (!formData.domain) errors.domain = 'Domain is required'
-    if (!formData.subdomain) errors.subdomain = 'Subdomain is required'
+    if (!formData.category) errors.category = 'Report Category is required'
+    if (!formData.subCategory) errors.subCategory = 'Report Sub Category is required'
     if (!formData.region) errors.region = 'Region is required'
     if (!formData.author.trim()) errors.author = 'Author Name is required'
     setValidationErrors(errors)
@@ -178,13 +175,19 @@ const ReportCreate = () => {
         summary: formData.summary.trim(),
         content: formData.content,
         tableOfContents: formData.tableOfContents,
-        segmentationContent: formData.segmentationContent,
+        // Backend-compatible fields
+        reportDescription: formData.reportDescription || formData.content,
+        segment: formData.segment || formData.segmentationContent,
+        segmentationContent: formData.segment || formData.segmentationContent,
+        // SEO fields
+        titleTag: formData.titleTag.trim(),
+        url: formData.url.trim(),
+        metaDescription: formData.metaDescription.trim(),
+        keywords: formData.keywords.trim(),
         // Legacy category fields
         category: formData.category,
         subCategory: formData.subCategory,
-        // New domain/region fields
-        domain: formData.domain,
-        subdomain: formData.subdomain,
+        // New region field
         region: formData.region,
         // Report details
         author: formData.author.trim(),
@@ -227,14 +230,64 @@ const ReportCreate = () => {
     }
   }
 
-  const handleCategoryChange = (category) => {
-    handleInputChange('category', category)
-    handleInputChange('subCategory', '')
+  const handleCategoryChange = (selectedCategory) => {
+    setFormData(prev => ({
+      ...prev,
+      category: selectedCategory,
+      subCategory: '' // Reset subcategory when category changes
+    }))
   }
 
-  const handleDomainChange = (domain) => {
-    handleInputChange('domain', domain)
-    handleInputChange('subdomain', '')
+  // Cover Image Functions
+  const handleCoverImageSelect = (event) => {
+    const file = event.target.files[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please select a valid image file')
+        return
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image size must be less than 5MB')
+        return
+      }
+      
+      setCoverImage(file)
+      
+      // Create preview
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setCoverImagePreview(e.target.result)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleCoverImageUpload = async () => {
+    if (!coverImage || !id) {
+      setError('Please select an image and save the report first')
+      return
+    }
+
+    try {
+      setUploadingCover(true)
+      await api.uploadReportCover(id, coverImage)
+      setSuccess('Cover image uploaded successfully!')
+      setCoverImage(null)
+      
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.message || 'Failed to upload cover image')
+    } finally {
+      setUploadingCover(false)
+    }
+  }
+
+  const removeCoverImage = () => {
+    setCoverImage(null)
+    setCoverImagePreview('')
   }
 
   if (loading) {
@@ -339,49 +392,129 @@ const ReportCreate = () => {
                 />
               </div>
 
-              {/* Domain and Subdomain */}
+              {/* SEO Fields Section */}
+              <div className="border-t pt-6">
+                <h3 className="text-md font-semibold text-gray-900 mb-4">SEO Settings</h3>
+                
+                {/* Title Tag */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Title Tag
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.titleTag}
+                    onChange={(e) => handleInputChange('titleTag', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter SEO title tag (recommended: 50-60 characters)"
+                    disabled={saving}
+                    maxLength="60"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    {formData.titleTag.length}/60 characters
+                  </p>
+                </div>
+
+                {/* URL */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    URL Slug
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.url}
+                    onChange={(e) => handleInputChange('url', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter URL slug (e.g., my-report-title)"
+                    disabled={saving}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    URL-friendly version of the title (lowercase, hyphens instead of spaces)
+                  </p>
+                </div>
+
+                {/* Meta Description */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Meta Description
+                  </label>
+                  <textarea
+                    value={formData.metaDescription}
+                    onChange={(e) => handleInputChange('metaDescription', e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter meta description for search engines (recommended: 150-160 characters)"
+                    disabled={saving}
+                    maxLength="160"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    {formData.metaDescription.length}/160 characters
+                  </p>
+                </div>
+
+                {/* Keywords */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Keywords
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.keywords}
+                    onChange={(e) => handleInputChange('keywords', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter keywords separated by commas (e.g., market research, technology, analysis)"
+                    disabled={saving}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Separate keywords with commas for better SEO
+                  </p>
+                </div>
+              </div>
+
+
+              {/* Categories Section */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Domain <span className="text-red-500">*</span>
+                    Report Category <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={formData.domain}
-                    onChange={(e) => handleDomainChange(e.target.value)}
+                    value={formData.category}
+                    onChange={(e) => handleCategoryChange(e.target.value)}
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      validationErrors.domain ? 'border-red-300' : 'border-gray-300'
+                      validationErrors.category ? 'border-red-300' : 'border-gray-300'
                     }`}
                     disabled={saving}
                   >
-                    <option value="">Select domain</option>
-                    {domains.map(domain => (
-                      <option key={domain} value={domain}>{domain}</option>
+                    <option value="">Select category</option>
+                    {categories.map(category => (
+                      <option key={category} value={category}>{category}</option>
                     ))}
                   </select>
-                  {validationErrors.domain && (
-                    <p className="mt-1 text-sm text-red-600">{validationErrors.domain}</p>
+                  {validationErrors.category && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.category}</p>
                   )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Subdomain <span className="text-red-500">*</span>
+                    Report Sub Category <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={formData.subdomain}
-                    onChange={(e) => handleInputChange('subdomain', e.target.value)}
+                    value={formData.subCategory}
+                    onChange={(e) => handleInputChange('subCategory', e.target.value)}
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      validationErrors.subdomain ? 'border-red-300' : 'border-gray-300'
+                      validationErrors.subCategory ? 'border-red-300' : 'border-gray-300'
                     }`}
-                    disabled={!formData.domain || saving}
+                    disabled={!formData.category || saving}
                   >
-                    <option value="">Select subdomain</option>
-                    {formData.domain && subdomains[formData.domain]?.map(subdomain => (
-                      <option key={subdomain} value={subdomain}>{subdomain}</option>
+                    <option value="">Select sub category</option>
+                    {formData.category && subCategories[formData.category]?.map(subCategory => (
+                      <option key={subCategory} value={subCategory}>{subCategory}</option>
                     ))}
                   </select>
-                  {validationErrors.subdomain && (
-                    <p className="mt-1 text-sm text-red-600">{validationErrors.subdomain}</p>
+                  {validationErrors.subCategory && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.subCategory}</p>
                   )}
                 </div>
               </div>
@@ -560,6 +693,75 @@ const ReportCreate = () => {
                   }
                 </div>
               </div>
+
+              {/* Cover Image Section */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Report Cover Image
+                </label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                  {coverImagePreview ? (
+                    <div className="relative">
+                      <img
+                        src={coverImagePreview}
+                        alt="Cover preview"
+                        className="w-full h-48 object-cover rounded-lg"
+                      />
+                      <button
+                        onClick={removeCoverImage}
+                        className="absolute top-2 right-2 p-1 bg-red-600 text-white rounded-full hover:bg-red-700"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      <div className="mt-4 flex items-center gap-3">
+                        {isEdit && (
+                          <button
+                            onClick={handleCoverImageUpload}
+                            disabled={uploadingCover}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {uploadingCover ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-4 h-4" />
+                                Upload Cover
+                              </>
+                            )}
+                          </button>
+                        )}
+                        <p className="text-sm text-gray-500">
+                          {isEdit ? 'Save the report first, then upload cover image' : 'Cover image will be uploaded after saving'}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <Image className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <div className="mb-4">
+                        <label className="cursor-pointer">
+                          <span className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            <Upload className="w-4 h-4" />
+                            Choose Cover Image
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleCoverImageSelect}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                      <p className="text-sm text-gray-500">
+                        Upload a cover image for your report (Max 5MB, JPG/PNG)
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -606,8 +808,11 @@ const ReportCreate = () => {
             {activeTab === 'overview' && (
               <div className="space-y-6">
                 <RichTextEditor
-                  value={formData.content}
-                  onChange={(value) => handleInputChange('content', value)}
+                  value={formData.reportDescription}
+                  onChange={(value) => {
+                    handleInputChange('reportDescription', value)
+                    handleInputChange('content', value) // Keep backward compatibility
+                  }}
                   placeholder="Write your report overview here..."
                   disabled={saving}
                 />
@@ -628,8 +833,11 @@ const ReportCreate = () => {
             {activeTab === 'segmentation' && (
               <div>
                 <RichTextEditor
-                  value={formData.segmentationContent}
-                  onChange={(value) => handleInputChange('segmentationContent', value)}
+                  value={formData.segment || formData.segmentationContent}
+                  onChange={(value) => {
+                    handleInputChange('segment', value)
+                    handleInputChange('segmentationContent', value) // Keep backward compatibility
+                  }}
                   placeholder="Describe market segments here..."
                   disabled={saving}
                 />

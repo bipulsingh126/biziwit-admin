@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Search, Plus, Edit, Trash2, Eye, Filter, Download, X, Calendar, User, Globe, FileText, Tag, Image, Link as LinkIcon, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react'
 import api from '../utils/api'
 import { Link, useNavigate } from 'react-router-dom'
 
-const Megatrends = () => {
+const CaseStudies = () => {
   const navigate = useNavigate()
   
   // Search and Filter States
@@ -16,11 +16,10 @@ const Megatrends = () => {
   })
   
   // Data States
-  const [megatrends, setMegatrends] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [caseStudies, setCaseStudies] = useState([])
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [uploading, setUploading] = useState(false)
   
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1)
@@ -28,18 +27,17 @@ const Megatrends = () => {
   const [totalItems, setTotalItems] = useState(0)
   
   // Selection States
-  const [selectedMegatrends, setSelectedMegatrends] = useState([])
+  const [selectedCaseStudies, setSelectedCaseStudies] = useState([])
   const [selectAll, setSelectAll] = useState(false)
   const [bulkOperating, setBulkOperating] = useState(false)
   
-
   useEffect(() => {
-    loadMegatrends()
+    loadCaseStudies()
   }, [])
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      loadMegatrends()
+      loadCaseStudies()
     }, 300)
     return () => clearTimeout(timer)
   }, [searchTerm, filters, currentPage, itemsPerPage])
@@ -52,102 +50,36 @@ const Megatrends = () => {
     }
   }, [success])
 
-  const loadMegatrends = async () => {
+  const loadCaseStudies = async () => {
     try {
       setLoading(true)
       setError('')
       
       const params = {
-        q: searchTerm.trim(),
+        page: currentPage,
         limit: itemsPerPage,
-        offset: (currentPage - 1) * itemsPerPage,
-        ...filters
+        search: searchTerm,
+        ...Object.fromEntries(
+          Object.entries(filters).filter(([_, value]) => value !== '')
+        )
       }
       
-      // Remove empty values
-      Object.keys(params).forEach(key => {
-        if (params[key] === '' || params[key] === null || params[key] === undefined) {
-          delete params[key]
-        }
-      })
-      
-      const result = await api.getMegatrends(params)
-      setMegatrends(result.data || result.items || [])
-      setTotalItems(result.total || result.count || 0)
+      const response = await api.getCaseStudies(params)
+      setCaseStudies(response.data || [])
+      setTotalItems(response.total || 0)
       
       // Reset selections when data changes
-      setSelectedMegatrends([])
+      setSelectedCaseStudies([])
       setSelectAll(false)
     } catch (err) {
-      setError(err.message || 'Failed to load megatrends')
+      setError(err.message || 'Failed to load case studies')
     } finally {
       setLoading(false)
     }
   }
 
   
-  // Selection handlers
-  const handleSelectAll = () => {
-    if (selectAll) {
-      setSelectedMegatrends([])
-      setSelectAll(false)
-    } else {
-      setSelectedMegatrends(megatrends.map(m => m._id))
-      setSelectAll(true)
-    }
-  }
-  
-  const handleSelectMegatrend = (megatrendId) => {
-    setSelectedMegatrends(prev => {
-      const newSelected = prev.includes(megatrendId)
-        ? prev.filter(id => id !== megatrendId)
-        : [...prev, megatrendId]
-      
-      setSelectAll(newSelected.length === megatrends.length && megatrends.length > 0)
-      return newSelected
-    })
-  }
-  
-  // Bulk operations
-  const handleBulkDelete = async () => {
-    if (!confirm(`Are you sure you want to delete ${selectedMegatrends.length} megatrends?`)) return
-    
-    setBulkOperating(true)
-    try {
-      const deletePromises = selectedMegatrends.map(id => api.deleteMegatrend(id))
-      await Promise.all(deletePromises)
-      
-      setSuccess(`Successfully deleted ${selectedMegatrends.length} megatrends`)
-      setSelectedMegatrends([])
-      setSelectAll(false)
-      loadMegatrends()
-    } catch (err) {
-      setError('Failed to delete some megatrends: ' + err.message)
-    } finally {
-      setBulkOperating(false)
-    }
-  }
-  
-  const handleBulkStatusChange = async (newStatus) => {
-    setBulkOperating(true)
-    try {
-      const updatePromises = selectedMegatrends.map(id => 
-        api.updateMegatrend(id, { status: newStatus })
-      )
-      await Promise.all(updatePromises)
-      
-      setSuccess(`Successfully updated ${selectedMegatrends.length} megatrends to ${newStatus}`)
-      setSelectedMegatrends([])
-      setSelectAll(false)
-      loadMegatrends()
-    } catch (err) {
-      setError('Failed to update some megatrends: ' + err.message)
-    } finally {
-      setBulkOperating(false)
-    }
-  }
-  
-  // Pagination
+  // Pagination calculations
   const totalPages = Math.ceil(totalItems / itemsPerPage)
   const startItem = (currentPage - 1) * itemsPerPage + 1
   const endItem = Math.min(currentPage * itemsPerPage, totalItems)
@@ -159,38 +91,92 @@ const Megatrends = () => {
   }
 
   const openNew = () => {
-    navigate('/admin/megatrends/create')
+    navigate('/admin/case-studies/create')
   }
 
-  const openEdit = (megatrend) => {
-    navigate(`/admin/megatrends/${megatrend._id}/edit`)
+  const openEdit = (caseStudy) => {
+    navigate(`/admin/case-studies/${caseStudy._id}/edit`)
   }
 
-
-  const deleteMegatrend = async (id) => {
-    if (!confirm('Are you sure you want to delete this megatrend?')) return
-    
-    try {
-      await api.deleteMegatrend(id)
-      setSuccess('Megatrend deleted successfully!')
-      loadMegatrends()
-    } catch (err) {
-      setError('Failed to delete megatrend: ' + err.message)
+  // Selection handlers
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedCaseStudies([])
+      setSelectAll(false)
+    } else {
+      setSelectedCaseStudies(caseStudies.map(cs => cs._id))
+      setSelectAll(true)
     }
   }
 
+  const handleSelectCaseStudy = (caseStudyId) => {
+    setSelectedCaseStudies(prev => {
+      const newSelected = prev.includes(caseStudyId)
+        ? prev.filter(id => id !== caseStudyId)
+        : [...prev, caseStudyId]
+      
+      setSelectAll(newSelected.length === caseStudies.length && caseStudies.length > 0)
+      return newSelected
+    })
+  }
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Are you sure you want to delete ${selectedCaseStudies.length} case studies?`)) return
+    
+    try {
+      setBulkOperating(true)
+      await Promise.all(selectedCaseStudies.map(id => api.deleteCaseStudy(id)))
+      setSuccess(`${selectedCaseStudies.length} case studies deleted successfully!`)
+      setSelectedCaseStudies([])
+      setSelectAll(false)
+      loadCaseStudies()
+    } catch (err) {
+      setError('Failed to delete case studies: ' + err.message)
+    } finally {
+      setBulkOperating(false)
+    }
+  }
+
+  const handleBulkStatusChange = async (newStatus) => {
+    try {
+      setBulkOperating(true)
+      await Promise.all(selectedCaseStudies.map(id => 
+        api.updateCaseStudy(id, { status: newStatus })
+      ))
+      setSuccess(`${selectedCaseStudies.length} case studies updated successfully!`)
+      setSelectedCaseStudies([])
+      setSelectAll(false)
+      loadCaseStudies()
+    } catch (err) {
+      setError('Failed to update case studies: ' + err.message)
+    } finally {
+      setBulkOperating(false)
+    }
+  }
+
+  const deleteCaseStudy = async (id) => {
+    if (!confirm('Are you sure you want to delete this case study?')) return
+    
+    try {
+      await api.deleteCaseStudy(id)
+      setSuccess('Case study deleted successfully!')
+      loadCaseStudies()
+    } catch (err) {
+      setError('Failed to delete case study: ' + err.message)
+    }
+  }
 
   return (
     <div className="p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Megatrends</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Case Studies</h1>
         <button 
           onClick={openNew}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Add New Megatrend
+          Add New Case Study
         </button>
       </div>
 
@@ -202,7 +188,7 @@ const Megatrends = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="text"
-              placeholder="Search megatrends, authors, keywords..."
+              placeholder="Search case studies, authors, keywords..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -275,11 +261,11 @@ const Megatrends = () => {
       </div>
 
       {/* Bulk Actions Toolbar */}
-      {selectedMegatrends.length > 0 && (
+      {selectedCaseStudies.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
           <div className="flex items-center justify-between">
             <span className="text-blue-800 font-medium">
-              {selectedMegatrends.length} megatrends selected
+              {selectedCaseStudies.length} case studies selected
             </span>
             <div className="flex gap-2">
               <button
@@ -305,7 +291,7 @@ const Megatrends = () => {
               </button>
               <button
                 onClick={() => {
-                  setSelectedMegatrends([])
+                  setSelectedCaseStudies([])
                   setSelectAll(false)
                 }}
                 className="px-3 py-1 text-gray-600 border border-gray-300 rounded text-sm hover:bg-gray-50"
@@ -356,7 +342,7 @@ const Megatrends = () => {
                   />
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Megatrend Title
+                  Case Study Title
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Author Name
@@ -381,76 +367,87 @@ const Megatrends = () => {
                   <td colSpan="7" className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center">
                       <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mb-4"></div>
-                      <p className="text-gray-600">Loading megatrends...</p>
+                      <p className="text-gray-600">Loading case studies...</p>
                     </div>
                   </td>
                 </tr>
-              ) : megatrends.length === 0 ? (
+              ) : caseStudies.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
-                    No megatrends found
+                    No case studies found
                   </td>
                 </tr>
               ) : (
-                megatrends.map((megatrend) => (
-                  <tr key={megatrend._id} className="hover:bg-gray-50">
+                caseStudies.map((caseStudy) => (
+                  <tr key={caseStudy._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <input
                         type="checkbox"
-                        checked={selectedMegatrends.includes(megatrend._id)}
-                        onChange={() => handleSelectMegatrend(megatrend._id)}
+                        checked={selectedCaseStudies.includes(caseStudy._id)}
+                        onChange={() => handleSelectCaseStudy(caseStudy._id)}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900 truncate max-w-xs">
-                        {megatrend.title}
-                      </div>
-                      {megatrend.subTitle && (
-                        <div className="text-sm text-gray-500 truncate max-w-xs">
-                          {megatrend.subTitle}
+                      <div className="flex items-center">
+                        {caseStudy.mainImage && (
+                          <img
+                            src={caseStudy.mainImage}
+                            alt={caseStudy.title}
+                            className="w-12 h-12 rounded-lg object-cover mr-3"
+                          />
+                        )}
+                        <div>
+                          <div className="text-sm font-medium text-gray-900 truncate max-w-xs">
+                            {caseStudy.title}
+                          </div>
+                          {caseStudy.subTitle && (
+                            <div className="text-sm text-gray-500 truncate max-w-xs">
+                              {caseStudy.subTitle}
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {megatrend.authorName || 'N/A'}
+                      {caseStudy.authorName || 'N/A'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {megatrend.publishDate ? new Date(megatrend.publishDate).toLocaleDateString() : 'N/A'}
+                      {caseStudy.publishDate ? new Date(caseStudy.publishDate).toLocaleDateString() : 'N/A'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {megatrend.updatedAt ? new Date(megatrend.updatedAt).toLocaleDateString() : 'N/A'}
+                      {caseStudy.updatedAt ? new Date(caseStudy.updatedAt).toLocaleDateString() : 'N/A'}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        megatrend.status === 'published' 
+                        caseStudy.status === 'published' 
                           ? 'bg-green-100 text-green-800'
-                          : megatrend.status === 'draft'
+                          : caseStudy.status === 'draft'
                           ? 'bg-yellow-100 text-yellow-800'
                           : 'bg-gray-100 text-gray-800'
                       }`}>
-                        {megatrend.status || 'draft'}
+                        {caseStudy.status || 'draft'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm font-medium">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => openEdit(megatrend)}
+                          onClick={() => openEdit(caseStudy)}
                           className="text-blue-600 hover:text-blue-900"
                           title="Edit"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => deleteMegatrend(megatrend._id)}
+                          onClick={() => deleteCaseStudy(caseStudy._id)}
                           className="text-red-600 hover:text-red-900"
                           title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                        {megatrend.url && (
+                        {caseStudy.url && (
                           <button
-                            onClick={() => navigator.clipboard.writeText(megatrend.url)}
+                            onClick={() => navigator.clipboard.writeText(caseStudy.url)}
                             className="text-gray-600 hover:text-gray-900"
                             title="Copy URL"
                           >
@@ -530,9 +527,8 @@ const Megatrends = () => {
           </div>
         )}
       </div>
-
     </div>
   )
 }
 
-export default Megatrends
+export default CaseStudies

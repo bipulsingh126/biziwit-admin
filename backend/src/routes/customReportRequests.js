@@ -53,7 +53,7 @@ router.post('/submit', async (req, res, next) => {
 })
 
 // Admin management
-router.use(authenticate, requireRole('admin'))
+router.use(authenticate, requireRole('super_admin', 'admin'))
 
 // List
 router.get('/', async (req, res, next) => {

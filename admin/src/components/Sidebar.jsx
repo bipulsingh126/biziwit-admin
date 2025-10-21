@@ -7,12 +7,10 @@ import {
   X,
   FileText,
   Edit,
-  Newspaper,
-  CreditCard,
   Inbox,
-  Send,
   TrendingUp,
-  Search
+  Search,
+  Folder
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -24,15 +22,13 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Users', href: '/users', icon: Users },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-    { name: 'Orders', href: '/orders', icon: CreditCard },
     { name: 'Reports', href: '/reports', icon: FileText },
+    { name: 'Categories', href: '/categories', icon: Folder },
     { name: 'SEO Management', href: '/seo-management', icon: Search },
     { name: 'Blog', href: '/blog', icon: Edit },
-    { name: 'News', href: '/news', icon: Newspaper },
-    { name: 'Custom Reports', href: '/admin/custom-report-requests', icon: FileText },
     { name: 'Megatrends', href: '/admin/megatrends', icon: TrendingUp },
+    { name: 'Case Studies', href: '/admin/case-studies', icon: FileText },
     { name: 'Inquiries', href: '/inquiries', icon: Inbox },
-    { name: 'Newsletter', href: '/newsletter', icon: Send },
     { name: 'Settings', href: '/settings', icon: Settings },
   ]
 

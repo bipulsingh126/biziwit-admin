@@ -185,7 +185,7 @@ const SEOPageSchema = new mongoose.Schema({
 
 // Indexes for better query performance
 SEOPageSchema.index({ pageName: 'text', titleMetaTag: 'text', metaDescription: 'text', keywords: 'text' })
-SEOPageSchema.index({ url: 1 })
+// Note: url index is automatically created by unique: true constraint
 SEOPageSchema.index({ isActive: 1 })
 SEOPageSchema.index({ seoScore: -1 })
 
