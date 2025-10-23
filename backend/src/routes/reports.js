@@ -681,6 +681,116 @@ router.get('/export', async (req, res, next) => {
   }
 })
 
+// POST /api/reports/check-duplicates - Check for duplicates before import
+router.post('/check-duplicates', upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        error: 'No File',
+        message: 'No file uploaded for duplicate check'
+      });
+    }
+
+    let data;
+    const fileExtension = path.extname(req.file.originalname).toLowerCase();
+    
+    try {
+      if (fileExtension === '.csv') {
+        const workbook = XLSX.readFile(req.file.path, { 
+          type: 'file',
+          cellDates: true,
+          cellNF: false,
+          cellText: false
+        });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      } else {
+        const workbook = XLSX.readFile(req.file.path, {
+          cellDates: true,
+          cellNF: false,
+          cellText: false
+        });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      }
+    } catch (fileError) {
+      return res.status(400).json({
+        error: 'File Reading Error',
+        message: `Failed to read the uploaded file: ${fileError.message}`
+      });
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(400).json({
+        error: 'Empty File',
+        message: 'The uploaded file contains no data'
+      });
+    }
+
+    // Check for duplicates in database
+    const duplicates = [];
+    const totalRecords = data.length;
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      
+      // Extract title and report code
+      const title = row['Report Title'] || row['REPORT TITLE'] || row['Title'] || '';
+      const reportCode = row['Report Code'] || row['REPORT CODE'] || row['Code'] || '';
+      
+      if (title.trim()) {
+        // Check if report exists by title or report code
+        const existingReport = await Report.findOne({
+          $or: [
+            { title: { $regex: new RegExp(`^${title.trim()}$`, 'i') } },
+            ...(reportCode.trim() ? [{ reportCode: reportCode.trim() }] : [])
+          ]
+        });
+
+        if (existingReport) {
+          duplicates.push({
+            row: i + 2, // Excel row number (1-indexed + header)
+            title: title.trim(),
+            reportCode: reportCode.trim(),
+            existingId: existingReport._id
+          });
+        }
+      }
+    }
+
+    // Clean up uploaded file
+    if (req.file && req.file.path) {
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error('Error deleting temp file:', err);
+      });
+    }
+
+    res.json({
+      success: true,
+      totalRecords,
+      duplicates,
+      duplicateCount: duplicates.length
+    });
+
+  } catch (error) {
+    console.error('❌ Duplicate check error:', error);
+    
+    // Clean up uploaded file on error
+    if (req.file && req.file.path) {
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error('Error deleting temp file:', err);
+      });
+    }
+    
+    res.status(500).json({
+      error: 'Duplicate Check Failed',
+      message: error.message
+    });
+  }
+})
+
 // POST /api/reports/bulk-upload - Optimized bulk upload for 500+ records
 router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
   try {
@@ -736,6 +846,10 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
 
     console.log(`🚀 Starting import of ${data.length} rows`);
     
+    // Get duplicate handling preference
+    const duplicateHandling = req.body.duplicateHandling || 'update';
+    console.log(`🔄 Duplicate handling mode: ${duplicateHandling}`);
+    
     // Validate file size for performance
     if (data.length > 1000) {
       console.log('⚠️  Large file detected, using optimized processing...');
@@ -758,6 +872,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
 
     let insertedCount = 0;
     let updatedCount = 0;
+    let skippedCount = 0;
     let failedCount = 0;
     const errors = [];
     
@@ -1021,33 +1136,49 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           
           // Optimized bulk processing with better error handling and duplicate prevention
           try {
-            const bulkOps = reportBatch.map(reportData => {
-              // Always use upsert to prevent duplicates
-              if (reportData.reportCode && reportData.reportCode.trim()) {
-                // If reportCode exists, use it as primary identifier
-                return {
-                  updateOne: {
-                    filter: { reportCode: reportData.reportCode },
-                    update: { $set: reportData },
-                    upsert: true
+            // Handle different duplicate strategies
+            const bulkOps = [];
+            
+            for (const reportData of reportBatch) {
+              const filter = reportData.reportCode && reportData.reportCode.trim() 
+                ? { reportCode: reportData.reportCode }
+                : { 
+                    $or: [
+                      { slug: reportData.slug },
+                      { title: reportData.title }
+                    ]
+                  };
+              
+              if (duplicateHandling === 'skip') {
+                // Skip duplicates - only insert if not exists
+                const existing = await Report.findOne(filter);
+                if (!existing) {
+                  bulkOps.push({
+                    insertOne: {
+                      document: reportData
+                    }
+                  });
+                } else {
+                  skippedCount++;
+                }
+              } else if (duplicateHandling === 'create') {
+                // Always create new - don't check for duplicates
+                bulkOps.push({
+                  insertOne: {
+                    document: reportData
                   }
-                };
+                });
               } else {
-                // If no reportCode, use title + slug combination to prevent duplicates
-                return {
+                // Default: update existing or create new (upsert)
+                bulkOps.push({
                   updateOne: {
-                    filter: { 
-                      $or: [
-                        { slug: reportData.slug },
-                        { title: reportData.title }
-                      ]
-                    },
+                    filter: filter,
                     update: { $set: reportData },
                     upsert: true
                   }
-                };
+                });
               }
-            });
+            }
             
             const bulkResult = await Report.bulkWrite(bulkOps, { 
               ordered: false,
@@ -1153,8 +1284,10 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
       console.warn('⚠️  Failed to cleanup uploaded file:', cleanupError.message);
     }
 
-    const totalProcessed = insertedCount + updatedCount;
+    const totalProcessed = insertedCount + updatedCount + skippedCount;
     const successRate = ((totalProcessed / data.length) * 100).toFixed(1);
+    
+    console.log(`📊 Final Results: ${insertedCount} new, ${updatedCount} updated, ${skippedCount} skipped, ${failedCount} failed`);
     
     res.status(201).json({
       success: true,
@@ -1163,7 +1296,9 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         total: data.length,
         inserted: insertedCount,
         updated: updatedCount,
+        skipped: skippedCount,
         failed: failedCount,
+        duplicates: skippedCount + updatedCount,
         successRate: parseFloat(successRate),
         processingTime: totalTime,
         recordsPerSecond: parseFloat(rate.toFixed(1))

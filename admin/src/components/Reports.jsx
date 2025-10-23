@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Filter, Upload, Download, Edit, Trash2, ExternalLink, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { Search, Filter, Upload, Download, Edit, Trash2, ExternalLink, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, FileSpreadsheet, AlertCircle, CheckCircle, Clock } from 'lucide-react'
 import api from '../utils/api'
 
 const Reports = () => {
@@ -26,6 +26,14 @@ const Reports = () => {
   const [lastExportTime, setLastExportTime] = useState(0)
   const [importProgress, setImportProgress] = useState(null)
   const [isImporting, setIsImporting] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [importStats, setImportStats] = useState(null)
+  const [importErrors, setImportErrors] = useState([])
+  const [duplicateHandling, setDuplicateHandling] = useState('update')
+  const [duplicatePreview, setDuplicatePreview] = useState(null)
+  const [showDuplicateOptions, setShowDuplicateOptions] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState({})
   const [selectedReports, setSelectedReports] = useState([])
   const [selectAll, setSelectAll] = useState(false)
@@ -453,92 +461,164 @@ const Reports = () => {
   }
 
   const handleImport = () => {
-    // Create file input for bulk import
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.xlsx,.xls,.csv'
-    input.onchange = async (event) => {
-      const file = event.target.files[0]
-      if (!file) return
+    setShowImportModal(true)
+  }
+
+  const handleDrag = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true)
+    } else if (e.type === 'dragleave') {
+      setDragActive(false)
+    }
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileSelect(e.dataTransfer.files[0])
+    }
+  }
+
+  const handleFileSelect = async (file) => {
+    // Validate file type
+    const validTypes = ['.xlsx', '.xls', '.csv']
+    const fileExtension = '.' + file.name.split('.').pop().toLowerCase()
+    
+    if (!validTypes.includes(fileExtension)) {
+      setError('Please select a valid Excel (.xlsx, .xls) or CSV (.csv) file')
+      return
+    }
+    
+    // Validate file size
+    const fileSizeMB = (file.size / 1024 / 1024).toFixed(2)
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      setError(`File size (${fileSizeMB}MB) is too large. Please use files smaller than 10MB.`)
+      return
+    }
+    
+    setSelectedFile(file)
+    setError('')
+    
+    // Check for potential duplicates
+    await checkForDuplicates(file)
+  }
+
+  const checkForDuplicates = async (file) => {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('checkOnly', 'true')
       
-      // Validate file size (warn for files > 5MB)
-      const fileSizeMB = (file.size / 1024 / 1024).toFixed(2)
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        alert(`File size (${fileSizeMB}MB) is too large. Please use files smaller than 10MB.`)
-        return
+      const result = await api.checkImportDuplicates(formData)
+      
+      if (result.duplicates && result.duplicates.length > 0) {
+        setDuplicatePreview({
+          count: result.duplicates.length,
+          total: result.totalRecords,
+          samples: result.duplicates.slice(0, 5)
+        })
+        setShowDuplicateOptions(true)
+      } else {
+        setDuplicatePreview(null)
+        setShowDuplicateOptions(false)
       }
+    } catch (error) {
+      console.log('Duplicate check failed:', error)
+      // Continue without duplicate check if API doesn't support it
+      setDuplicatePreview(null)
+      setShowDuplicateOptions(false)
+    }
+  }
+
+  const processImport = async () => {
+    if (!selectedFile) return
+    
+    try {
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+      formData.append('duplicateHandling', duplicateHandling)
       
-      if (file.size > 5 * 1024 * 1024) { // 5MB warning
-        const proceed = confirm(`Large file detected (${fileSizeMB}MB). This may take several minutes to process. Continue?`)
-        if (!proceed) return
+      setIsImporting(true)
+      setImportProgress({ 
+        status: 'uploading', 
+        message: `Uploading ${selectedFile.name}...`,
+        progress: 0
+      })
+      
+      const startTime = Date.now()
+      const result = await api.importReports(formData)
+      const processingTime = ((Date.now() - startTime) / 1000).toFixed(1)
+      
+      setImportProgress({ 
+        status: 'completed', 
+        message: 'Processing complete!',
+        progress: 100
+      })
+      
+      if (result.success) {
+        const { stats } = result
+        setImportStats({
+          ...stats,
+          processingTime,
+          fileName: selectedFile.name,
+          duplicateHandling
+        })
+        setImportErrors(result.errors || [])
+        
+        loadReports() // Refresh the list
+        
+        let successMessage = `Successfully processed ${stats?.total || 0} records: `
+        if (stats?.inserted) successMessage += `${stats.inserted} new, `
+        if (stats?.updated) successMessage += `${stats.updated} updated, `
+        if (stats?.skipped) successMessage += `${stats.skipped} skipped, `
+        if (stats?.duplicates) successMessage += `${stats.duplicates} duplicates handled`
+        
+        setSuccess(successMessage)
+      } else {
+        throw new Error(result.message || 'Import failed')
       }
-      
-      try {
-        const formData = new FormData()
-        formData.append('file', file)
-        
-        setIsImporting(true)
-        setImportProgress({ status: 'uploading', message: `Uploading ${file.name} (${fileSizeMB}MB)...` })
-        
-        const startTime = Date.now()
-        const result = await api.importReports(formData)
-        const processingTime = ((Date.now() - startTime) / 1000).toFixed(1)
-        
-        setImportProgress({ status: 'completed', message: 'Processing complete!' })
-        
-        if (result.success) {
-          const { stats } = result
-          
-          if (stats && stats.failed > 0) {
-            // Mixed results - show detailed summary
-            let message = `Import Summary (${processingTime}s):\n\n`
-            message += `📊 Total Records: ${stats.total}\n`
-            message += `✅ Successfully Processed: ${stats.inserted + stats.updated}\n`
-            message += `  📝 New Records: ${stats.inserted}\n`
-            message += `  🔄 Updated Records: ${stats.updated}\n`
-            message += `❌ Failed: ${stats.failed}\n`
-            message += `⚡ Processing Speed: ${stats.recordsPerSecond} records/sec\n`
-            message += `📈 Success Rate: ${stats.successRate}%`
-            
-            if (result.errors && result.errors.length > 0) {
-              console.log('Import errors:', result.errors)
-              message += '\n\n🔍 Sample Errors:'
-              result.errors.slice(0, 3).forEach((error, index) => {
-                message += `\n${index + 1}. Row ${error.row}: ${error.error}`
-              })
-              
-              if (result.errors.length > 3) {
-                message += `\n... and ${result.errors.length - 3} more errors (check console)`
-              }
-            }
-            
-            alert(message)
-          } else {
-            // All successful - show success summary
-            const message = `🎉 Import Successful! (${processingTime}s)\n\n` +
-              `📊 Processed: ${stats?.total || result.inserted} records\n` +
-              `📝 New: ${stats?.inserted || result.inserted}\n` +
-              `🔄 Updated: ${stats?.updated || 0}\n` +
-              `⚡ Speed: ${stats?.recordsPerSecond || 'N/A'} records/sec`
-            
-            alert(message)
-          }
-          
-          loadReports() // Refresh the list
-        } else {
-          throw new Error(result.message || 'Import failed')
-        }
-      } catch (error) {
-        console.error('Import error:', error)
-        setImportProgress({ status: 'error', message: error.message })
-        setError(`Failed to import reports: ${error.message}`)
-      } finally {
-        setIsImporting(false)
-        // Clear progress after 3 seconds
-        setTimeout(() => setImportProgress(null), 3000)
+    } catch (error) {
+      console.error('Import error:', error)
+      setImportProgress({ status: 'error', message: error.message, progress: 0 })
+      setError(`Failed to import reports: ${error.message}`)
+    } finally {
+      setIsImporting(false)
+      // Clear progress after 3 seconds if successful
+      if (importProgress?.status === 'completed') {
+        setTimeout(() => {
+          setImportProgress(null)
+          setShowImportModal(false)
+          setSelectedFile(null)
+          setDuplicatePreview(null)
+          setShowDuplicateOptions(false)
+        }, 3000)
       }
     }
-    input.click()
+  }
+
+  const downloadErrorLog = () => {
+    if (!importErrors.length) return
+    
+    const csvContent = [
+      'Row,Error,Details',
+      ...importErrors.map(error => `${error.row},"${error.error}","${error.details || ''}"`)
+    ].join('\n')
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `import_errors_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 
   const totalPages = Math.ceil(totalItems / itemsPerPage)
@@ -888,6 +968,352 @@ const Reports = () => {
             >
               Clear Selection
             </button>
+          </div>
+        </div>
+      )}
+
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <FileSpreadsheet className="w-6 h-6 text-blue-600" />
+                <h2 className="text-xl font-semibold text-gray-900">Bulk Import Reports</h2>
+              </div>
+              <button
+                onClick={() => {
+                  setShowImportModal(false)
+                  setSelectedFile(null)
+                  setImportProgress(null)
+                  setImportStats(null)
+                  setImportErrors([])
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6">
+              {!importStats ? (
+                <>
+                  {/* Instructions */}
+                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h3 className="font-medium text-blue-900 mb-2">Import Instructions:</h3>
+                    <ul className="text-sm text-blue-800 space-y-1">
+                      <li>• Download the template to see the required format</li>
+                      <li>• Supported formats: Excel (.xlsx, .xls) and CSV (.csv)</li>
+                      <li>• Maximum file size: 10MB</li>
+                      <li>• Duplicate handling options available below</li>
+                    </ul>
+                  </div>
+
+                  {/* Duplicate Handling Options */}
+                  <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <h3 className="font-medium text-gray-900 mb-3">Duplicate Handling:</h3>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="duplicateHandling"
+                          value="update"
+                          checked={duplicateHandling === 'update'}
+                          onChange={(e) => setDuplicateHandling(e.target.value)}
+                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
+                        />
+                        <div>
+                          <span className="font-medium text-gray-900">Update Existing</span>
+                          <p className="text-sm text-gray-600">Replace existing reports with new data (Recommended)</p>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="duplicateHandling"
+                          value="skip"
+                          checked={duplicateHandling === 'skip'}
+                          onChange={(e) => setDuplicateHandling(e.target.value)}
+                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
+                        />
+                        <div>
+                          <span className="font-medium text-gray-900">Skip Duplicates</span>
+                          <p className="text-sm text-gray-600">Keep existing reports, ignore duplicates from Excel</p>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="duplicateHandling"
+                          value="create"
+                          checked={duplicateHandling === 'create'}
+                          onChange={(e) => setDuplicateHandling(e.target.value)}
+                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
+                        />
+                        <div>
+                          <span className="font-medium text-gray-900">Create New</span>
+                          <p className="text-sm text-gray-600">Create new reports even if duplicates exist</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Duplicate Preview */}
+                  {duplicatePreview && (
+                    <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="flex items-center gap-3 mb-3">
+                        <AlertCircle className="w-5 h-5 text-yellow-600" />
+                        <h3 className="font-medium text-yellow-900">
+                          {duplicatePreview.count} Potential Duplicate{duplicatePreview.count !== 1 ? 's' : ''} Found
+                        </h3>
+                      </div>
+                      <p className="text-sm text-yellow-800 mb-3">
+                        Found {duplicatePreview.count} duplicate{duplicatePreview.count !== 1 ? 's' : ''} out of {duplicatePreview.total} total records.
+                      </p>
+                      <div className="text-sm text-yellow-800">
+                        <p className="font-medium mb-2">Sample duplicates:</p>
+                        <ul className="space-y-1 ml-4">
+                          {duplicatePreview.samples.map((sample, index) => (
+                            <li key={index} className="list-disc">
+                              {sample.title || sample.reportCode || `Row ${sample.row}`}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Template Download */}
+                  <div className="mb-6">
+                    <button
+                      onClick={handleDownloadTemplate}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download Template
+                    </button>
+                  </div>
+
+                  {/* File Upload Area */}
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                      dragActive
+                        ? 'border-blue-400 bg-blue-50'
+                        : selectedFile
+                        ? 'border-green-400 bg-green-50'
+                        : 'border-gray-300 bg-gray-50 hover:border-gray-400'
+                    }`}
+                    onDragEnter={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDragOver={handleDrag}
+                    onDrop={handleDrop}
+                  >
+                    {selectedFile ? (
+                      <div className="space-y-3">
+                        <CheckCircle className="w-12 h-12 text-green-500 mx-auto" />
+                        <div>
+                          <p className="text-lg font-medium text-gray-900">{selectedFile.name}</p>
+                          <p className="text-sm text-gray-600">
+                            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setSelectedFile(null)}
+                          className="text-sm text-red-600 hover:text-red-800"
+                        >
+                          Remove file
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <Upload className={`w-12 h-12 mx-auto ${
+                          dragActive ? 'text-blue-500' : 'text-gray-400'
+                        }`} />
+                        <div>
+                          <p className="text-lg font-medium text-gray-900">
+                            {dragActive ? 'Drop your file here' : 'Drag and drop your file here'}
+                          </p>
+                          <p className="text-sm text-gray-600">or</p>
+                          <button
+                            onClick={() => {
+                              const input = document.createElement('input')
+                              input.type = 'file'
+                              input.accept = '.xlsx,.xls,.csv'
+                              input.onchange = (e) => {
+                                if (e.target.files[0]) {
+                                  handleFileSelect(e.target.files[0])
+                                }
+                              }
+                              input.click()
+                            }}
+                            className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            Browse Files
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Progress Bar */}
+                  {importProgress && (
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-700">
+                          {importProgress.message}
+                        </span>
+                        {importProgress.status === 'uploading' && (
+                          <span className="text-sm text-gray-500">
+                            {importProgress.progress || 0}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full transition-all duration-300 ${
+                            importProgress.status === 'error'
+                              ? 'bg-red-500'
+                              : importProgress.status === 'completed'
+                              ? 'bg-green-500'
+                              : 'bg-blue-500'
+                          }`}
+                          style={{ width: `${importProgress.progress || 0}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      onClick={() => {
+                        setShowImportModal(false)
+                        setSelectedFile(null)
+                        setImportProgress(null)
+                      }}
+                      className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                      disabled={isImporting}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={processImport}
+                      disabled={!selectedFile || isImporting}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                    >
+                      {isImporting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Importing...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          Start Import
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Import Results */
+                <div className="space-y-6">
+                  {/* Success Summary */}
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <CheckCircle className="w-6 h-6 text-green-600" />
+                      <h3 className="font-medium text-green-900">Import Completed Successfully!</h3>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                      <div>
+                        <p className="text-green-700 font-medium">Total Records</p>
+                        <p className="text-green-900 text-lg font-semibold">{importStats.total || 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-green-700 font-medium">New Reports</p>
+                        <p className="text-green-900 text-lg font-semibold">{importStats.inserted || 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-green-700 font-medium">Updated</p>
+                        <p className="text-green-900 text-lg font-semibold">{importStats.updated || 0}</p>
+                      </div>
+                      {importStats.skipped > 0 && (
+                        <div>
+                          <p className="text-green-700 font-medium">Skipped</p>
+                          <p className="text-green-900 text-lg font-semibold">{importStats.skipped}</p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-green-700 font-medium">Processing Time</p>
+                        <p className="text-green-900 text-lg font-semibold">{importStats.processingTime}s</p>
+                      </div>
+                    </div>
+                    {/* Duplicate Handling Summary */}
+                    {importStats.duplicateHandling && (
+                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                        <p className="text-sm text-blue-800">
+                          <span className="font-medium">Duplicate Handling:</span> 
+                          {importStats.duplicateHandling === 'update' && 'Updated existing reports with new data'}
+                          {importStats.duplicateHandling === 'skip' && 'Skipped duplicate reports, kept existing data'}
+                          {importStats.duplicateHandling === 'create' && 'Created new reports even for duplicates'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Error Summary */}
+                  {importErrors.length > 0 && (
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <AlertCircle className="w-6 h-6 text-yellow-600" />
+                          <h3 className="font-medium text-yellow-900">
+                            {importErrors.length} Error{importErrors.length !== 1 ? 's' : ''} Found
+                          </h3>
+                        </div>
+                        <button
+                          onClick={downloadErrorLog}
+                          className="px-3 py-1 text-sm bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors"
+                        >
+                          Download Error Log
+                        </button>
+                      </div>
+                      <div className="max-h-32 overflow-y-auto">
+                        {importErrors.slice(0, 5).map((error, index) => (
+                          <div key={index} className="text-sm text-yellow-800 mb-1">
+                            <span className="font-medium">Row {error.row}:</span> {error.error}
+                          </div>
+                        ))}
+                        {importErrors.length > 5 && (
+                          <p className="text-sm text-yellow-700 font-medium">
+                            ... and {importErrors.length - 5} more errors
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      onClick={() => {
+                        setShowImportModal(false)
+                        setSelectedFile(null)
+                        setImportProgress(null)
+                        setImportStats(null)
+                        setImportErrors([])
+                      }}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

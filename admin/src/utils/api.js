@@ -151,6 +151,14 @@ class ApiClient {
     })
   }
 
+  async checkImportDuplicates(formData) {
+    return this.request('/api/reports/check-duplicates', {
+      method: 'POST',
+      body: formData,
+      headers: {}
+    })
+  }
+
   async exportReports(params = {}) {
     const query = new URLSearchParams(params).toString()
     const response = await this.request(`/api/reports/export${query ? `?${query}` : ''}`)
