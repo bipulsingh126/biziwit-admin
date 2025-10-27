@@ -997,36 +997,6 @@ const Blog = () => {
                 </div>
               </div>
               
-              {/* Main Image */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Main Image
-                </label>
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  onChange={onImageChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                {formData.mainImage && (
-                  <div className="mt-3 relative inline-block">
-                    <img 
-                      src={getImageUrl(formData.mainImage)} 
-                      alt="Preview" 
-                      className="h-32 w-auto object-cover rounded-lg border"
-                    />
-                    <button 
-                      onClick={() => {
-                        handleInputChange('mainImage', '')
-                        setMainImageFile(null)
-                      }}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
               
               {/* SEO Fields */}
               <div className="border-t pt-6">
