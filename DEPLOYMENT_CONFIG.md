@@ -3,13 +3,15 @@
 ## 🚀 Production Setup Instructions
 
 ### 1. Domain Structure
-Replace `yourdomain.com` with your actual domain:
+Your production domain:
 
 ```
-Main Website:    https://yourdomain.com
-Admin Panel:     https://admin.yourdomain.com
-API Backend:     https://api.yourdomain.com
+Production URL:  https://bizwitinsh.plenthia.com
+Admin Panel:     https://bizwitinsh.plenthia.com
+API Backend:     https://bizwitinsh.plenthia.com
 ```
+
+**Note:** Using single domain for both frontend and backend.
 
 ### 2. Backend Configuration
 
@@ -24,12 +26,12 @@ cp .env.example .env
 # Server Configuration
 PORT=4000
 
-# Base URLs - Replace with your actual domain
-BASE_URL=https://api.yourdomain.com
-FRONTEND_URL=https://admin.yourdomain.com
+# Base URLs - Production Domain
+BASE_URL=https://bizwitinsh.plenthia.com
+FRONTEND_URL=https://bizwitinsh.plenthia.com
 
-# CORS Configuration - Replace with your actual domain
-CORS_ORIGIN=https://yourdomain.com,https://admin.yourdomain.com,https://api.yourdomain.com
+# CORS Configuration - Production Domain
+CORS_ORIGIN=https://bizwitinsh.plenthia.com
 
 # MongoDB Atlas - Get from MongoDB Atlas dashboard
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/biziwit
@@ -60,8 +62,8 @@ cp .env.example .env
 
 #### Update `.env` with your production values:
 ```env
-# API Base URL - Replace with your actual domain
-VITE_API_BASE=https://api.yourdomain.com
+# API Base URL - Production Domain
+VITE_API_BASE=https://bizwitinsh.plenthia.com
 
 # App Configuration
 VITE_APP_NAME=BiziWit Admin
@@ -119,12 +121,12 @@ Value: [Your hosting IP address]
 
 #### API Health Check:
 ```bash
-curl https://api.yourdomain.com/health
+curl https://bizwitinsh.plenthia.com/health
 # Should return: {"ok":true}
 ```
 
 #### Admin Panel Access:
-Open: `https://admin.yourdomain.com`
+Open: `https://bizwitinsh.plenthia.com`
 
 #### Login Credentials:
 ```
@@ -143,16 +145,18 @@ To run locally, uncomment the localhost configurations in `.env` files:
 
 #### Backend `.env`:
 ```env
-# Uncomment for local development
-CORS_ORIGIN=http://localhost:5173,http://localhost:3000
-MONGODB_URI=mongodb://localhost:27017/biziwit
+# Comment out production and uncomment for local development
+# BASE_URL=http://localhost:4000
+# FRONTEND_URL=http://localhost:5173
+# CORS_ORIGIN=http://localhost:5173,http://localhost:3000,http://localhost:4000
+# MONGODB_URI=mongodb://localhost:27017/biziwit
 ```
 
 #### Frontend `.env`:
 ```env
-# Uncomment for local development
-VITE_API_BASE=http://localhost:4000
-VITE_NODE_ENV=development
+# Comment out production and uncomment for local development
+# VITE_API_BASE=http://localhost:4000
+# VITE_NODE_ENV=development
 ```
 
 ### 10. Security Checklist
@@ -183,7 +187,7 @@ biziwit-admin/
 
 ## 🎯 Quick Deployment Checklist
 
-1. [ ] Replace `yourdomain.com` with actual domain in all configs
+1. [x] Domain configured: `bizwitinsh.plenthia.com`
 2. [ ] Create MongoDB Atlas cluster and get connection string
 3. [ ] Generate strong JWT secret
 4. [ ] Configure DNS records for subdomains
