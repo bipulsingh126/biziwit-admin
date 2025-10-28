@@ -8,13 +8,20 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        // NOTE: This proxy only works in development mode (npm run dev)
-        // For production build, configure reverse proxy on your hosting server
+        // ============================================
+        // VITE PROXY CONFIGURATION (Development Only)
+        // ============================================
+        // This proxy only works when running: npm run dev
+        // For production build, use .htaccess reverse proxy
         
-        // Production: Use production domain
+        // ===== OPTION 1: Connect to DEPLOYED Backend (Production API) =====
+        // Use this when you want local frontend to connect to live production backend
+        // Useful for testing with real production data
         target: 'https://bizwitinsh.plenthia.com',
         
-        // Local Development: Uncomment below and comment production target
+        // ===== OPTION 2: Connect to LOCAL Backend (Localhost) =====
+        // Use this when running backend locally with: npm run dev
+        // Uncomment line below and comment production target above
         // target: 'http://localhost:4000',
         
         changeOrigin: true,

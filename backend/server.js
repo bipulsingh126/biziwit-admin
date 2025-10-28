@@ -53,13 +53,37 @@ app.use(helmet({
   contentSecurityPolicy: false // Disable CSP in development
 }))
 
+
 // Remove Origin-Agent-Cluster header to prevent browser warnings
 app.use((req, res, next) => {
   res.removeHeader('Origin-Agent-Cluster')
   next()
 })
 
-app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || '*'}))
+// CORS Configuration - Allow multiple origins
+const allowedOrigins = [
+  'https://bizwitinsh.plenthia.com',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:4000'
+]
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, Postman, or same-origin)
+    if (!origin) return callback(null, true)
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}))
 // Stripe webhook must be before JSON parser
 app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
   try {

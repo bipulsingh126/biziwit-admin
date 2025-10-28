@@ -20,6 +20,7 @@ class ApiClient {
     const isFormData = options.body instanceof FormData;
     const config = {
       headers: { ...options.headers },
+      credentials: 'include', // Include credentials for CORS requests
       ...options,
     };
 
