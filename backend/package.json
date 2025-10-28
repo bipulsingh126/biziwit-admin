@@ -2,11 +2,11 @@
   "name": "biziwit-backend",
   "version": "1.0.0",
   "description": "Backend for BiziWit Admin ",
-  "main": "src/server.js",
+  "main": "server.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon --watch src src/server.js",
-    "start": "node src/server.js",
+    "dev": "nodemon --watch src --watch server.js server.js",
+    "start": "node server.js",
     "lint": "echo 'add linter if needed'"
   },
   "dependencies": {
