@@ -5,6 +5,20 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <link rel="shortcut icon" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Content Security Policy - Allow unsafe-eval for development and RichTextEditor -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com data:;
+      img-src 'self' data: https: http: blob:;
+      connect-src 'self' http://localhost:4000 https://bizwitinsh.plenthia.com;
+      frame-src 'self';
+      object-src 'none';
+      base-uri 'self';
+    ">
+    
     <title>BiziWit Admin Panel</title>
   </head>
   <body>
