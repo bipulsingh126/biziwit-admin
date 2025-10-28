@@ -8,7 +8,12 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:4000',
+        // Production: Use production domain
+        target: 'https://bizwitinsh.plenthia.com',
+        
+        // Local Development: Uncomment below and comment production target
+        // target: 'http://localhost:4000',
+        
         changeOrigin: true,
         secure: false
       }

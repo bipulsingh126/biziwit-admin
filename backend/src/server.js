@@ -165,7 +165,12 @@ connectDB().then(async () => {
     }
   } 
 
-  app.listen(PORT, () => console.log(`🚀 API running on http://localhost:${PORT}`))
+  app.listen(PORT, () => {
+    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`
+    console.log(`🚀 API running on ${baseUrl}`)
+    console.log(`📍 Production: https://bizwitinsh.plenthia.com`)
+    console.log(`🏠 Local: http://localhost:${PORT}`)
+  })
 }).catch((err) => {
   console.error('❌ Failed to connect to database:', err)
   process.exit(1)
