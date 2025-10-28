@@ -46,7 +46,12 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || ''
 const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null
 
 // Middlewares
-app.use(helmet())
+// Configure helmet with relaxed settings for development
+app.use(helmet({
+  crossOriginOpenerPolicy: false, // Disable COOP warnings for HTTP
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false // Disable CSP in development
+}))
 app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || '*'}))
 // Stripe webhook must be before JSON parser
 app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -148,22 +153,7 @@ connectDB().then(async () => {
         console.error(`❌ Failed to create ${adminData.email}:`, err.message)
       }
     }
-
-    console.log('\n📋 LOGIN CREDENTIALS:')
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-    console.log('🔑 MAIN ADMIN (Full Access):')
-    console.log('   Email: mainadmin@biziwit.com')
-    console.log('   Password: MainAdmin@2024')
-    console.log('   Role: super_admin (ALL features)')
-    console.log('')
-    console.log('🔑 ADMIN (Limited Access):')
-    console.log('   Email: admin@biziwit.com')
-    console.log('   Password: Admin@123')
-    console.log('   Role: admin (No user management)')
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-  } else {
-    console.log(`✅ Found ${adminCount} admin user(s)`)
-  }
+  } 
 
   app.listen(PORT, () => console.log(`🚀 API running on http://localhost:${PORT}`))
 }).catch((err) => {
