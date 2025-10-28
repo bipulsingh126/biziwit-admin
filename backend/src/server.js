@@ -52,6 +52,13 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
   contentSecurityPolicy: false // Disable CSP in development
 }))
+
+// Remove Origin-Agent-Cluster header to prevent browser warnings
+app.use((req, res, next) => {
+  res.removeHeader('Origin-Agent-Cluster')
+  next()
+})
+
 app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || '*'}))
 // Stripe webhook must be before JSON parser
 app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -94,6 +101,9 @@ app.use('/uploads', express.static(UPLOAD_DIR))
 
 // Health
 app.get('/health', (req, res) => res.json({ ok: true }))
+
+// Favicon route to prevent 404 errors
+app.get('/favicon.ico', (req, res) => res.status(204).end())
 
 // Routes
 app.use('/api/auth', authRoutes)
