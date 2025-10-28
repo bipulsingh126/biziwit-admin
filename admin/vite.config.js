@@ -8,6 +8,9 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
+        // NOTE: This proxy only works in development mode (npm run dev)
+        // For production build, configure reverse proxy on your hosting server
+        
         // Production: Use production domain
         target: 'https://bizwitinsh.plenthia.com',
         
