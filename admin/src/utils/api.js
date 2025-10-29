@@ -1,5 +1,6 @@
 // API client for backend communication
-const API_BASE = import.meta.env.VITE_API_BASE || ''
+// Force local development mode - use Vite proxy
+const API_BASE = import.meta.env.MODE === 'development' ? '' : (import.meta.env.VITE_API_BASE || '')
 
 class ApiClient {
   constructor() {
