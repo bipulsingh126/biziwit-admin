@@ -5,17 +5,14 @@ import tailwindcss from '@tailwindcss/vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  server: {
+   server: {
     proxy: {
       '/api': {
-        // Local development - points to your local backend
-        target: 'http://localhost:4000',
-        
-        
-        
+        target: 'https://api.bizwitresearch.com',
         changeOrigin: true,
-        secure: false
+        rewrite: (path) => path.replace(/^\/api/, '/api')
       }
     }
   }
-})
+}
+)

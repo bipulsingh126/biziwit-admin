@@ -51,10 +51,12 @@ app.use((req, res, next) => {
 })
 
 // CORS Configuration - Allow multiple origins
-const allowedOrigins = [
-  'https://bizwitinsh.plenthia.com',
-  'http://localhost:5173',
-]
+app.use(cors({
+  origin: 'https://admin.bizwitresearch.com',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 app.use(cors({
   origin: function (origin, callback) {
