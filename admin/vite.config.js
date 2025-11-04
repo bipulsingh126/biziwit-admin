@@ -10,7 +10,7 @@ export default defineConfig({
       '/api': {
         target: 'https://api.bizwitresearch.com',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api')
+        secure: true,
       }
     }
   }
