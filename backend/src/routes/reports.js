@@ -959,7 +959,13 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
                        row['segment'] || 
                        row['SEGMENT'] || 
                        row['Market Segmentation'] ||
-                       row['Market Segment'] || '';
+                       row['Market Segment'] || 
+                       row['segmentation'] || 
+                       row['MARKET SEGMENTATION'] ||
+                       row['Segments'] ||
+                       row['segments'] ||
+                       row['SEGMENTS'] ||
+                       row['Market Segments'] || '';
         
         // Try multiple variations for companies
         const companies = row['Companies'] || 
@@ -974,12 +980,26 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         const metaDescription = row['Meta Description'] || row['metaDescription'] || row['SEO Description'] || '';
         const keywords = row['Keywords'] || row['keywords'] || row['SEO Keywords'] || '';
 
-        // Optimized cleaning and validation with regex
-        cleanTitle = title ? title.toString().replace(cleanTextRegex, ' ').trim() : '';
-        cleanSubTitle = subTitle ? subTitle.toString().replace(cleanTextRegex, ' ').trim() : '';
-        cleanSegment = segment ? segment.toString().replace(cleanTextRegex, ' ').trim() : '';
-        cleanDescription = reportDescription ? reportDescription.toString().replace(cleanTextRegex, ' ').trim() : '';
-        cleanCompanies = companies ? companies.toString().replace(cleanTextRegex, ' ').trim() : '';
+        // Enhanced cleaning and validation with better type handling
+        cleanTitle = (title !== null && title !== undefined && title !== '') ? String(title).replace(cleanTextRegex, ' ').trim() : '';
+        cleanSubTitle = (subTitle !== null && subTitle !== undefined && subTitle !== '') ? String(subTitle).replace(cleanTextRegex, ' ').trim() : '';
+        cleanSegment = (segment !== null && segment !== undefined && segment !== '') ? String(segment).replace(cleanTextRegex, ' ').trim() : '';
+        cleanDescription = (reportDescription !== null && reportDescription !== undefined && reportDescription !== '') ? String(reportDescription).replace(cleanTextRegex, ' ').trim() : '';
+        cleanCompanies = (companies !== null && companies !== undefined && companies !== '') ? String(companies).replace(cleanTextRegex, ' ').trim() : '';
+        
+        // CRITICAL DEBUG: Log SEGMENTATION data extraction for first 3 rows
+        if (i < 3) {
+          console.log(`🔍 Row ${i + 1} SEGMENTATION Debug:`, {
+            'Available Excel Columns': Object.keys(row),
+            'Excel SEGMENTATION Column': row['SEGMENTATION'],
+            'Excel Segmentation Column': row['Segmentation'], 
+            'Excel SEGMENT Column': row['SEGMENT'],
+            'Raw segment extracted': segment,
+            'cleanSegment after processing': cleanSegment,
+            'cleanSegment length': cleanSegment ? cleanSegment.length : 0,
+            'cleanSegment isEmpty': cleanSegment === '' || !cleanSegment
+          });
+        }
         
         // Clean SEO fields
         const cleanTitleTag = titleTag ? titleTag.toString().trim() : '';
@@ -1063,7 +1083,8 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           // Excel import field mapping for frontend compatibility - USE EMPTY STRINGS NOT NULL
           reportDate: reportDate ? (isNaN(Date.parse(reportDate)) ? new Date() : new Date(reportDate)) : new Date(),
           reportCategories: (category?.toString().trim() && category.toString().trim() !== '') ? category.toString().trim() : '',
-          segment: (cleanSegment && cleanSegment !== '') ? cleanSegment : '',
+          segment: cleanSegment || '',
+          segmentationContent: cleanSegment || '', // Also save to legacy field for compatibility
           companies: (cleanCompanies && cleanCompanies !== '') ? cleanCompanies : '',
           reportDescription: (cleanDescription && cleanDescription !== '') ? cleanDescription : '',
           
@@ -1107,7 +1128,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         if (i < 3 && data.length <= 100) {
           console.log('🔍 COMPLETE EXCEL IMPORT DEBUG - About to save report data:', {
             title: reportData.title,
-            'CRITICAL FIELDS': {
+            'CRITICAL FIELDS TO SAVE': {
               'reportDescription': reportData.reportDescription,
               'segment': reportData.segment,
               'companies': reportData.companies,
@@ -1124,6 +1145,11 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
               'cleanSegment': cleanSegment,
               'cleanCompanies': cleanCompanies,
               'category': category
+            },
+            'FINAL VALIDATION': {
+              'segment field will be saved as': reportData.segment,
+              'segment is empty?': !reportData.segment || reportData.segment === '',
+              'segment length': reportData.segment ? reportData.segment.length : 0
             }
           });
         }
@@ -1194,6 +1220,28 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
               console.log(`✅ Batch completed: +${bulkResult.insertedCount || 0} new, ~${bulkResult.modifiedCount || 0} updated, ^${bulkResult.upsertedCount || 0} upserted`);
               if (bulkResult.modifiedCount > 0) {
                 console.log(`🔄 ${bulkResult.modifiedCount} duplicate(s) detected and updated instead of creating new records`);
+              }
+              
+              // CRITICAL: Verify SEGMENTATION data was actually saved for first few records
+              if (reportBatch.length > 0) {
+                const firstReport = reportBatch[0];
+                if (firstReport.title) {
+                  try {
+                    const savedReport = await Report.findOne({ title: firstReport.title }).lean();
+                    if (savedReport) {
+                      console.log('🔍 POST-SAVE VERIFICATION - SEGMENTATION data in database:', {
+                        'Report Title': savedReport.title,
+                        'segment field in DB': savedReport.segment,
+                        'segment length': savedReport.segment ? savedReport.segment.length : 0,
+                        'segment is empty?': !savedReport.segment || savedReport.segment === '',
+                        'companies field in DB': savedReport.companies,
+                        'reportDescription field in DB': savedReport.reportDescription
+                      });
+                    }
+                  } catch (verifyError) {
+                    console.error('❌ Post-save verification failed:', verifyError.message);
+                  }
+                }
               }
             }
             

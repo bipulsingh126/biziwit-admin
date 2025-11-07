@@ -92,6 +92,11 @@ const reportSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  segmentationContent: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   companies: {
     type: String,
     trim: true,

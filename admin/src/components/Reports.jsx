@@ -46,6 +46,18 @@ const Reports = () => {
     loadCategories()
   }, [currentPage, itemsPerPage])
 
+  // Refresh data when user returns to this page
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadReports()
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
+
   useEffect(() => {
     // Clear any existing timeout
     if (searchTimeoutRef.current) {
@@ -128,6 +140,8 @@ const Reports = () => {
           companies: (report.companies && report.companies.trim() !== '') ? report.companies : 'N/A',
           reportCategories: (report.reportCategories && report.reportCategories.trim() !== '') ? report.reportCategories : 
                            (report.category && report.category.trim() !== '') ? report.category : 'N/A',
+          category: report.category || 'No Category',
+          subCategory: report.subCategory || 'No Subcategory',
           domain: report.category || report.domain || report.industry || 'General',
           subDomain: report.subCategory || report.subdomain || report.reportType || 'Research',
           reportDate: report.reportDate ? new Date(report.reportDate).toLocaleDateString() : 'N/A',
@@ -419,7 +433,7 @@ const Reports = () => {
         'CATEGORIES': 'ICT and Media',
         'Category': 'ICT and Media',
         'Sub Category': 'Software and Services',
-        'SEGMENTATION': 'Enterprise Software Companies',
+        'segment': 'Enterprise Software Companies',
         'COMPANIES': 'Microsoft, Apple, Google, Amazon',
         'Region': 'Global',
         'Author Name': 'John Doe',
@@ -713,7 +727,7 @@ const Reports = () => {
               <Filter className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Filter</span>
             </button>
-            
+             
             {/* Template & Import Buttons */}
             <div className="flex items-center gap-1.5">
               <button
@@ -1362,7 +1376,7 @@ const Reports = () => {
                   Report Date
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Categories
+                  Report Category
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -1398,8 +1412,8 @@ const Reports = () => {
                     {report.reportDate}
                   </td>
                   <td className="px-4 py-4 text-sm text-gray-900 max-w-xs">
-                    <div className="truncate" title={report.reportCategories}>
-                      {report.reportCategories}
+                    <div className="truncate" title={report.category || 'No Category'}>
+                      {report.category || 'No Category'}
                     </div>
                   </td>
                   <td className="px-4 py-4">
