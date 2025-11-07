@@ -400,6 +400,84 @@ router.get('/export/:format', authenticate, requireRole('super_admin', 'admin'),
   }
 });
 
+// Upload blog cover image
+router.post('/:id/cover', authenticate, requireRole('super_admin', 'admin', 'editor'), upload.single('file'), async (req, res) => {
+  try {
+    console.log('🚀 Starting blog cover image upload for ID:', req.params.id)
+    
+    if (!req.file) {
+      console.log('❌ No file uploaded')
+      return res.status(400).json({ error: 'No file uploaded' })
+    }
+    
+    console.log('📸 File details:', {
+      filename: req.file.filename,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    })
+    
+    const blog = await Blog.findById(req.params.id)
+    if (!blog) {
+      console.log('❌ Blog not found')
+      return res.status(404).json({ error: 'Blog not found' })
+    }
+    
+    const imageUrl = `/uploads/blogs/${req.file.filename}`
+    console.log('🖼️ Generated image URL:', imageUrl)
+    
+    // Verify file exists on disk
+    const filePath = path.join(process.cwd(), 'uploads', 'blogs', req.file.filename)
+    if (!fs.existsSync(filePath)) {
+      console.log('❌ File not found on disk:', filePath)
+      return res.status(500).json({ error: 'File upload failed - file not saved' })
+    }
+    
+    // Delete old image if exists
+    if (blog.mainImage) {
+      const oldImagePath = path.join(process.cwd(), 'uploads', 'blogs', path.basename(blog.mainImage))
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath)
+        console.log('🗑️ Deleted old image:', oldImagePath)
+      }
+    }
+    
+    // Update mainImage in database
+    blog.mainImage = imageUrl
+    await blog.save()
+    
+    console.log('💾 Updated blog with image URL:', imageUrl)
+    console.log('✅ Image upload completed successfully')
+    
+    res.json({ 
+      success: true,
+      message: 'Image uploaded successfully',
+      imageUrl: imageUrl,
+      fullUrl: `http://localhost:4000${imageUrl}`,
+      fileInfo: {
+        filename: req.file.filename,
+        size: req.file.size,
+        mimetype: req.file.mimetype
+      }
+    })
+  } catch (error) {
+    console.error('❌ Error uploading image:', error)
+    
+    // Clean up uploaded file if database save fails
+    if (req.file) {
+      const filePath = path.join(process.cwd(), 'uploads', 'blogs', req.file.filename)
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath)
+        console.log('🗑️ Cleaned up failed upload file')
+      }
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to upload image',
+      details: error.message 
+    })
+  }
+})
+
 // Get blog statistics
 router.get('/stats/overview', authenticate, async (req, res) => {
   try {

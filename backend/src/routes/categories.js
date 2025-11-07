@@ -65,9 +65,9 @@ router.get('/', async (req, res, next) => {
 // GET /api/categories/trending - Get top 10 trending industries
 router.get('/trending', async (req, res, next) => {
   try {
-    // Get categories with report counts and sort by report count
+    // Get categories marked as trending first, then by report count
     const categories = await Category.find({ isActive: true })
-      .sort({ sortOrder: 1, name: 1 })
+      .sort({ isTopTrending: -1, sortOrder: 1, name: 1 })
       .lean()
     
     // Get report counts for each category
@@ -83,14 +83,21 @@ router.get('/trending', async (req, res, next) => {
           name: category.name,
           description: category.description,
           reportCount,
-          subcategoriesCount: category.subcategories?.length || 0
+          subcategoriesCount: category.subcategories?.length || 0,
+          isTopTrending: category.isTopTrending || false
         }
       })
     )
     
-    // Sort by report count (descending) and take top 10
+    // Sort by trending status first, then by report count (descending) and take top 10
     const trendingCategories = categoriesWithCounts
-      .sort((a, b) => (b.reportCount || 0) - (a.reportCount || 0))
+      .sort((a, b) => {
+        // First sort by isTopTrending (trending categories first)
+        if (a.isTopTrending && !b.isTopTrending) return -1
+        if (!a.isTopTrending && b.isTopTrending) return 1
+        // Then sort by report count (descending)
+        return (b.reportCount || 0) - (a.reportCount || 0)
+      })
       .slice(0, 10)
     
     res.json({
@@ -129,7 +136,7 @@ router.get('/:id', async (req, res, next) => {
 // POST /api/categories - Create new category
 router.post('/', async (req, res, next) => {
   try {
-    const { name, description, subcategories = [] } = req.body
+    const { name, description, subcategories = [], isTopTrending = false } = req.body
     
     if (!name || name.trim().length === 0) {
       return res.status(400).json({
@@ -181,6 +188,7 @@ router.post('/', async (req, res, next) => {
       slug: slug,
       description: description?.trim() || '',
       sortOrder,
+      isTopTrending: Boolean(isTopTrending),
       subcategories: subcategories.map((sub, index) => {
         const subSlug = sub.name.trim()
           .toLowerCase()
@@ -219,7 +227,7 @@ router.post('/', async (req, res, next) => {
 // PUT /api/categories/:id - Update category
 router.put('/:id', async (req, res, next) => {
   try {
-    const { name, description, isActive, subcategories } = req.body
+    const { name, description, isActive, subcategories, isTopTrending } = req.body
     
     const category = await Category.findById(req.params.id)
     
@@ -256,6 +264,10 @@ router.put('/:id', async (req, res, next) => {
     }
     if (description !== undefined) category.description = description.trim()
     if (isActive !== undefined) category.isActive = isActive
+    if (isTopTrending !== undefined) {
+      console.log(`Updating category ${category.name} trending status to:`, Boolean(isTopTrending))
+      category.isTopTrending = Boolean(isTopTrending)
+    }
     
     // Update subcategories if provided
     if (subcategories !== undefined) {

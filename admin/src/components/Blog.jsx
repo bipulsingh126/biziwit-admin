@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Search, Plus, Edit, Trash2, Eye, ChevronDown, ChevronUp, Filter, Download, Calendar, Share, X, Check } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Eye, ChevronDown, ChevronUp, Filter, Calendar, Share, X, Check } from 'lucide-react'
 import api from '../utils/api'
 import RichTextEditor from './RichTextEditor'
 
@@ -10,7 +10,7 @@ const Blog = () => {
     if (imageUrl.startsWith('http')) return imageUrl
     if (imageUrl.startsWith('data:')) return imageUrl // Base64 images
     // Handle relative URLs from uploads
-    const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
+    const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:4000'
     return imageUrl.startsWith('/') ? `${API_BASE}${imageUrl}` : `${API_BASE}/${imageUrl}`
   }
 
@@ -40,9 +40,6 @@ const Blog = () => {
   const [selectAll, setSelectAll] = useState(false)
   const [bulkOperating, setBulkOperating] = useState(false)
   
-  // Export functionality
-  const [exporting, setExporting] = useState(false)
-  const [exportCooldown, setExportCooldown] = useState(0)
 
   // Load blogs with pagination and filters
   useEffect(() => {
@@ -57,12 +54,6 @@ const Blog = () => {
     return () => clearTimeout(timer)
   }, [searchTerm, filters])
 
-  useEffect(() => {
-    if (exportCooldown > 0) {
-      const timer = setTimeout(() => setExportCooldown(exportCooldown - 1), 1000)
-      return () => clearTimeout(timer)
-    }
-  }, [exportCooldown])
 
   const loadBlogs = async () => {
     try {
@@ -113,7 +104,9 @@ const Blog = () => {
     status: 'draft'
   })
   const [mainImageFile, setMainImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -135,6 +128,7 @@ const Blog = () => {
       status: 'draft'
     })
     setMainImageFile(null)
+    setImagePreview('')
     setModalOpen(true)
   }
 
@@ -154,6 +148,20 @@ const Blog = () => {
       status: blog.status || 'draft'
     })
     setMainImageFile(null)
+    
+    // Set image preview if mainImage exists
+    if (blog.mainImage) {
+      // Check if it's already a full URL or a data URL
+      if (blog.mainImage.startsWith('http') || blog.mainImage.startsWith('data:')) {
+        setImagePreview(blog.mainImage)
+      } else {
+        // It's a relative path, prepend localhost
+        setImagePreview(`http://localhost:4000${blog.mainImage}`)
+      }
+    } else {
+      setImagePreview('')
+    }
+    
     setModalOpen(true)
   }
 
@@ -179,10 +187,54 @@ const Blog = () => {
     
     setMainImageFile(file)
     
-    // Show preview
+    // Show preview - use base64 data URL directly for preview
     const reader = new FileReader()
-    reader.onload = () => handleInputChange('mainImage', reader.result)
+    reader.onload = () => {
+      const dataUrl = reader.result
+      setImagePreview(dataUrl) // Set preview to base64 data URL
+      // Don't update formData.mainImage until after upload
+    }
     reader.readAsDataURL(file)
+  }
+
+  // Remove image
+  const handleRemoveImage = () => {
+    setMainImageFile(null)
+    setImagePreview('')
+    handleInputChange('mainImage', '')
+  }
+
+  // Upload image to server
+  const uploadImage = async (blogId) => {
+    try {
+      setUploadingImage(true)
+      
+      const result = await api.uploadBlogCover(blogId, mainImageFile, `${formData.title || 'Blog'} - Cover Image`)
+      
+      // Update form data with the image URL
+      const imageUrl = result.imageUrl
+      handleInputChange('mainImage', imageUrl)
+      
+      // Update preview with full URL so it persists after reload
+      // Check if imageUrl already contains full URL or is relative
+      let fullUrl
+      if (imageUrl.startsWith('http') || imageUrl.startsWith('data:')) {
+        fullUrl = imageUrl
+      } else {
+        fullUrl = `http://localhost:4000${imageUrl}`
+      }
+      
+      setImagePreview(fullUrl)
+      setMainImageFile(null) // Clear file input after successful upload
+      setSuccess('Image uploaded successfully!')
+      
+      return imageUrl
+    } catch (err) {
+      setError('Failed to upload image: ' + err.message)
+      throw err
+    } finally {
+      setUploadingImage(false)
+    }
   }
 
   const saveBlog = async () => {
@@ -201,15 +253,25 @@ const Blog = () => {
       }
       
       let savedBlog
+      let finalFormData = { ...formData }
+      
+      // First save the blog
       if (editingId) {
-        savedBlog = await api.updateBlog(editingId, formData)
+        savedBlog = await api.updateBlog(editingId, finalFormData)
       } else {
-        savedBlog = await api.createBlog(formData)
+        savedBlog = await api.createBlog(finalFormData)
       }
       
-      // Upload main image if selected
+      // Upload image if selected and update the blog with image URL
       if (mainImageFile && savedBlog._id) {
-        await api.uploadBlogCover(savedBlog._id, mainImageFile, formData.title)
+        try {
+          const imageUrl = await uploadImage(savedBlog._id)
+          // Update the saved blog with the image URL
+          await api.updateBlog(savedBlog._id, { mainImage: imageUrl })
+        } catch (imageErr) {
+          console.error('Image upload failed:', imageErr)
+          // Don't fail the entire save if just image upload fails
+        }
       }
       
       setModalOpen(false)
@@ -491,17 +553,6 @@ const Blog = () => {
             <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* Export Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowFilters(false)}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-              disabled={exporting || exportCooldown > 0}
-            >
-              <Download className="w-4 h-4" />
-              {exporting ? 'EXPORTING...' : exportCooldown > 0 ? `WAIT ${exportCooldown}s` : 'EXPORT'}
-            </button>
-          </div>
 
           {/* Clear All */}
           {(searchTerm || Object.values(filters).some(f => f)) && (
@@ -729,14 +780,27 @@ const Blog = () => {
                     {/* Blog Title */}
                     <td className="px-6 py-4">
                       <div className="flex items-center">
-                        {blog.mainImage && (
+                        {blog.mainImage ? (
                           <img 
                             src={getImageUrl(blog.mainImage)} 
                             alt={blog.title}
-                            className="w-10 h-10 rounded object-cover mr-3"
-                            onError={(e) => { e.target.style.display = 'none' }}
+                            className="w-12 h-12 rounded-lg object-cover mr-3"
+                            onError={(e) => {
+                              e.target.style.display = 'none'
+                              e.target.nextSibling.style.display = 'flex'
+                            }}
                           />
-                        )}
+                        ) : null}
+                        {/* Fallback placeholder when no image or image fails to load */}
+                        <div 
+                          className={`w-12 h-12 rounded-lg bg-gray-100 border-2 border-dashed border-gray-300 mr-3 flex items-center justify-center ${blog.mainImage ? 'hidden' : 'flex'}`}
+                        >
+                          <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect>
+                            <circle cx="9" cy="9" r="2"></circle>
+                            <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
+                          </svg>
+                        </div>
                         <div>
                           <div className="text-sm font-medium text-gray-900 truncate max-w-xs" title={blog.title}>
                             {blog.title || 'Untitled'}
@@ -997,6 +1061,97 @@ const Blog = () => {
                 </div>
               </div>
               
+              {/* Main Image Section */}
+              <div className="border-t pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">Blog Cover Image</h3>
+                  {uploadingImage && (
+                    <span className="text-sm text-blue-600 flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                      Uploading image...
+                    </span>
+                  )}
+                </div>
+                
+                <div className="max-w-md">
+                  <div className="relative border-2 border-dashed border-gray-300 rounded-lg overflow-hidden hover:border-blue-400 transition-all">
+                    {imagePreview ? (
+                      <div className="relative group">
+                        <img
+                          src={imagePreview}
+                          alt="Blog cover preview"
+                          className="w-full h-48 object-cover"
+                        />
+                        <div className="absolute top-2 right-2">
+                          <button
+                            onClick={handleRemoveImage}
+                            className="px-3 py-1 bg-red-600 text-white rounded text-sm font-medium opacity-0 group-hover:opacity-100 transition-all hover:bg-red-700 shadow-lg"
+                          >
+                            ✕ Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center h-48 cursor-pointer hover:bg-gray-50 transition-colors">
+                        <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect>
+                          <circle cx="9" cy="9" r="2"></circle>
+                          <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
+                        </svg>
+                        <span className="text-sm text-gray-500 font-medium">Upload Blog Cover Image</span>
+                        <span className="text-xs text-gray-400 mt-1">Max 5MB • JPG, PNG, GIF, WebP</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={onImageChange}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                  
+                  {/* Upload button for selected image */}
+                  {mainImageFile && !uploadingImage && (
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        onClick={() => {
+                          if (editingId) {
+                            uploadImage(editingId)
+                          } else {
+                            setError('Please save the blog first, then upload the image')
+                          }
+                        }}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                      >
+                        Upload Image Now
+                      </button>
+                      <button
+                        onClick={handleRemoveImage}
+                        className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors text-sm font-medium"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg max-w-md">
+                  <div className="flex items-start gap-2">
+                    <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div className="text-sm text-blue-800">
+                      <p className="font-medium mb-1">Image Tips:</p>
+                      <ul className="list-disc list-inside space-y-1 text-xs">
+                        <li>Upload one cover image for your blog post</li>
+                        <li>Image will be displayed prominently on the blog page</li>
+                        <li>Recommended size: 1200x600 pixels or larger</li>
+                        <li>Image will be saved when you click Save/Update</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
               
               {/* SEO Fields */}
               <div className="border-t pt-6">

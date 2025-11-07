@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, Filter, Download, Trash2, Edit3, Clock, Mail, CheckCircle, RefreshCw } from 'lucide-react'
+import { Search, Filter, Trash2, Edit3, Clock, Mail, CheckCircle, RefreshCw } from 'lucide-react'
 import api from '../utils/api'
 
 const Inquiries = () => {
@@ -7,7 +7,6 @@ const Inquiries = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [selectedInquiries, setSelectedInquiries] = useState([])
@@ -23,7 +22,7 @@ const Inquiries = () => {
       loadInquiries()
     }, 300)
     return () => clearTimeout(timer)
-  }, [searchTerm, statusFilter, typeFilter, priorityFilter])
+  }, [searchTerm, typeFilter, priorityFilter])
 
   const loadMetadata = async () => {
     try {
@@ -55,7 +54,6 @@ const Inquiries = () => {
       setLoading(true)
       const params = {
         q: searchTerm,
-        status: statusFilter !== 'all' ? statusFilter : undefined,
         inquiryType: typeFilter !== 'all' ? typeFilter : undefined,
         priority: priorityFilter !== 'all' ? priorityFilter : undefined
       }
@@ -87,29 +85,6 @@ const Inquiries = () => {
     }
   }
 
-  const handleExport = async () => {
-    try {
-      const params = {
-        q: searchTerm,
-        status: statusFilter !== 'all' ? statusFilter : undefined,
-        inquiryType: typeFilter !== 'all' ? typeFilter : undefined,
-        priority: priorityFilter !== 'all' ? priorityFilter : undefined
-      }
-      
-      const response = await api.exportInquiries(params)
-      const blob = new Blob([response], { type: 'text/csv' })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `inquiries-${new Date().toISOString().split('T')[0]}.csv`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(url)
-    } catch (err) {
-      setError(err.message)
-    }
-  }
 
   const getStatusBadge = (status) => {
     const styles = {
@@ -127,13 +102,6 @@ const Inquiries = () => {
         <h1 className="text-2xl font-bold text-gray-900">Inquiries</h1>
         <div className="flex items-center gap-3">
           <button
-            onClick={handleExport}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
-          >
-            <Download className="w-4 h-4" />
-            Export
-          </button>
-          <button
             onClick={loadInquiries}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
           >
@@ -145,7 +113,7 @@ const Inquiries = () => {
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-lg border mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
             <input
@@ -156,17 +124,6 @@ const Inquiries = () => {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Status</option>
-            {metadata.statuses.map(status => (
-              <option key={status} value={status}>{status.replace('_', ' ').toUpperCase()}</option>
-            ))}
-          </select>
 
           <select
             value={typeFilter}

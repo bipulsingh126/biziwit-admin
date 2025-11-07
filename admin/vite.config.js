@@ -8,7 +8,8 @@ export default defineConfig({
    server: {
     proxy: {
       '/api': {
-        target: 'https://api.bizwitresearch.com',
+        target: 'http://localhost:4000',
+        //procee production -https://api.bizwitresearch.com
         changeOrigin: true,
         secure: true,
       }

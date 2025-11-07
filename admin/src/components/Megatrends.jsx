@@ -403,14 +403,37 @@ const Megatrends = () => {
                       />
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900 truncate max-w-xs">
-                        {megatrend.title}
-                      </div>
-                      {megatrend.subTitle && (
-                        <div className="text-sm text-gray-500 truncate max-w-xs">
-                          {megatrend.subTitle}
+                      <div className="flex items-center">
+                        {(megatrend.mainImage || megatrend.heroImage?.url) ? (
+                          <img
+                            src={(megatrend.mainImage || megatrend.heroImage?.url).startsWith('http') 
+                              ? (megatrend.mainImage || megatrend.heroImage?.url)
+                              : `http://localhost:4000${megatrend.mainImage || megatrend.heroImage?.url}`}
+                            alt={megatrend.title}
+                            className="w-12 h-12 rounded-lg object-cover mr-3"
+                            onError={(e) => {
+                              e.target.style.display = 'none'
+                              e.target.nextSibling.style.display = 'flex'
+                            }}
+                          />
+                        ) : null}
+                        {/* Fallback placeholder when no image or image fails to load */}
+                        <div 
+                          className={`w-12 h-12 rounded-lg bg-gray-100 border-2 border-dashed border-gray-300 mr-3 flex items-center justify-center ${(megatrend.mainImage || megatrend.heroImage?.url) ? 'hidden' : 'flex'}`}
+                        >
+                          <Image className="w-6 h-6 text-gray-400" />
                         </div>
-                      )}
+                        <div>
+                          <div className="text-sm font-medium text-gray-900 truncate max-w-xs">
+                            {megatrend.title}
+                          </div>
+                          {megatrend.subTitle && (
+                            <div className="text-sm text-gray-500 truncate max-w-xs">
+                              {megatrend.subTitle}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {megatrend.authorName || 'N/A'}

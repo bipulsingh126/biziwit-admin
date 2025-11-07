@@ -15,17 +15,23 @@ const Categories = () => {
   const [showSubcategoryModal, setShowSubcategoryModal] = useState(false)
   const [showTrendingModal, setShowTrendingModal] = useState(false)
   const [showTrendingMenu, setShowTrendingMenu] = useState(false)
+  const [showTop10ChooseModal, setShowTop10ChooseModal] = useState(false)
+  const [selectedTop10Categories, setSelectedTop10Categories] = useState([])
   const [showQuickAddCategory, setShowQuickAddCategory] = useState(false)
   const [showQuickAddSubcategory, setShowQuickAddSubcategory] = useState(false)
   const [editingCategory, setEditingCategory] = useState(null)
   const [editingSubcategory, setEditingSubcategory] = useState(null)
   const [selectedCategory, setSelectedCategory] = useState(null)
+  const [trendingFilter, setTrendingFilter] = useState('all') // 'all', 'trending', 'not-trending'
+  const [selectedCategories, setSelectedCategories] = useState([])
+  const [selectAll, setSelectAll] = useState(false)
 
   // Form states
   const [categoryForm, setCategoryForm] = useState({
     name: '',
     description: '',
-    subcategories: []
+    subcategories: [],
+    isTopTrending: false
   })
   const [subcategoryForm, setSubcategoryForm] = useState({
     name: '',
@@ -59,6 +65,7 @@ const Categories = () => {
     try {
       setLoading(true)
       const response = await api.getCategories()
+      console.log('📊 Loaded categories:', response.data)
       setCategories(response.data || [])
     } catch (err) {
       setError('Failed to load categories')
@@ -78,7 +85,7 @@ const Categories = () => {
       await api.createCategory(categoryForm)
       setSuccess('Category created successfully')
       setShowAddModal(false)
-      setCategoryForm({ name: '', description: '', subcategories: [] })
+      setCategoryForm({ name: '', description: '', subcategories: [], isTopTrending: false })
       loadCategories()
       
       setTimeout(() => setSuccess(''), 3000)
@@ -98,7 +105,7 @@ const Categories = () => {
       setSuccess('Category updated successfully')
       setShowEditModal(false)
       setEditingCategory(null)
-      setCategoryForm({ name: '', description: '', subcategories: [] })
+      setCategoryForm({ name: '', description: '', subcategories: [], isTopTrending: false })
       loadCategories()
       
       setTimeout(() => setSuccess(''), 3000)
@@ -171,7 +178,8 @@ const Categories = () => {
     setCategoryForm({
       name: category.name,
       description: category.description || '',
-      subcategories: category.subcategories || []
+      subcategories: category.subcategories || [],
+      isTopTrending: category.isTopTrending || false
     })
     setShowEditModal(true)
   }
@@ -181,13 +189,21 @@ const Categories = () => {
     setShowSubcategoryModal(true)
   }
 
-  const filteredCategories = categories.filter(category =>
-    category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    category.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    category.subcategories?.some(sub => 
-      sub.name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  )
+  const filteredCategories = categories.filter(category => {
+    // Search filter
+    const matchesSearch = category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      category.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      category.subcategories?.some(sub => 
+        sub.name.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    
+    // Trending filter
+    const matchesTrending = trendingFilter === 'all' || 
+      (trendingFilter === 'trending' && category.isTopTrending) ||
+      (trendingFilter === 'not-trending' && !category.isTopTrending)
+    
+    return matchesSearch && matchesTrending
+  })
 
   const seedCategories = async () => {
     try {
@@ -243,6 +259,158 @@ const Categories = () => {
     }
   }
 
+  // Handle checkbox toggle for Top 10 categories
+  const handleTop10CheckboxToggle = (categoryId) => {
+    setSelectedTop10Categories(prev => {
+      if (prev.includes(categoryId)) {
+        return prev.filter(id => id !== categoryId)
+      } else {
+        return [...prev, categoryId]
+      }
+    })
+  }
+
+  // Handle select all checkboxes
+  const handleSelectAllTop10 = () => {
+    if (selectedTop10Categories.length === trendingIndustries.length) {
+      setSelectedTop10Categories([])
+    } else {
+      setSelectedTop10Categories(trendingIndustries.map(industry => industry._id))
+    }
+  }
+
+  // Handle selecting categories from Top 10
+  const handleSelectTop10Categories = () => {
+    if (selectedTop10Categories.length === 0) {
+      setError('Please select at least one category')
+      setTimeout(() => setError(''), 3000)
+      return
+    }
+
+    // Expand all selected categories
+    const newExpandedCategories = {}
+    selectedTop10Categories.forEach(categoryId => {
+      newExpandedCategories[categoryId] = true
+    })
+    setExpandedCategories(prev => ({ ...prev, ...newExpandedCategories }))
+
+    // Clear search to show all categories
+    setSearchTerm('')
+
+    // Close modal
+    setShowTop10ChooseModal(false)
+
+    // Show success message
+    setSuccess(`Selected ${selectedTop10Categories.length} categor${selectedTop10Categories.length === 1 ? 'y' : 'ies'} from Top 10`)
+    setTimeout(() => setSuccess(''), 3000)
+
+    // Scroll to first selected category
+    setTimeout(() => {
+      const firstCategoryId = selectedTop10Categories[0]
+      const element = document.getElementById(`category-${firstCategoryId}`)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        // Highlight effect
+        element.classList.add('bg-indigo-100')
+        setTimeout(() => element.classList.remove('bg-indigo-100'), 2000)
+      }
+    }, 100)
+
+    // Reset selection
+    setSelectedTop10Categories([])
+  }
+
+  // Handle toggle trending status
+  const handleToggleTrending = async (categoryId, newTrendingStatus) => {
+    try {
+      console.log('🔄 Updating trending status:', { categoryId, newTrendingStatus })
+      // Update the category with new trending status
+      const result = await api.updateCategory(categoryId, { isTopTrending: newTrendingStatus })
+      console.log('✅ Update result:', result)
+      
+      // Update local state
+      setCategories(prev => prev.map(cat => 
+        cat._id === categoryId 
+          ? { ...cat, isTopTrending: newTrendingStatus }
+          : cat
+      ))
+      
+      // Show success message
+      const statusText = newTrendingStatus ? 'added to' : 'removed from'
+      setSuccess(`Category ${statusText} Top 10 Trending successfully`)
+      setTimeout(() => setSuccess(''), 3000)
+      
+      // Refresh trending data
+      loadTrendingIndustries()
+    } catch (err) {
+      setError(err.message || 'Failed to update trending status')
+      setTimeout(() => setError(''), 3000)
+    }
+  }
+
+  // Handle bulk operations
+  const handleSelectCategory = (categoryId) => {
+    setSelectedCategories(prev => {
+      const newSelected = prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+      
+      // Update select all state
+      setSelectAll(newSelected.length === filteredCategories.length && filteredCategories.length > 0)
+      return newSelected
+    })
+  }
+
+  const handleSelectAllCategories = () => {
+    if (selectAll) {
+      setSelectedCategories([])
+      setSelectAll(false)
+    } else {
+      setSelectedCategories(filteredCategories.map(cat => cat._id))
+      setSelectAll(true)
+    }
+  }
+
+  const handleBulkTrendingUpdate = async (newTrendingStatus) => {
+    if (selectedCategories.length === 0) {
+      setError('Please select at least one category')
+      setTimeout(() => setError(''), 3000)
+      return
+    }
+
+    try {
+      console.log('🔄 Bulk updating trending status:', { selectedCategories, newTrendingStatus })
+      // Update all selected categories
+      const updatePromises = selectedCategories.map(categoryId => 
+        api.updateCategory(categoryId, { isTopTrending: newTrendingStatus })
+      )
+      const results = await Promise.all(updatePromises)
+      console.log('✅ Bulk update results:', results)
+
+      // Update local state
+      setCategories(prev => prev.map(cat => 
+        selectedCategories.includes(cat._id)
+          ? { ...cat, isTopTrending: newTrendingStatus }
+          : cat
+      ))
+
+      // Clear selection
+      setSelectedCategories([])
+      setSelectAll(false)
+
+      // Show success message
+      const statusText = newTrendingStatus ? 'added to' : 'removed from'
+      setSuccess(`${selectedCategories.length} categories ${statusText} Top 10 Trending successfully`)
+      setTimeout(() => setSuccess(''), 3000)
+
+      // Refresh trending data
+      loadTrendingIndustries()
+    } catch (err) {
+      setError(err.message || 'Failed to update trending status')
+      setTimeout(() => setError(''), 3000)
+    }
+  }
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -252,117 +420,6 @@ const Categories = () => {
           <p className="text-gray-600 mt-1">Manage report categories and their subcategories</p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Top 10 Trending Dropdown Menu */}
-          <div className="relative">
-            <button
-              onClick={() => setShowTrendingMenu(!showTrendingMenu)}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-            >
-              <TrendingUp className="w-4 h-4" />
-              Top 10 Trending
-              <ChevronDown className={`w-4 h-4 transition-transform ${showTrendingMenu ? 'rotate-180' : ''}`} />
-            </button>
-            
-            {showTrendingMenu && (
-              <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                <div className="py-2">
-                  <button
-                    onClick={() => {
-                      setShowTrendingModal(true)
-                      setShowTrendingMenu(false)
-                    }}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-3"
-                  >
-                    <TrendingUp className="w-4 h-4 text-purple-600" />
-                    <div>
-                      <div className="font-medium">View Top 10 Categories</div>
-                      <div className="text-sm text-gray-500">Most popular categories by report count</div>
-                    </div>
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      loadTrendingIndustries()
-                      setShowTrendingMenu(false)
-                      setSuccess('Trending data refreshed successfully!')
-                    }}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-3"
-                  >
-                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    <div>
-                      <div className="font-medium">Refresh Trending Data</div>
-                      <div className="text-sm text-gray-500">Update trending rankings</div>
-                    </div>
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      const csvData = trendingIndustries.map((item, index) => ({
-                        Rank: index + 1,
-                        Category: item.name,
-                        'Report Count': item.reportCount,
-                        'Subcategories': item.subcategoriesCount,
-                        Description: item.description
-                      }))
-                      
-                      const csvContent = "data:text/csv;charset=utf-8," + 
-                        Object.keys(csvData[0]).join(",") + "\n" +
-                        csvData.map(row => Object.values(row).join(",")).join("\n")
-                      
-                      const encodedUri = encodeURI(csvContent)
-                      const link = document.createElement("a")
-                      link.setAttribute("href", encodedUri)
-                      link.setAttribute("download", "top-10-trending-categories.csv")
-                      document.body.appendChild(link)
-                      link.click()
-                      document.body.removeChild(link)
-                      
-                      setShowTrendingMenu(false)
-                      setSuccess('Trending data exported successfully!')
-                    }}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-3"
-                  >
-                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <div>
-                      <div className="font-medium">Export to CSV</div>
-                      <div className="text-sm text-gray-500">Download trending data as CSV</div>
-                    </div>
-                  </button>
-                  
-                  <div className="border-t border-gray-100 my-2"></div>
-                  
-                  <div className="px-4 py-2">
-                    <div className="text-sm font-medium text-gray-700 mb-2">Quick Stats</div>
-                    <div className="space-y-1 text-sm text-gray-600">
-                      <div className="flex justify-between">
-                        <span>Total Categories:</span>
-                        <span className="font-medium">{categories.length}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Active Categories:</span>
-                        <span className="font-medium">{categories.filter(c => c.isActive).length}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Total Subcategories:</span>
-                        <span className="font-medium">{categories.reduce((sum, c) => sum + (c.subcategories?.length || 0), 0)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => setShowQuickAddCategory(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Quick Add Category
-          </button>
           <button
             onClick={() => setShowQuickAddSubcategory(true)}
             className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
@@ -400,8 +457,8 @@ const Categories = () => {
         </div>
       )}
 
-      {/* Search Bar */}
-      <div className="mb-6">
+      {/* Search Bar and Filters */}
+      <div className="mb-6 space-y-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
           <input
@@ -412,6 +469,81 @@ const Categories = () => {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+        
+        {/* Trending Filter Buttons */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-700">Filter by trending status:</span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setTrendingFilter('all')}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                trendingFilter === 'all'
+                  ? 'bg-blue-100 text-blue-800'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All Categories ({categories.length})
+            </button>
+            <button
+              onClick={() => setTrendingFilter('trending')}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                trendingFilter === 'trending'
+                  ? 'bg-purple-100 text-purple-800'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <TrendingUp className="w-3 h-3 inline mr-1" />
+              Trending ({categories.filter(c => c.isTopTrending).length})
+            </button>
+            <button
+              onClick={() => setTrendingFilter('not-trending')}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                trendingFilter === 'not-trending'
+                  ? 'bg-gray-200 text-gray-800'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Not Trending ({categories.filter(c => !c.isTopTrending).length})
+            </button>
+          </div>
+        </div>
+        
+        {/* Bulk Operations Toolbar */}
+        {selectedCategories.length > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-blue-800">
+                  {selectedCategories.length} categor{selectedCategories.length === 1 ? 'y' : 'ies'} selected
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleBulkTrendingUpdate(true)}
+                  className="flex items-center gap-2 px-3 py-1 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  Mark as Trending
+                </button>
+                <button
+                  onClick={() => handleBulkTrendingUpdate(false)}
+                  className="flex items-center gap-2 px-3 py-1 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
+                >
+                  Remove from Trending
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedCategories([])
+                    setSelectAll(false)
+                  }}
+                  className="px-3 py-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                >
+                  Clear Selection
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Categories Table */}
@@ -420,6 +552,14 @@ const Categories = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <input
+                    type="checkbox"
+                    checked={selectAll}
+                    onChange={handleSelectAllCategories}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                  />
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Category Name
                 </th>
@@ -430,6 +570,9 @@ const Categories = () => {
                   Reports Count
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Trending Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -437,7 +580,7 @@ const Categories = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="4" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
                     <div className="flex items-center justify-center">
                       <div className="w-6 h-6 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin mr-2"></div>
                       Loading categories...
@@ -446,7 +589,7 @@ const Categories = () => {
                 </tr>
               ) : filteredCategories.length === 0 ? (
                 <tr>
-                  <td colSpan="4" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
                     {searchTerm ? 'No categories found matching your search.' : 'No categories found. Click "Add Category" to create one.'}
                   </td>
                 </tr>
@@ -454,7 +597,15 @@ const Categories = () => {
                 filteredCategories.map((category) => (
                   <>
                     {/* Main Category Row */}
-                    <tr key={category._id} className="hover:bg-gray-50">
+                    <tr key={category._id} id={`category-${category._id}`} className="hover:bg-gray-50 transition-colors duration-500">
+                      <td className="px-6 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.includes(category._id)}
+                          onChange={() => handleSelectCategory(category._id)}
+                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                        />
+                      </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center">
                           <button
@@ -480,6 +631,28 @@ const Categories = () => {
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">
                         {category.reportCount || 0} reports
+                      </td>
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => handleToggleTrending(category._id, !category.isTopTrending)}
+                          className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                            category.isTopTrending
+                              ? 'bg-purple-100 text-purple-800 hover:bg-purple-200'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {category.isTopTrending ? (
+                            <>
+                              <TrendingUp className="w-3 h-3" />
+                              Top Trending
+                            </>
+                          ) : (
+                            <>
+                              <span className="w-3 h-3 rounded-full bg-gray-400"></span>
+                              Not Trending
+                            </>
+                          )}
+                        </button>
                       </td>
                       <td className="px-6 py-4 text-sm font-medium">
                         <div className="flex items-center gap-2">
@@ -511,6 +684,9 @@ const Categories = () => {
                     {/* Subcategories Rows */}
                     {expandedCategories[category._id] && category.subcategories?.map((subcategory) => (
                       <tr key={`${category._id}-${subcategory._id}`} className="bg-gray-25">
+                        <td className="px-6 py-3">
+                          {/* Empty cell for checkbox alignment */}
+                        </td>
                         <td className="px-6 py-3 pl-16">
                           <div>
                             <div className="text-sm text-gray-700">└ {subcategory.name}</div>
@@ -574,12 +750,33 @@ const Categories = () => {
                   placeholder="Enter category description"
                 />
               </div>
+              
+              {/* Top 10 Trending Option */}
+              <div className="flex items-center gap-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="topTrending"
+                    checked={categoryForm.isTopTrending}
+                    onChange={(e) => setCategoryForm(prev => ({ ...prev, isTopTrending: e.target.checked }))}
+                    className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
+                  />
+                  <label htmlFor="topTrending" className="ml-2 text-sm font-medium text-purple-700 cursor-pointer">
+                    ✓ Add to Top 10 Trending
+                  </label>
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-purple-600">
+                    Mark this category as trending to feature it prominently in the Top 10 list
+                  </p>
+                </div>
+              </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => {
                   setShowAddModal(false)
-                  setCategoryForm({ name: '', description: '', subcategories: [] })
+                  setCategoryForm({ name: '', description: '', subcategories: [], isTopTrending: false })
                 }}
                 className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
               >
@@ -626,13 +823,34 @@ const Categories = () => {
                   placeholder="Enter category description"
                 />
               </div>
+              
+              {/* Top 10 Trending Option */}
+              <div className="flex items-center gap-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="editTopTrending"
+                    checked={categoryForm.isTopTrending}
+                    onChange={(e) => setCategoryForm(prev => ({ ...prev, isTopTrending: e.target.checked }))}
+                    className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
+                  />
+                  <label htmlFor="editTopTrending" className="ml-2 text-sm font-medium text-purple-700 cursor-pointer">
+                    ✓ Add to Top 10 Trending
+                  </label>
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-purple-600">
+                    Mark this category as trending to feature it prominently in the Top 10 list
+                  </p>
+                </div>
+              </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => {
                   setShowEditModal(false)
                   setEditingCategory(null)
-                  setCategoryForm({ name: '', description: '', subcategories: [] })
+                  setCategoryForm({ name: '', description: '', subcategories: [], isTopTrending: false })
                 }}
                 className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
               >
@@ -928,6 +1146,143 @@ const Categories = () => {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Top 10 Category Choose Modal with Checkboxes */}
+      {showTop10ChooseModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Top 10 Category Choose</h2>
+                <p className="text-gray-600 mt-1">Select categories using checkboxes and click "Select" button</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowTop10ChooseModal(false)
+                  setSelectedTop10Categories([])
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Select All Checkbox */}
+            <div className="mb-4 pb-4 border-b border-gray-200">
+              <label className="flex items-center gap-3 p-3 bg-indigo-50 rounded-lg cursor-pointer hover:bg-indigo-100 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={selectedTop10Categories.length === trendingIndustries.length && trendingIndustries.length > 0}
+                  onChange={handleSelectAllTop10}
+                  className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
+                />
+                <span className="font-semibold text-gray-900">
+                  Select All ({trendingIndustries.length} categories)
+                </span>
+              </label>
+            </div>
+            
+            <div className="space-y-3">
+              {trendingIndustries.length === 0 ? (
+                <div className="text-center py-12">
+                  <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                  <p className="text-gray-500 text-lg font-medium">No trending data available</p>
+                  <p className="text-sm text-gray-400 mt-2">Add some reports to see trending categories</p>
+                  <button
+                    onClick={() => {
+                      loadTrendingIndustries()
+                      setSuccess('Trending data loaded!')
+                    }}
+                    className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    Load Trending Data
+                  </button>
+                </div>
+              ) : (
+                trendingIndustries.map((industry, index) => (
+                  <label
+                    key={industry._id}
+                    className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
+                      selectedTop10Categories.includes(industry._id)
+                        ? 'bg-gradient-to-r from-indigo-50 via-purple-50 to-blue-50 border-indigo-400 shadow-md'
+                        : 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-sm'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTop10Categories.includes(industry._id)}
+                      onChange={() => handleTop10CheckboxToggle(industry._id)}
+                      className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer flex-shrink-0"
+                    />
+                    
+                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-md flex-shrink-0">
+                      {index + 1}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-gray-900 text-lg truncate">
+                        {industry.name}
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                        {industry.description || 'No description available'}
+                      </p>
+                    </div>
+                    
+                    <div className="text-right flex-shrink-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <div className="text-2xl font-bold text-indigo-600">{industry.reportCount}</div>
+                      </div>
+                      <div className="text-sm text-gray-500 font-medium">reports</div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {industry.subcategoriesCount} subcategories
+                      </div>
+                    </div>
+                  </label>
+                ))
+              )}
+            </div>
+            
+            <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center">
+              <div className="text-sm">
+                <span className="font-semibold text-indigo-600 text-lg">{selectedTop10Categories.length}</span>
+                <span className="text-gray-600"> of {trendingIndustries.length} categories selected</span>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowTop10ChooseModal(false)
+                    setSelectedTop10Categories([])
+                  }}
+                  className="px-5 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSelectTop10Categories}
+                  disabled={selectedTop10Categories.length === 0}
+                  className={`px-6 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                    selectedTop10Categories.length === 0
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-md hover:shadow-lg'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Select Categories
+                </button>
+              </div>
             </div>
           </div>
         </div>

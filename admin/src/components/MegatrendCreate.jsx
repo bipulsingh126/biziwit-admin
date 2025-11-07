@@ -30,6 +30,7 @@ const MegatrendCreate = () => {
   const [imagePreview, setImagePreview] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -60,7 +61,7 @@ const MegatrendCreate = () => {
         subTitle: megatrend.subTitle || '',
         authorName: megatrend.authorName || '',
         publishDate: megatrend.publishDate ? new Date(megatrend.publishDate).toISOString().slice(0, 10) : '',
-        mainImage: megatrend.mainImage || '',
+        mainImage: megatrend.mainImage || megatrend.heroImage?.url || '',
         whitePaperUrl: megatrend.whitePaperUrl || '',
         homePageVisibility: megatrend.homePageVisibility || false,
         titleTag: megatrend.titleTag || '',
@@ -70,7 +71,15 @@ const MegatrendCreate = () => {
         content: megatrend.content || '',
         status: megatrend.status || 'draft'
       })
-      setImagePreview(megatrend.mainImage || '')
+      
+      // Set image preview if mainImage or heroImage exists
+      const imageUrl = megatrend.mainImage || megatrend.heroImage?.url
+      if (imageUrl) {
+        const fullUrl = imageUrl.startsWith('http') 
+          ? imageUrl 
+          : `http://localhost:4000${imageUrl}`
+        setImagePreview(fullUrl)
+      }
     } catch (err) {
       setError('Failed to load megatrend: ' + err.message)
     } finally {
@@ -114,6 +123,42 @@ const MegatrendCreate = () => {
     reader.readAsDataURL(file)
   }
 
+  // Remove image
+  const handleRemoveImage = () => {
+    setImageFile(null)
+    setImagePreview('')
+    setFormData(prev => ({ ...prev, mainImage: '' }))
+  }
+
+  // Upload image to server
+  const uploadImage = async (megatrendId) => {
+    try {
+      setUploadingImage(true)
+      
+      const result = await api.uploadMegatrendHero(megatrendId, imageFile, `${formData.title || 'Megatrend'} - Hero Image`)
+      
+      // Update form data with the image URL
+      const imageUrl = result.heroImage?.url || result.imageUrl
+      setFormData(prev => ({ ...prev, mainImage: imageUrl }))
+      
+      // Update preview with full URL so it persists after reload
+      const fullUrl = imageUrl.startsWith('http') 
+        ? imageUrl 
+        : `http://localhost:4000${imageUrl}`
+      
+      setImagePreview(fullUrl)
+      setImageFile(null) // Clear file input after successful upload
+      setSuccess('Image uploaded successfully!')
+      
+      return imageUrl
+    } catch (err) {
+      setError('Failed to upload image: ' + err.message)
+      throw err
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
   // Save megatrend
   const saveMegatrend = async () => {
     try {
@@ -132,17 +177,27 @@ const MegatrendCreate = () => {
       }
       
       let savedMegatrend
+      let finalFormData = { ...formData }
+      
+      // First save the megatrend
       if (isEditing) {
-        savedMegatrend = await api.updateMegatrend(id, formData)
+        savedMegatrend = await api.updateMegatrend(id, finalFormData)
         setSuccess('Megatrend updated successfully!')
       } else {
-        savedMegatrend = await api.createMegatrend(formData)
+        savedMegatrend = await api.createMegatrend(finalFormData)
         setSuccess('Megatrend created successfully!')
       }
       
-      // Upload image if selected
+      // Upload image if selected and update the megatrend with image URL
       if (imageFile && savedMegatrend._id) {
-        await api.uploadMegatrendHero(savedMegatrend._id, imageFile, formData.title)
+        try {
+          const imageUrl = await uploadImage(savedMegatrend._id)
+          // Update the saved megatrend with the image URL
+          await api.updateMegatrend(savedMegatrend._id, { mainImage: imageUrl })
+        } catch (imageErr) {
+          console.error('Image upload failed:', imageErr)
+          // Don't fail the entire save if just image upload fails
+        }
       }
       
       // Navigate back after a short delay
@@ -336,6 +391,94 @@ const MegatrendCreate = () => {
                       Show on Homepage
                     </span>
                   </label>
+                </div>
+              </div>
+
+              {/* Main Image Section */}
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-md font-medium text-gray-900">Megatrend Hero Image</h3>
+                  {uploadingImage && (
+                    <span className="text-sm text-blue-600 flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                      Uploading image...
+                    </span>
+                  )}
+                </div>
+                
+                <div className="max-w-md">
+                  <div className="relative border-2 border-dashed border-gray-300 rounded-lg overflow-hidden hover:border-blue-400 transition-all">
+                    {imagePreview ? (
+                      <div className="relative group">
+                        <img
+                          src={imagePreview}
+                          alt="Megatrend hero preview"
+                          className="w-full h-48 object-cover"
+                        />
+                        <div className="absolute top-2 right-2">
+                          <button
+                            onClick={handleRemoveImage}
+                            className="px-3 py-1 bg-red-600 text-white rounded text-sm font-medium opacity-0 group-hover:opacity-100 transition-all hover:bg-red-700 shadow-lg"
+                          >
+                            ✕ Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center h-48 cursor-pointer hover:bg-gray-50 transition-colors">
+                        <Image className="w-12 h-12 text-gray-400 mb-2" />
+                        <span className="text-sm text-gray-500 font-medium">Upload Megatrend Hero Image</span>
+                        <span className="text-xs text-gray-400 mt-1">Max 5MB • JPG, PNG, GIF, WebP</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageChange}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                  
+                  {/* Upload button for selected image */}
+                  {imageFile && !uploadingImage && (
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        onClick={() => {
+                          if (isEditing && id) {
+                            uploadImage(id)
+                          } else {
+                            setError('Please save the megatrend first, then upload the image')
+                          }
+                        }}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                      >
+                        Upload Image Now
+                      </button>
+                      <button
+                        onClick={handleRemoveImage}
+                        className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors text-sm font-medium"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg max-w-md">
+                  <div className="flex items-start gap-2">
+                    <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div className="text-sm text-blue-800">
+                      <p className="font-medium mb-1">Image Tips:</p>
+                      <ul className="list-disc list-inside space-y-1 text-xs">
+                        <li>Upload one hero image for your megatrend</li>
+                        <li>Image will be displayed prominently on the megatrend page</li>
+                        <li>Recommended size: 1200x600 pixels or larger</li>
+                        <li>Image will be saved when you click Save/Update</li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               </div>
 

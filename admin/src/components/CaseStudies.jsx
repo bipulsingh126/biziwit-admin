@@ -390,13 +390,25 @@ const CaseStudies = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center">
-                        {caseStudy.mainImage && (
+                        {caseStudy.mainImage ? (
                           <img
-                            src={caseStudy.mainImage}
+                            src={caseStudy.mainImage.startsWith('http') 
+                              ? caseStudy.mainImage 
+                              : `http://localhost:4000${caseStudy.mainImage}`}
                             alt={caseStudy.title}
                             className="w-12 h-12 rounded-lg object-cover mr-3"
+                            onError={(e) => {
+                              e.target.style.display = 'none'
+                              e.target.nextSibling.style.display = 'flex'
+                            }}
                           />
-                        )}
+                        ) : null}
+                        {/* Fallback placeholder when no image or image fails to load */}
+                        <div 
+                          className={`w-12 h-12 rounded-lg bg-gray-100 border-2 border-dashed border-gray-300 mr-3 flex items-center justify-center ${caseStudy.mainImage ? 'hidden' : 'flex'}`}
+                        >
+                          <Image className="w-6 h-6 text-gray-400" />
+                        </div>
                         <div>
                           <div className="text-sm font-medium text-gray-900 truncate max-w-xs">
                             {caseStudy.title}

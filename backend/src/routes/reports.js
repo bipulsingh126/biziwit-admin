@@ -1075,6 +1075,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           
           // Also map to category field for backward compatibility
           category: category?.toString().trim() || '',
+          subCategory: subCategory?.toString().trim() || '',
           
           // Pricing fields - matching Excel image exactly
           excelDatapackPrice: excelDatapackPrice?.toString() || '',

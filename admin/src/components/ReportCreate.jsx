@@ -57,20 +57,10 @@ const ReportCreate = () => {
   const [coverImage, setCoverImage] = useState(null)
   const [coverImagePreview, setCoverImagePreview] = useState('')
   const [uploadingCover, setUploadingCover] = useState(false)
-
-  const categories = [
-    'Life Sciences', 'Food and Beverages', 'ICT and Media',
-    'Consumer Goods', 'Energy and Power', 'Construction and Manufacturing'
-  ]
-
-  const subCategories = {
-    'Life Sciences': ['Diagnostics and Biotech', 'Medical Devices and Supplies', 'Pharmaceuticals'],
-    'Food and Beverages': ['Food Ingredients', 'Beverages', 'Food Processing'],
-    'ICT and Media': ['Software and Services', 'Hardware', 'Telecommunications'],
-    'Consumer Goods': ['Home Products', 'Personal Care', 'Apparel'],
-    'Energy and Power': ['Equipment and Devices', 'Renewable Energy', 'Oil and Gas'],
-    'Construction and Manufacturing': ['Engineering, Equipment and Machinery', 'HVAC', 'Building Materials']
-  }
+  
+  // Dynamic categories and subcategories from API
+  const [categories, setCategories] = useState([])
+  const [subCategories, setSubCategories] = useState({})
 
   const regions = [
     'Global', 'North America', 'Europe', 'Asia Pacific', 'Latin America', 
@@ -78,8 +68,44 @@ const ReportCreate = () => {
   ]
 
   useEffect(() => {
+    loadCategories()
     if (isEdit && id) loadReport()
   }, [id, isEdit])
+
+  const loadCategories = async () => {
+    try {
+      const result = await api.getCategories()
+      const categoriesData = result.data || []
+      
+      // Extract category names
+      const categoryNames = categoriesData.map(cat => cat.name)
+      setCategories(categoryNames)
+      
+      // Build subcategories object
+      const subCategoriesObj = {}
+      categoriesData.forEach(cat => {
+        if (cat.subcategories && cat.subcategories.length > 0) {
+          subCategoriesObj[cat.name] = cat.subcategories.map(sub => sub.name)
+        }
+      })
+      setSubCategories(subCategoriesObj)
+    } catch (err) {
+      console.error('Failed to load categories:', err)
+      // Fallback to hardcoded categories if API fails
+      setCategories([
+        'Life Sciences', 'Food and Beverages', 'ICT and Media',
+        'Consumer Goods', 'Energy and Power', 'Construction and Manufacturing'
+      ])
+      setSubCategories({
+        'Life Sciences': ['Diagnostics and Biotech', 'Medical Devices and Supplies', 'Pharmaceuticals'],
+        'Food and Beverages': ['Food Ingredients', 'Beverages', 'Food Processing'],
+        'ICT and Media': ['Software and Services', 'Hardware', 'Telecommunications'],
+        'Consumer Goods': ['Home Products', 'Personal Care', 'Apparel'],
+        'Energy and Power': ['Equipment and Devices', 'Renewable Energy', 'Oil and Gas'],
+        'Construction and Manufacturing': ['Engineering, Equipment and Machinery', 'HVAC', 'Building Materials']
+      })
+    }
+  }
 
   const loadReport = async () => {
     try {
