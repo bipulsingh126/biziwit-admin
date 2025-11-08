@@ -44,7 +44,7 @@ const upload = multer({
 })
 
 // Get all case studies with pagination, search, and filters
-router.get('/', authenticate, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const {
       page = 1,
@@ -129,7 +129,7 @@ router.get('/', authenticate, async (req, res) => {
 })
 
 // Get single case study
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const caseStudy = await CaseStudy.findById(req.params.id)
     if (!caseStudy) {

@@ -45,7 +45,9 @@ const ReportCreate = () => {
     enterpriseLicensePrice: '',
     // Status and checkboxes
     status: 'draft',
-    trendingReportForHomePage: false
+    trendingReportForHomePage: false,
+    // Cover image field
+    coverImage: ''
   })
 
   const [activeTab, setActiveTab] = useState('overview')
@@ -150,8 +152,18 @@ const ReportCreate = () => {
         enterpriseLicensePrice: report.enterpriseLicensePrice || '',
         // Status and checkboxes
         status: report.status || 'draft',
-        trendingReportForHomePage: report.trendingReportForHomePage || false
+        trendingReportForHomePage: report.trendingReportForHomePage || false,
+        // Cover image field
+        coverImage: report.coverImage?.url || ''
       })
+      
+      // Set existing cover image preview if available
+      if (report.coverImage?.url) {
+        console.log('Setting cover image preview:', `http://localhost:4000${report.coverImage.url}`)
+        setCoverImagePreview(`http://localhost:4000${report.coverImage.url}`)
+      } else {
+        console.log('No cover image found in report data:', report.coverImage)
+      }
     } catch (err) {
       setError(err.message || 'Failed to load report')
     } finally {
@@ -234,14 +246,47 @@ const ReportCreate = () => {
         trendingReportForHomePage: formData.trendingReportForHomePage
       }
       
+      let savedReport
       if (isEdit) {
-        await api.updateReport(id, submitData)
+        savedReport = await api.updateReport(id, submitData)
       } else {
-        await api.createReport(submitData)
+        savedReport = await api.createReport(submitData)
       }
       
-      setSuccess(`Report ${isEdit ? 'updated' : 'created'} successfully!`)
-      setTimeout(() => navigate('/reports'), 1500)
+      // Get the report ID for cover image upload
+      const reportId = isEdit ? id : (savedReport.data?.id || savedReport.id)
+      
+      // Upload cover image if selected
+      if (coverImage && reportId) {
+        try {
+          setUploadingCover(true)
+          const uploadResult = await api.uploadReportCover(reportId, coverImage)
+          console.log('ReportCreate upload result:', uploadResult)
+          
+          // Update form data with uploaded image URL
+          if (uploadResult.data?.coverImage?.url) {
+            console.log('Setting cover image URL:', uploadResult.data.coverImage.url)
+            setFormData(prev => ({ ...prev, coverImage: uploadResult.data.coverImage.url }))
+            setCoverImagePreview(`http://localhost:4000${uploadResult.data.coverImage.url}`)
+          } else {
+            console.log('No cover image URL in response:', uploadResult)
+          }
+          
+          // Clear the selected file since it's now uploaded
+          setCoverImage(null)
+          
+          setSuccess(`Report ${isEdit ? 'updated' : 'created'} successfully with cover image!`)
+        } catch (uploadErr) {
+          console.error('Cover image upload failed:', uploadErr)
+          setSuccess(`Report ${isEdit ? 'updated' : 'created'} successfully, but cover image upload failed: ${uploadErr.message}`)
+        } finally {
+          setUploadingCover(false)
+        }
+      } else {
+        setSuccess(`Report ${isEdit ? 'updated' : 'created'} successfully!`)
+      }
+      
+      setTimeout(() => navigate('/reports'), 2000)
       
     } catch (err) {
       if (err.message.includes('Validation Error')) {
@@ -292,14 +337,26 @@ const ReportCreate = () => {
   }
 
   const handleCoverImageUpload = async () => {
-    if (!coverImage || !id) {
-      setError('Please select an image and save the report first')
+    if (!coverImage) {
+      setError('Please select an image first')
+      return
+    }
+
+    if (!id) {
+      setError('Please save the report first, then the cover image will be uploaded automatically')
       return
     }
 
     try {
       setUploadingCover(true)
-      await api.uploadReportCover(id, coverImage)
+      const uploadResult = await api.uploadReportCover(id, coverImage)
+      
+      // Update form data with uploaded image URL
+      if (uploadResult.data?.coverImage?.url) {
+        setFormData(prev => ({ ...prev, coverImage: uploadResult.data.coverImage.url }))
+        setCoverImagePreview(`http://localhost:4000${uploadResult.data.coverImage.url}`)
+      }
+      
       setSuccess('Cover image uploaded successfully!')
       setCoverImage(null)
       
@@ -743,7 +800,7 @@ const ReportCreate = () => {
                         {isEdit && (
                           <button
                             onClick={handleCoverImageUpload}
-                            disabled={uploadingCover}
+                            disabled={uploadingCover || saving}
                             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                           >
                             {uploadingCover ? (
@@ -754,13 +811,13 @@ const ReportCreate = () => {
                             ) : (
                               <>
                                 <Upload className="w-4 h-4" />
-                                Upload Cover
+                                Upload Now
                               </>
                             )}
                           </button>
                         )}
                         <p className="text-sm text-gray-500">
-                          {isEdit ? 'Save the report first, then upload cover image' : 'Cover image will be uploaded after saving'}
+                          {isEdit ? 'Upload immediately or save report to upload automatically' : 'Cover image will be uploaded automatically when you save the report'}
                         </p>
                       </div>
                     </div>

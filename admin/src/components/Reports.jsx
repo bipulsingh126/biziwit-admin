@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Filter, Upload, Download, Edit, Trash2, ExternalLink, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, FileSpreadsheet, AlertCircle, CheckCircle, Clock } from 'lucide-react'
+import { Search, Filter, Upload, Download, Edit, Trash2, ExternalLink, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, FileSpreadsheet, AlertCircle, CheckCircle, Clock, Image, Camera } from 'lucide-react'
 import api from '../utils/api'
 
 const Reports = () => {
@@ -38,6 +38,7 @@ const Reports = () => {
   const [selectedReports, setSelectedReports] = useState([])
   const [selectAll, setSelectAll] = useState(false)
   const [bulkOperating, setBulkOperating] = useState(false)
+  const [uploadingCover, setUploadingCover] = useState({})
   const searchTimeoutRef = useRef(null)
 
 
@@ -123,7 +124,8 @@ const Reports = () => {
             'segment': result.items[0].segment,
             'companies': result.items[0].companies,
             'reportCategories': result.items[0].reportCategories,
-            'category': result.items[0].category
+            'category': result.items[0].category,
+            'coverImage': result.items[0].coverImage
           });
         }
         
@@ -155,7 +157,8 @@ const Reports = () => {
           price: report.price || 'N/A',
           excelPrice: report.excelDatapackPrice || 'N/A',
           singleUserPrice: report.singleUserPrice || 'N/A',
-          enterprisePrice: report.enterprisePrice || 'N/A'
+          enterprisePrice: report.enterprisePrice || 'N/A',
+          coverImage: report.coverImage || null
         })) || []
         
         // Debug: Log the transformed data
@@ -165,7 +168,8 @@ const Reports = () => {
             'reportDescription': transformedReports[0].reportDescription,
             'segment': transformedReports[0].segment,
             'companies': transformedReports[0].companies,
-            'reportCategories': transformedReports[0].reportCategories
+            'reportCategories': transformedReports[0].reportCategories,
+            'coverImage': transformedReports[0].coverImage
           });
           console.log('🔍 WHY N/A CHECK - Raw vs Transformed:', {
             'Raw reportDescription': result.items[0].reportDescription,
@@ -270,6 +274,45 @@ const Reports = () => {
   const handleView = (reportId) => {
     // Navigate to edit page in view mode (same as edit for now)
     navigate(`/reports/${reportId}/edit`)
+  }
+
+  const handleCoverImageUpload = async (reportId, file) => {
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file')
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image size must be less than 5MB')
+      return
+    }
+
+    try {
+      setUploadingCover(prev => ({ ...prev, [reportId]: true }))
+      
+      const uploadResult = await api.uploadReportCover(reportId, file)
+      console.log('Upload result:', uploadResult)
+      
+      // Update the local state with the new cover image
+      setReports(prevReports => 
+        prevReports.map(report => 
+          report._id === reportId 
+            ? { ...report, coverImage: uploadResult.data.coverImage }
+            : report
+        )
+      )
+      
+      setSuccess('Cover image uploaded successfully!')
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.message || 'Failed to upload cover image')
+    } finally {
+      setUploadingCover(prev => ({ ...prev, [reportId]: false }))
+    }
   }
 
   // Checkbox functionality
@@ -1364,6 +1407,9 @@ const Reports = () => {
                   />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Cover Image
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Report Title
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1396,6 +1442,45 @@ const Reports = () => {
                       onChange={() => handleSelectReport(report._id)}
                       className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                     />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="relative w-16 h-12 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                      {report.coverImage?.url ? (
+                        <img
+                          src={`http://localhost:4000${report.coverImage.url}`}
+                          alt={report.coverImage.alt || report.title}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            console.error('Image failed to load:', `http://localhost:4000${report.coverImage.url}`)
+                            e.target.style.display = 'none'
+                            e.target.nextSibling.style.display = 'flex'
+                          }}
+                          onLoad={() => {
+                            console.log('Image loaded successfully:', `http://localhost:4000${report.coverImage.url}`)
+                          }}
+                        />
+                      ) : null}
+                      <div className={`absolute inset-0 flex items-center justify-center ${report.coverImage?.url ? 'hidden' : 'flex'}`}>
+                        <Image className="w-6 h-6 text-gray-400" />
+                      </div>
+                      <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center opacity-0 hover:opacity-100">
+                        <label className="cursor-pointer p-1 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-all">
+                          <Camera className="w-4 h-4 text-gray-700" />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleCoverImageUpload(report._id, e.target.files[0])}
+                            className="hidden"
+                            disabled={uploadingCover[report._id]}
+                          />
+                        </label>
+                      </div>
+                      {uploadingCover[report._id] && (
+                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-4 text-sm text-gray-900 max-w-xs">
                     <div className="truncate" title={report.title}>
