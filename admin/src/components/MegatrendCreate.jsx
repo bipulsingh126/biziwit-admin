@@ -13,8 +13,8 @@ const MegatrendCreate = () => {
   const [formData, setFormData] = useState({
     title: '',
     subTitle: '',
-    authorName: '',
-    publishDate: new Date().toISOString().slice(0, 10),
+    author: '',
+    publishedAt: new Date().toISOString().slice(0, 10),
     mainImage: '',
     whitePaperUrl: '',
     homePageVisibility: false,
@@ -59,8 +59,8 @@ const MegatrendCreate = () => {
       setFormData({
         title: megatrend.title || '',
         subTitle: megatrend.subTitle || '',
-        authorName: megatrend.authorName || '',
-        publishDate: megatrend.publishDate ? new Date(megatrend.publishDate).toISOString().slice(0, 10) : '',
+        author: megatrend.author || '',
+        publishedAt: megatrend.publishedAt ? new Date(megatrend.publishedAt).toISOString().slice(0, 10) : '',
         mainImage: megatrend.mainImage || megatrend.heroImage?.url || '',
         whitePaperUrl: megatrend.whitePaperUrl || '',
         homePageVisibility: megatrend.homePageVisibility || false,
@@ -171,7 +171,7 @@ const MegatrendCreate = () => {
         return
       }
       
-      if (!formData.authorName.trim()) {
+      if (!formData.author.trim()) {
         setError('Author name is required')
         return
       }
@@ -346,8 +346,8 @@ const MegatrendCreate = () => {
                   </label>
                   <input
                     type="text"
-                    value={formData.authorName}
-                    onChange={(e) => handleInputChange('authorName', e.target.value)}
+                    value={formData.author}
+                    onChange={(e) => handleInputChange('author', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Enter author name"
                     required
@@ -360,8 +360,8 @@ const MegatrendCreate = () => {
                   </label>
                   <input
                     type="date"
-                    value={formData.publishDate}
-                    onChange={(e) => handleInputChange('publishDate', e.target.value)}
+                    value={formData.publishedAt}
+                    onChange={(e) => handleInputChange('publishedAt', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

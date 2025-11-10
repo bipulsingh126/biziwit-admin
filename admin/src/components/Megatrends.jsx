@@ -436,10 +436,10 @@ const Megatrends = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {megatrend.authorName || 'N/A'}
+                      {megatrend.author || 'N/A'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {megatrend.publishDate ? new Date(megatrend.publishDate).toLocaleDateString() : 'N/A'}
+                      {megatrend.publishedAt ? new Date(megatrend.publishedAt).toLocaleDateString() : 'N/A'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {megatrend.updatedAt ? new Date(megatrend.updatedAt).toLocaleDateString() : 'N/A'}

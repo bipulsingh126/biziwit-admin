@@ -1,75 +1,103 @@
 import mongoose from 'mongoose'
 
-const FeaturedSectionSchema = new mongoose.Schema({
+// Helper function to generate slug from text
+const generateSlug = (text) => {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9 -]/g, '') // Remove special characters
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/-+/g, '-') // Replace multiple hyphens with single
+    .trim('-') // Remove leading/trailing hyphens
+}
+
+// Banner Schema with slug
+const bannerSchema = new mongoose.Schema({
   title: {
     type: String,
-    trim: true,
-    default: ''
+    required: true,
+    trim: true
   },
-  description: {
+  slug: {
     type: String,
-    trim: true,
-    default: ''
+    required: true,
+    unique: true
   },
   image: {
     type: String,
     default: ''
   },
-  buttonText: {
-    type: String,
-    trim: true,
-    default: ''
-  },
-  buttonLink: {
-    type: String,
-    trim: true,
-    default: ''
-  },
-  layout: {
-    type: String,
-    enum: ['left', 'right'],
-    default: 'right'
+  isActive: {
+    type: Boolean,
+    default: true
   },
   sortOrder: {
     type: Number,
     default: 0
-  },
-  isActive: {
-    type: Boolean,
-    default: true
   }
 }, { _id: true })
 
-const HomePageSchema = new mongoose.Schema({
-  pageTitle: {
+// Megatrend Schema with slug
+const megatrendSchema = new mongoose.Schema({
+  heading: {
     type: String,
     required: true,
     trim: true
   },
-  pageSubtitle: {
+  title: {
     type: String,
-    trim: true,
+    required: true,
+    trim: true
+  },
+  slug: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  image: {
+    type: String,
     default: ''
   },
-  featuredSections: {
-    type: [FeaturedSectionSchema],
-    default: []
+  isActive: {
+    type: Boolean,
+    default: true
   },
+  sortOrder: {
+    type: Number,
+    default: 0
+  }
+}, { _id: true })
+
+// Main HomePage Schema
+const homePageSchema = new mongoose.Schema({
+  pageTitle: {
+    type: String,
+    required: true,
+    default: 'BiziWit - Market Research & Business Intelligence'
+  },
+  pageSubtitle: {
+    type: String,
+    required: true,
+    default: 'Comprehensive market research reports and industry analysis'
+  },
+  slug: {
+    type: String,
+    unique: true,
+    default: 'homepage'
+  },
+  banners: [bannerSchema],
+  megatrends: [megatrendSchema],
   seoData: {
     title: {
       type: String,
-      trim: true,
-      default: 'Megatrends - BiziWit'
+      default: 'BiziWit - Market Research & Business Intelligence'
     },
     metaDescription: {
       type: String,
-      trim: true,
-      default: 'Explore the latest megatrends shaping the future of business and technology'
+      default: 'Leading provider of market research reports, industry analysis, and business intelligence solutions.'
     },
     keywords: {
       type: String,
-      trim: true,
-      default: 'megatrends, business intelligence, market research, future trends'
+      default: 'market research, business intelligence, industry analysis, reports'
     }
   },
   isActive: {
@@ -84,67 +112,173 @@ const HomePageSchema = new mongoose.Schema({
   timestamps: true
 })
 
-// Create text index for search functionality
-HomePageSchema.index({
+// Indexes for better performance
+homePageSchema.index({ slug: 1 })
+homePageSchema.index({ 'banners.slug': 1 })
+homePageSchema.index({ 'megatrends.slug': 1 })
+homePageSchema.index({ isActive: 1 })
+
+// Text search index
+homePageSchema.index({
   pageTitle: 'text',
   pageSubtitle: 'text',
-  'featuredSections.title': 'text',
-  'featuredSections.description': 'text'
+  'banners.title': 'text',
+  'megatrends.heading': 'text',
+  'megatrends.title': 'text'
 })
 
-// Virtual for getting active featured sections
-HomePageSchema.virtual('activeFeaturedSections').get(function() {
-  return this.featuredSections
-    .filter(section => section.isActive)
-    .sort((a, b) => a.sortOrder - b.sortOrder)
+// Virtual for active banners
+homePageSchema.virtual('activeBanners').get(function() {
+  return this.banners.filter(banner => banner.isActive)
 })
 
-// Method to add a new featured section
-HomePageSchema.methods.addFeaturedSection = function(sectionData) {
-  const maxOrder = this.featuredSections.reduce((max, section) => 
-    Math.max(max, section.sortOrder || 0), 0
-  )
-  
-  const newSection = {
-    ...sectionData,
-    sortOrder: maxOrder + 1
-  }
-  
-  this.featuredSections.push(newSection)
-  return this.featuredSections[this.featuredSections.length - 1]
-}
+// Virtual for active megatrends
+homePageSchema.virtual('activeMegatrends').get(function() {
+  return this.megatrends.filter(megatrend => megatrend.isActive)
+})
 
-// Method to update a featured section
-HomePageSchema.methods.updateFeaturedSection = function(sectionId, updateData) {
-  const section = this.featuredSections.id(sectionId)
-  if (!section) {
-    throw new Error('Featured section not found')
-  }
-  
-  Object.assign(section, updateData)
-  return section
-}
-
-// Method to remove a featured section
-HomePageSchema.methods.removeFeaturedSection = function(sectionId) {
-  const section = this.featuredSections.id(sectionId)
-  if (!section) {
-    throw new Error('Featured section not found')
-  }
-  
-  section.remove()
-  return true
-}
-
-// Method to reorder featured sections
-HomePageSchema.methods.reorderFeaturedSections = function(sectionOrders) {
-  sectionOrders.forEach(({ sectionId, sortOrder }) => {
-    const section = this.featuredSections.id(sectionId)
-    if (section) {
-      section.sortOrder = sortOrder
+// Pre-save middleware to generate slugs
+homePageSchema.pre('save', function(next) {
+  // Generate banner slugs
+  this.banners.forEach(banner => {
+    if (!banner.slug || banner.isModified('title')) {
+      banner.slug = generateSlug(banner.title)
     }
   })
+
+  // Generate megatrend slugs
+  this.megatrends.forEach(megatrend => {
+    if (!megatrend.slug || megatrend.isModified('heading')) {
+      megatrend.slug = generateSlug(megatrend.heading)
+    }
+  })
+
+  next()
+})
+
+// Instance methods for banner management
+homePageSchema.methods.addBanner = function(bannerData) {
+  const slug = generateSlug(bannerData.title)
+  const banner = {
+    ...bannerData,
+    slug,
+    sortOrder: this.banners.length
+  }
+  this.banners.push(banner)
+  return banner
 }
 
-const HomePage = mongoose.model('HomePage', HomePageSchema)
+homePageSchema.methods.updateBannerBySlug = function(slug, updateData) {
+  const banner = this.banners.find(b => b.slug === slug)
+  if (banner) {
+    Object.assign(banner, updateData)
+    if (updateData.title) {
+      banner.slug = generateSlug(updateData.title)
+    }
+    return banner
+  }
+  return null
+}
+
+homePageSchema.methods.removeBannerBySlug = function(slug) {
+  const index = this.banners.findIndex(b => b.slug === slug)
+  if (index > -1) {
+    return this.banners.splice(index, 1)[0]
+  }
+  return null
+}
+
+// Instance methods for megatrend management
+homePageSchema.methods.addMegatrend = function(megatrendData) {
+  const slug = generateSlug(megatrendData.heading)
+  const megatrend = {
+    ...megatrendData,
+    slug,
+    sortOrder: this.megatrends.length
+  }
+  this.megatrends.push(megatrend)
+  return megatrend
+}
+
+homePageSchema.methods.updateMegatrendBySlug = function(slug, updateData) {
+  const megatrend = this.megatrends.find(m => m.slug === slug)
+  if (megatrend) {
+    Object.assign(megatrend, updateData)
+    if (updateData.heading) {
+      megatrend.slug = generateSlug(updateData.heading)
+    }
+    return megatrend
+  }
+  return null
+}
+
+homePageSchema.methods.removeMegatrendBySlug = function(slug) {
+  const index = this.megatrends.findIndex(m => m.slug === slug)
+  if (index > -1) {
+    return this.megatrends.splice(index, 1)[0]
+  }
+  return null
+}
+
+// Static method to create default homepage data
+homePageSchema.statics.createDefault = async function() {
+  const defaultData = {
+    pageTitle: 'BiziWit - Market Research & Business Intelligence',
+    pageSubtitle: 'Comprehensive market research reports and industry analysis',
+    banners: [
+      {
+        title: 'Market Research Reports',
+        slug: 'market-research-reports',
+        isActive: true,
+        sortOrder: 0
+      },
+      {
+        title: 'Industry Analysis',
+        slug: 'industry-analysis',
+        isActive: true,
+        sortOrder: 1
+      },
+      {
+        title: 'Business Intelligence',
+        slug: 'business-intelligence',
+        isActive: true,
+        sortOrder: 2
+      },
+      {
+        title: 'Custom Research',
+        slug: 'custom-research',
+        isActive: true,
+        sortOrder: 3
+      }
+    ],
+    megatrends: [
+      {
+        heading: 'Future Technology',
+        title: 'AI & Machine Learning Trends',
+        slug: 'future-technology-ai-ml',
+        isActive: true,
+        sortOrder: 0
+      },
+      {
+        heading: 'Digital Transformation',
+        title: 'Industry 4.0 Revolution',
+        slug: 'digital-transformation-industry-4',
+        isActive: true,
+        sortOrder: 1
+      },
+      {
+        heading: 'Sustainability',
+        title: 'Green Technology Solutions',
+        slug: 'sustainability-green-tech',
+        isActive: true,
+        sortOrder: 2
+      }
+    ]
+  }
+
+  return await this.create(defaultData)
+}
+
+const HomePage = mongoose.model('HomePage', homePageSchema)
+
 export default HomePage

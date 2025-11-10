@@ -563,30 +563,56 @@ class ApiClient {
     })
   }
 
-  async uploadHomePageImage(file) {
+  // Banner Management with Slug Operations
+  async updateBannerBySlug(slug, data) {
+    return this.request(`/api/homepage/banner/${slug}`, {
+      method: 'PUT',
+      body: data
+    })
+  }
+
+  async uploadBannerImageBySlug(slug, file) {
     const formData = new FormData()
     formData.append('image', file)
     
-    return this.request('/api/homepage/upload-image', {
+    return this.request(`/api/homepage/banner/${slug}/image`, {
       method: 'POST',
       body: formData
     })
   }
 
-  async deleteHomePageImage(filename) {
-    return this.request(`/api/homepage/image/${filename}`, {
+  async deleteBannerImageBySlug(slug) {
+    return this.request(`/api/homepage/banner/${slug}/image`, {
+      method: 'DELETE'
+    })
+  }
+
+  // Megatrend Management with Slug Operations
+  async updateMegatrendBySlug(slug, data) {
+    return this.request(`/api/homepage/megatrend/${slug}`, {
+      method: 'PUT',
+      body: data
+    })
+  }
+
+  async uploadMegatrendImageBySlug(slug, file) {
+    const formData = new FormData()
+    formData.append('image', file)
+    
+    return this.request(`/api/homepage/megatrend/${slug}/image`, {
+      method: 'POST',
+      body: formData
+    })
+  }
+
+  async deleteMegatrendImageBySlug(slug) {
+    return this.request(`/api/homepage/megatrend/${slug}/image`, {
       method: 'DELETE'
     })
   }
 
   async getHomePageAnalytics() {
     return this.request('/api/homepage/analytics')
-  }
-
-  async toggleHomepageSection(sectionId) {
-    return this.request(`/api/homepage/sections/${sectionId}/toggle`, {
-      method: 'POST'
-    })
   }
 }
 

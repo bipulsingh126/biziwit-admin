@@ -31,6 +31,19 @@ const MegatrendSchema = new mongoose.Schema({
   author: { type: String, trim: true },
 }, { timestamps: true })
 
+// Pre-save middleware to generate slug
+MegatrendSchema.pre('save', function(next) {
+  if (!this.slug && this.title) {
+    this.slug = this.title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim('-')
+  }
+  next()
+})
+
 MegatrendSchema.index({ title: 'text', summary: 'text', content: 'text', tags: 'text' })
 
 export default mongoose.model('Megatrend', MegatrendSchema)

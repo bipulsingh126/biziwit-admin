@@ -2,6 +2,7 @@ import mongoose from 'mongoose'
 
 const InquirySchema = new mongoose.Schema({
   inquiryNumber: { type: String, unique: true, index: true },
+  slug: { type: String, unique: true, lowercase: true, trim: true, index: true },
   name: { type: String, required: true, trim: true },
   email: { type: String, required: true, lowercase: true, trim: true },
   phone: { type: String, trim: true },
@@ -56,12 +57,28 @@ const InquirySchema = new mongoose.Schema({
   meta: { type: Object },
 }, { timestamps: true })
 
-// Generate inquiry number before saving
+// Generate inquiry number and slug before saving
 InquirySchema.pre('save', async function(next) {
   if (!this.inquiryNumber) {
     const count = await mongoose.model('Inquiry').countDocuments()
     this.inquiryNumber = `INQ-${String(count + 1).padStart(6, '0')}`
   }
+  
+  // Generate slug from inquiry number and subject
+  if (!this.slug) {
+    let baseSlug = this.inquiryNumber.toLowerCase()
+    if (this.subject) {
+      const subjectSlug = this.subject
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .trim('-')
+      baseSlug = `${baseSlug}-${subjectSlug}`
+    }
+    this.slug = baseSlug
+  }
+  
   next()
 })
 

@@ -30,6 +30,19 @@ const PostSchema = new mongoose.Schema({
   author: { type: String, trim: true },
 }, { timestamps: true })
 
+// Pre-save middleware to generate slug
+PostSchema.pre('save', function(next) {
+  if (!this.slug && this.title) {
+    this.slug = this.title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim('-')
+  }
+  next()
+})
+
 // Full-text search index
 PostSchema.index({ title: 'text', excerpt: 'text', content: 'text', tags: 'text' })
 

@@ -29,6 +29,7 @@ const CustomerSchema = new mongoose.Schema({
 
 const OrderSchema = new mongoose.Schema({
   number: { type: String, unique: true, index: true },
+  slug: { type: String, unique: true, lowercase: true, trim: true, index: true },
   items: { type: [OrderItemSchema], default: [] },
   subtotal: { type: Number, required: true, min: 0 },
   tax: { type: Number, default: 0 },
@@ -46,6 +47,22 @@ OrderSchema.pre('save', function(next) {
     const rnd = Math.random().toString(36).slice(2, 6)
     this.number = `BW-${ts}-${rnd}`.toUpperCase()
   }
+  
+  // Generate slug from order number and customer name
+  if (!this.slug) {
+    let baseSlug = this.number.toLowerCase()
+    if (this.customer?.name) {
+      const nameSlug = this.customer.name
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .trim('-')
+      baseSlug = `${baseSlug}-${nameSlug}`
+    }
+    this.slug = baseSlug
+  }
+  
   next()
 })
 
