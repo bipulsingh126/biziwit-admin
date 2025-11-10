@@ -85,6 +85,11 @@ const reportSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  subRegions: {
+    type: String,
+    trim: true,
+    default: ''
+  },
 
   // Segmentation and Companies fields
   segment: {
@@ -269,6 +274,7 @@ reportSchema.index({ status: 1 })
 reportSchema.index({ category: 1 })
 reportSchema.index({ domain: 1 })
 reportSchema.index({ region: 1 })
+reportSchema.index({ subRegions: 1 })
 // Note: slug and reportCode indexes are automatically created by unique: true constraints
 reportSchema.index({ trendingReportForHomePage: 1 })
 

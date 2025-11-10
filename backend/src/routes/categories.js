@@ -81,6 +81,7 @@ router.get('/trending', async (req, res, next) => {
         return {
           _id: category._id,
           name: category.name,
+          slug: category.slug,
           description: category.description,
           reportCount,
           subcategoriesCount: category.subcategories?.length || 0,
@@ -107,6 +108,320 @@ router.get('/trending', async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error fetching trending categories:', error)
+    next(error)
+  }
+})
+
+// GET /api/categories/subcategories/trending - Get top trending subcategories
+router.get('/subcategories/trending', async (req, res, next) => {
+  try {
+    const { limit = 10, categorySlug } = req.query
+    
+    // Build query for categories
+    const categoryQuery = { isActive: true }
+    if (categorySlug) {
+      categoryQuery.slug = categorySlug
+    }
+    
+    // Get all categories with their subcategories
+    const categories = await Category.find(categoryQuery)
+      .sort({ sortOrder: 1, name: 1 })
+      .lean()
+    
+    // Flatten all subcategories with their parent category info
+    const allSubcategories = []
+    
+    for (const category of categories) {
+      if (category.subcategories && category.subcategories.length > 0) {
+        for (const subcategory of category.subcategories) {
+          if (subcategory.isActive !== false) { // Include active subcategories
+            // Get report count for this subcategory
+            const reportCount = await Report.countDocuments({
+              category: category.name,
+              subCategory: subcategory.name,
+              status: { $ne: 'archived' }
+            })
+            
+            allSubcategories.push({
+              _id: subcategory._id,
+              name: subcategory.name,
+              slug: subcategory.slug,
+              description: subcategory.description,
+              reportCount,
+              isTopTrending: subcategory.isTopTrending || false,
+              category: {
+                _id: category._id,
+                name: category.name,
+                slug: category.slug,
+                description: category.description
+              }
+            })
+          }
+        }
+      }
+    }
+    
+    // Sort by trending status first, then by report count (descending)
+    const trendingSubcategories = allSubcategories
+      .sort((a, b) => {
+        // First sort by isTopTrending (trending subcategories first)
+        if (a.isTopTrending && !b.isTopTrending) return -1
+        if (!a.isTopTrending && b.isTopTrending) return 1
+        // Then sort by report count (descending)
+        return (b.reportCount || 0) - (a.reportCount || 0)
+      })
+      .slice(0, parseInt(limit))
+    
+    res.json({
+      success: true,
+      data: trendingSubcategories,
+      total: trendingSubcategories.length,
+      filters: {
+        categorySlug: categorySlug || null,
+        limit: parseInt(limit)
+      }
+    })
+  } catch (error) {
+    console.error('Error fetching trending subcategories:', error)
+    next(error)
+  }
+})
+
+// PUT /api/categories/:categoryId/subcategories/:subcategoryId/trending - Toggle subcategory trending status
+router.put('/:categoryId/subcategories/:subcategoryId/trending', async (req, res, next) => {
+  try {
+    const { categoryId, subcategoryId } = req.params
+    const { isTopTrending } = req.body
+    
+    const category = await Category.findById(categoryId)
+    
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        error: 'Category not found'
+      })
+    }
+    
+    const subcategory = category.subcategories.id(subcategoryId)
+    
+    if (!subcategory) {
+      return res.status(404).json({
+        success: false,
+        error: 'Subcategory not found'
+      })
+    }
+    
+    // Update trending status
+    subcategory.isTopTrending = Boolean(isTopTrending)
+    
+    await category.save()
+    
+    res.json({
+      success: true,
+      data: {
+        categoryId,
+        subcategoryId,
+        subcategoryName: subcategory.name,
+        isTopTrending: subcategory.isTopTrending
+      },
+      message: `Subcategory "${subcategory.name}" ${isTopTrending ? 'added to' : 'removed from'} trending list`
+    })
+  } catch (error) {
+    console.error('Error updating subcategory trending status:', error)
+    next(error)
+  }
+})
+
+// POST /api/categories/subcategories/bulk-trending - Bulk update trending status for multiple subcategories
+router.post('/subcategories/bulk-trending', async (req, res, next) => {
+  try {
+    const { subcategoryUpdates, isTopTrending } = req.body
+    
+    if (!Array.isArray(subcategoryUpdates) || subcategoryUpdates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'subcategoryUpdates array is required'
+      })
+    }
+    
+    const results = []
+    
+    for (const update of subcategoryUpdates) {
+      const { categoryId, subcategoryId } = update
+      
+      try {
+        const category = await Category.findById(categoryId)
+        
+        if (category) {
+          const subcategory = category.subcategories.id(subcategoryId)
+          
+          if (subcategory) {
+            subcategory.isTopTrending = Boolean(isTopTrending)
+            await category.save()
+            
+            results.push({
+              categoryId,
+              subcategoryId,
+              subcategoryName: subcategory.name,
+              success: true,
+              isTopTrending: subcategory.isTopTrending
+            })
+          } else {
+            results.push({
+              categoryId,
+              subcategoryId,
+              success: false,
+              error: 'Subcategory not found'
+            })
+          }
+        } else {
+          results.push({
+            categoryId,
+            subcategoryId,
+            success: false,
+            error: 'Category not found'
+          })
+        }
+      } catch (err) {
+        results.push({
+          categoryId,
+          subcategoryId,
+          success: false,
+          error: err.message
+        })
+      }
+    }
+    
+    const successCount = results.filter(r => r.success).length
+    const statusText = isTopTrending ? 'added to' : 'removed from'
+    
+    res.json({
+      success: true,
+      data: results,
+      summary: {
+        total: subcategoryUpdates.length,
+        successful: successCount,
+        failed: subcategoryUpdates.length - successCount
+      },
+      message: `${successCount} subcategories ${statusText} trending list`
+    })
+  } catch (error) {
+    console.error('Error bulk updating subcategory trending status:', error)
+    next(error)
+  }
+})
+
+// GET /api/categories/by-slug/:slug - Get category by slug
+router.get('/by-slug/:slug', async (req, res, next) => {
+  try {
+    const { slug } = req.params
+    const { includeSubcategories = true } = req.query
+    
+    const category = await Category.findOne({ 
+      slug: slug,
+      isActive: true 
+    }).lean()
+    
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        error: 'Category not found'
+      })
+    }
+    
+    // Get report count for the category
+    const reportCount = await Report.countDocuments({ 
+      category: category.name,
+      status: { $ne: 'archived' }
+    })
+    
+    let subcategoriesWithCounts = []
+    
+    if (includeSubcategories === 'true' && category.subcategories) {
+      // Get report counts for each subcategory
+      subcategoriesWithCounts = await Promise.all(
+        category.subcategories.map(async (sub) => {
+          const subReportCount = await Report.countDocuments({
+            category: category.name,
+            subCategory: sub.name,
+            status: { $ne: 'archived' }
+          })
+          return {
+            ...sub,
+            reportCount: subReportCount
+          }
+        })
+      )
+    }
+    
+    const result = {
+      ...category,
+      reportCount,
+      subcategories: subcategoriesWithCounts
+    }
+    
+    res.json({
+      success: true,
+      data: result
+    })
+  } catch (error) {
+    console.error('Error fetching category by slug:', error)
+    next(error)
+  }
+})
+
+// GET /api/categories/:categorySlug/subcategories/:subcategorySlug - Get subcategory by slug
+router.get('/:categorySlug/subcategories/:subcategorySlug', async (req, res, next) => {
+  try {
+    const { categorySlug, subcategorySlug } = req.params
+    
+    const category = await Category.findOne({ 
+      slug: categorySlug,
+      isActive: true 
+    }).lean()
+    
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        error: 'Category not found'
+      })
+    }
+    
+    const subcategory = category.subcategories.find(sub => 
+      sub.slug === subcategorySlug && sub.isActive !== false
+    )
+    
+    if (!subcategory) {
+      return res.status(404).json({
+        success: false,
+        error: 'Subcategory not found'
+      })
+    }
+    
+    // Get report count for this subcategory
+    const reportCount = await Report.countDocuments({
+      category: category.name,
+      subCategory: subcategory.name,
+      status: { $ne: 'archived' }
+    })
+    
+    const result = {
+      ...subcategory,
+      reportCount,
+      category: {
+        _id: category._id,
+        name: category.name,
+        slug: category.slug,
+        description: category.description
+      }
+    }
+    
+    res.json({
+      success: true,
+      data: result
+    })
+  } catch (error) {
+    console.error('Error fetching subcategory by slug:', error)
     next(error)
   }
 })

@@ -314,23 +314,7 @@ class ApiClient {
     })
   }
 
-  // Newsletter
-  async getSubscribers(params = {}) {
-    const query = new URLSearchParams(params).toString()
-    return this.request(`/api/newsletter${query ? `?${query}` : ''}`)
-  }
-
-  async addSubscriber(data) {
-    return this.request('/api/newsletter', { method: 'POST', body: data })
-  }
-
-  async removeSubscriber(id) {
-    return this.request(`/api/newsletter/${id}`, { method: 'DELETE' })
-  }
-
-  async deleteSubscriber(id) {
-    return this.request(`/api/newsletter/${id}`, { method: 'DELETE' })
-  }
+  
 
 
   // Inquiries
@@ -458,6 +442,55 @@ class ApiClient {
     return this.request('/api/categories/trending')
   }
 
+  async getTrendingSubcategories(params = {}) {
+    const query = new URLSearchParams(params).toString()
+    return this.request(`/api/categories/subcategories/trending${query ? `?${query}` : ''}`)
+  }
+
+  async getCategoryBySlug(slug, params = {}) {
+    const query = new URLSearchParams(params).toString()
+    return this.request(`/api/categories/by-slug/${slug}${query ? `?${query}` : ''}`)
+  }
+
+  async getSubcategoryBySlug(categorySlug, subcategorySlug) {
+    return this.request(`/api/categories/${categorySlug}/subcategories/${subcategorySlug}`)
+  }
+
+  async updateSubcategoryTrending(categoryId, subcategoryId, isTopTrending) {
+    return this.request(`/api/categories/${categoryId}/subcategories/${subcategoryId}/trending`, {
+      method: 'PUT',
+      body: { isTopTrending }
+    })
+  }
+
+  async bulkUpdateSubcategoriesTrending(subcategoryUpdates, isTopTrending) {
+    return this.request('/api/categories/subcategories/bulk-trending', {
+      method: 'POST',
+      body: { subcategoryUpdates, isTopTrending }
+    })
+  }
+
+  // Reports API - Slug-based methods
+  async getReportBySlug(slug) {
+    return this.request(`/api/reports/by-slug/${slug}`)
+  }
+
+  async updateReportBySlug(slug, data) {
+    return this.request(`/api/reports/by-slug/${slug}`, { method: 'PATCH', body: data })
+  }
+
+  async deleteReportBySlug(slug) {
+    return this.request(`/api/reports/by-slug/${slug}`, { method: 'DELETE' })
+  }
+
+  async uploadReportCoverBySlug(slug, file, alt = '') {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (alt) formData.append('alt', alt)
+    return this.request(`/api/reports/by-slug/${slug}/cover`, { method: 'POST', body: formData })
+  }
+
+
   // Blog API methods
   async getBlogs(params = {}) {
     const queryString = new URLSearchParams(params).toString()
@@ -466,6 +499,10 @@ class ApiClient {
 
   async getBlog(id) {
     return this.request(`/api/blogs/${id}`)
+  }
+
+  async getBlogBySlug(slug) {
+    return this.request(`/api/blogs/by-slug/${slug}`)
   }
 
   async createBlog(blogData) {
@@ -512,6 +549,44 @@ class ApiClient {
 
   async getBlogStats() {
     return this.request('/api/blogs/stats/overview')
+  }
+
+  // Homepage Management
+  async getHomePage() {
+    return this.request('/api/homepage')
+  }
+
+  async updateHomePage(data) {
+    return this.request('/api/homepage', {
+      method: 'PUT',
+      body: data
+    })
+  }
+
+  async uploadHomePageImage(file) {
+    const formData = new FormData()
+    formData.append('image', file)
+    
+    return this.request('/api/homepage/upload-image', {
+      method: 'POST',
+      body: formData
+    })
+  }
+
+  async deleteHomePageImage(filename) {
+    return this.request(`/api/homepage/image/${filename}`, {
+      method: 'DELETE'
+    })
+  }
+
+  async getHomePageAnalytics() {
+    return this.request('/api/homepage/analytics')
+  }
+
+  async toggleHomepageSection(sectionId) {
+    return this.request(`/api/homepage/sections/${sectionId}/toggle`, {
+      method: 'POST'
+    })
   }
 }
 

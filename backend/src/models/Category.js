@@ -28,11 +28,7 @@ const categorySchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  isTopTrending: {
-    type: Boolean,
-    default: false,
-    index: true
-  },
+
   subcategories: [{
     name: {
       type: String,
@@ -57,6 +53,11 @@ const categorySchema = new mongoose.Schema({
     sortOrder: {
       type: Number,
       default: 0
+    },
+    isTopTrending: {
+      type: Boolean,
+      default: false,
+      index: true
     }
   }]
 }, {

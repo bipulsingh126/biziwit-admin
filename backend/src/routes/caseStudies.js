@@ -128,10 +128,33 @@ router.get('/', async (req, res) => {
   }
 })
 
-// Get single case study
+// Get single case study by slug
+router.get('/by-slug/:slug', async (req, res) => {
+  try {
+    const caseStudy = await CaseStudy.findOne({ url: req.params.slug })
+    if (!caseStudy) {
+      return res.status(404).json({ error: 'Case study not found' })
+    }
+    res.json(caseStudy)
+  } catch (error) {
+    console.error('Error fetching case study by slug:', error)
+    res.status(500).json({ error: 'Failed to fetch case study' })
+  }
+})
+
+// Get single case study (legacy support)
 router.get('/:id', async (req, res) => {
   try {
-    const caseStudy = await CaseStudy.findById(req.params.id)
+    const { id } = req.params
+    
+    // Try to find by slug first, then by ID for backward compatibility
+    let caseStudy = await CaseStudy.findOne({ url: id })
+    
+    if (!caseStudy && id.match(/^[0-9a-fA-F]{24}$/)) {
+      // If it looks like a MongoDB ObjectId, try finding by ID
+      caseStudy = await CaseStudy.findById(id)
+    }
+    
     if (!caseStudy) {
       return res.status(404).json({ error: 'Case study not found' })
     }

@@ -133,10 +133,44 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
-// Get single blog by ID
+// Get single blog by slug
+router.get('/by-slug/:slug', authenticate, async (req, res) => {
+  try {
+    const blog = await Blog.findOne({ url: req.params.slug });
+    
+    if (!blog) {
+      return res.status(404).json({
+        success: false,
+        message: 'Blog not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: blog
+    });
+  } catch (error) {
+    console.error('Error fetching blog by slug:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch blog',
+      error: error.message
+    });
+  }
+});
+
+// Get single blog by ID (legacy support)
 router.get('/:id', authenticate, async (req, res) => {
   try {
-    const blog = await Blog.findById(req.params.id);
+    const { id } = req.params;
+    
+    // Try to find by slug first, then by ID for backward compatibility
+    let blog = await Blog.findOne({ url: id });
+    
+    if (!blog && id.match(/^[0-9a-fA-F]{24}$/)) {
+      // If it looks like a MongoDB ObjectId, try finding by ID
+      blog = await Blog.findById(id);
+    }
     
     if (!blog) {
       return res.status(404).json({

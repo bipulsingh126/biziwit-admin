@@ -29,6 +29,7 @@ const ReportCreate = () => {
     subCategory: '',
     // New region field
     region: '',
+    subRegions: '',
     // Report details
     author: '',
     publishDate: new Date().toISOString().split('T')[0],
@@ -69,19 +70,37 @@ const ReportCreate = () => {
     'Middle East & Africa', 'United States', 'China', 'India', 'Japan'
   ]
 
+  const subRegions = [
+    'North America', 'South America', 'Western Europe', 'Eastern Europe', 'Central Europe',
+    'East Asia', 'Southeast Asia', 'South Asia', 'Central Asia', 'Western Asia',
+    'North Africa', 'Sub-Saharan Africa', 'Middle East', 'Oceania', 'Caribbean',
+    'Central America', 'Scandinavia', 'Mediterranean', 'Baltic States', 'Balkans'
+  ]
+
   useEffect(() => {
-    loadCategories()
-    if (isEdit && id) loadReport()
+    if (isEdit && id) {
+      loadReport() // This will load categories with imported data
+    } else {
+      loadCategories() // Load categories normally for new reports
+    }
   }, [id, isEdit])
 
-  const loadCategories = async () => {
+  const loadCategories = async (importedCategory = null, importedSubCategory = null) => {
     try {
       const result = await api.getCategories()
       const categoriesData = result.data || []
       
       // Extract category names
-      const categoryNames = categoriesData.map(cat => cat.name)
+      let categoryNames = categoriesData.map(cat => cat.name)
+      
+      // Add imported category if it doesn't exist in the system
+      if (importedCategory && !categoryNames.includes(importedCategory)) {
+        categoryNames.push(importedCategory)
+        console.log(`📝 Added imported category: ${importedCategory}`)
+      }
+      
       setCategories(categoryNames)
+      console.log('📋 Categories loaded:', categoryNames)
       
       // Build subcategories object
       const subCategoriesObj = {}
@@ -90,22 +109,55 @@ const ReportCreate = () => {
           subCategoriesObj[cat.name] = cat.subcategories.map(sub => sub.name)
         }
       })
+      
+      // Add imported subcategory if it doesn't exist in the system
+      if (importedCategory && importedSubCategory) {
+        if (!subCategoriesObj[importedCategory]) {
+          subCategoriesObj[importedCategory] = []
+        }
+        if (!subCategoriesObj[importedCategory].includes(importedSubCategory)) {
+          subCategoriesObj[importedCategory].push(importedSubCategory)
+          console.log(`📝 Added imported subcategory: ${importedSubCategory} to ${importedCategory}`)
+        }
+      }
+      
       setSubCategories(subCategoriesObj)
+      console.log('📋 Subcategories loaded:', subCategoriesObj)
     } catch (err) {
       console.error('Failed to load categories:', err)
       // Fallback to hardcoded categories if API fails
-      setCategories([
+      let fallbackCategories = [
         'Life Sciences', 'Food and Beverages', 'ICT and Media',
         'Consumer Goods', 'Energy and Power', 'Construction and Manufacturing'
-      ])
-      setSubCategories({
+      ]
+      
+      // Add imported category to fallback if provided
+      if (importedCategory && !fallbackCategories.includes(importedCategory)) {
+        fallbackCategories.push(importedCategory)
+      }
+      
+      setCategories(fallbackCategories)
+      
+      const fallbackSubCategories = {
         'Life Sciences': ['Diagnostics and Biotech', 'Medical Devices and Supplies', 'Pharmaceuticals'],
         'Food and Beverages': ['Food Ingredients', 'Beverages', 'Food Processing'],
         'ICT and Media': ['Software and Services', 'Hardware', 'Telecommunications'],
         'Consumer Goods': ['Home Products', 'Personal Care', 'Apparel'],
         'Energy and Power': ['Equipment and Devices', 'Renewable Energy', 'Oil and Gas'],
         'Construction and Manufacturing': ['Engineering, Equipment and Machinery', 'HVAC', 'Building Materials']
-      })
+      }
+      
+      // Add imported subcategory to fallback if provided
+      if (importedCategory && importedSubCategory) {
+        if (!fallbackSubCategories[importedCategory]) {
+          fallbackSubCategories[importedCategory] = []
+        }
+        if (!fallbackSubCategories[importedCategory].includes(importedSubCategory)) {
+          fallbackSubCategories[importedCategory].push(importedSubCategory)
+        }
+      }
+      
+      setSubCategories(fallbackSubCategories)
     }
   }
 
@@ -136,6 +188,7 @@ const ReportCreate = () => {
         subCategory: report.subCategory || '',
         // New region field
         region: report.region || '',
+        subRegions: report.subRegions || '',
         // Report details
         author: report.author || '',
         publishDate: report.publishDate ? new Date(report.publishDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -163,6 +216,12 @@ const ReportCreate = () => {
         setCoverImagePreview(`http://localhost:4000${report.coverImage.url}`)
       } else {
         console.log('No cover image found in report data:', report.coverImage)
+      }
+      
+      // Reload categories with imported category and subcategory to ensure they appear in dropdowns
+      if (report.category || report.subCategory) {
+        console.log('🔄 Reloading categories with imported data:', { category: report.category, subCategory: report.subCategory })
+        await loadCategories(report.category, report.subCategory)
       }
     } catch (err) {
       setError(err.message || 'Failed to load report')
@@ -227,6 +286,7 @@ const ReportCreate = () => {
         subCategory: formData.subCategory,
         // New region field
         region: formData.region,
+        subRegions: formData.subRegions,
         // Report details
         author: formData.author.trim(),
         publishDate: formData.publishDate,
@@ -624,6 +684,23 @@ const ReportCreate = () => {
                   {validationErrors.region && (
                     <p className="mt-1 text-sm text-red-600">{validationErrors.region}</p>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Sub Regions
+                  </label>
+                  <select
+                    value={formData.subRegions}
+                    onChange={(e) => handleInputChange('subRegions', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={saving}
+                  >
+                    <option value="">Select sub region (optional)</option>
+                    {subRegions.map(subRegion => (
+                      <option key={subRegion} value={subRegion}>{subRegion}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>

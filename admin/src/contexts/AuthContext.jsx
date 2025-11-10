@@ -94,6 +94,7 @@ export const AuthProvider = ({ children }) => {
       if ((route === '/blog' || route === '/news') && hasPermission('posts', 'view')) return true
       if (route === '/users' && hasPermission('users', 'view')) return true
       if (route === '/analytics' && hasPermission('analytics', 'view')) return true
+      if (route === '/home-page-management' && hasPermission('content', 'edit')) return true
       if (route === '/dashboard') return true
       return false
     }

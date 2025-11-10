@@ -3,7 +3,6 @@ import {
   Home, 
   Users, 
   BarChart3, 
-  Settings, 
   X,
   FileText,
   Edit,
@@ -29,7 +28,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     { name: 'Megatrends', href: '/admin/megatrends', icon: TrendingUp },
     { name: 'Case Studies', href: '/admin/case-studies', icon: FileText },
     { name: 'Inquiries', href: '/inquiries', icon: Inbox },
-    { name: 'Settings', href: '/settings', icon: Settings },
+    { name: 'Home Page Management', href: '/home-page-management', icon: Home },
   ]
 
   return (

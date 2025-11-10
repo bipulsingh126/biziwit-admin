@@ -70,6 +70,154 @@ const generateUniqueSlug = async (title, existingSlug = null) => {
 router.use(authenticate)
 router.use(requireRole('super_admin', 'admin', 'editor'))
 
+// GET /api/reports/subcategories/:categoryName - Get subcategories for a specific category
+router.get('/subcategories/:categoryName', async (req, res, next) => {
+  try {
+    const { categoryName } = req.params
+    
+    if (!categoryName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Category name is required'
+      })
+    }
+
+    // Import Category model
+    const Category = (await import('../models/Category.js')).default
+    
+    // Find the category by name
+    const category = await Category.findOne({ 
+      name: { $regex: new RegExp(`^${categoryName}$`, 'i') },
+      isActive: true 
+    }).lean()
+    
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        error: 'Category not found',
+        data: []
+      })
+    }
+    
+    // Return active subcategories
+    const activeSubcategories = category.subcategories
+      .filter(sub => sub.isActive !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      .map(sub => ({
+        _id: sub._id,
+        name: sub.name,
+        slug: sub.slug,
+        description: sub.description
+      }))
+    
+    res.json({
+      success: true,
+      data: activeSubcategories,
+      total: activeSubcategories.length,
+      category: {
+        _id: category._id,
+        name: category.name,
+        slug: category.slug
+      }
+    })
+  } catch (error) {
+    console.error('Error fetching subcategories:', error)
+    next(error)
+  }
+})
+
+// POST /api/reports/ensure-subcategory - Ensure subcategory exists, create if not
+router.post('/ensure-subcategory', async (req, res, next) => {
+  try {
+    const { categoryName, subcategoryName, subcategoryDescription = '' } = req.body
+    
+    if (!categoryName || !subcategoryName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Category name and subcategory name are required'
+      })
+    }
+
+    // Import Category model
+    const Category = (await import('../models/Category.js')).default
+    
+    // Find the category by name
+    let category = await Category.findOne({ 
+      name: { $regex: new RegExp(`^${categoryName.trim()}$`, 'i') }
+    })
+    
+    if (!category) {
+      // Create the category if it doesn't exist
+      const slug = categoryName.trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+      
+      category = new Category({
+        name: categoryName.trim(),
+        slug: slug || `category-${Date.now()}`,
+        description: `Auto-created category for ${categoryName}`,
+        sortOrder: await Category.countDocuments(),
+        subcategories: []
+      })
+    }
+    
+    // Check if subcategory already exists
+    const existingSubcategory = category.subcategories.find(sub => 
+      sub.name.toLowerCase() === subcategoryName.trim().toLowerCase()
+    )
+    
+    if (!existingSubcategory) {
+      // Create the subcategory
+      const subSlug = subcategoryName.trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+      
+      category.subcategories.push({
+        name: subcategoryName.trim(),
+        slug: subSlug || `subcategory-${Date.now()}`,
+        description: subcategoryDescription.trim() || `Auto-created subcategory for ${subcategoryName}`,
+        sortOrder: category.subcategories.length,
+        isActive: true
+      })
+      
+      await category.save()
+      
+      console.log(`✅ Created subcategory "${subcategoryName}" under category "${categoryName}"`)
+    }
+    
+    // Return the updated subcategories
+    const activeSubcategories = category.subcategories
+      .filter(sub => sub.isActive !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      .map(sub => ({
+        _id: sub._id,
+        name: sub.name,
+        slug: sub.slug,
+        description: sub.description
+      }))
+    
+    res.json({
+      success: true,
+      data: activeSubcategories,
+      total: activeSubcategories.length,
+      category: {
+        _id: category._id,
+        name: category.name,
+        slug: category.slug
+      },
+      created: !existingSubcategory,
+      message: existingSubcategory 
+        ? 'Subcategory already exists' 
+        : `Subcategory "${subcategoryName}" created successfully`
+    })
+  } catch (error) {
+    console.error('Error ensuring subcategory:', error)
+    next(error)
+  }
+})
+
 // GET /api/reports - List reports with filtering and pagination
 router.get('/', async (req, res, next) => {
   try {
@@ -284,12 +432,42 @@ router.post('/', async (req, res, next) => {
   }
 })
 
-// GET /api/reports/:id - Get single report
+// GET /api/reports/by-slug/:slug - Get single report by slug
+router.get('/by-slug/:slug', async (req, res, next) => {
+  try {
+    const { slug } = req.params
+
+    const report = await Report.findOne({ slug }).lean()
+
+    if (!report) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Report not found'
+      })
+    }
+
+    res.json({
+      success: true,
+      data: report
+    })
+  } catch (error) {
+    console.error('Error fetching report by slug:', error)
+    next(error)
+  }
+})
+
+// GET /api/reports/:id - Get single report (legacy support)
 router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params
 
-    const report = await Report.findById(id).lean()
+    // Try to find by slug first, then by ID for backward compatibility
+    let report = await Report.findOne({ slug: id }).lean()
+    
+    if (!report && id.match(/^[0-9a-fA-F]{24}$/)) {
+      // If it looks like a MongoDB ObjectId, try finding by ID
+      report = await Report.findById(id).lean()
+    }
 
     if (!report) {
       return res.status(404).json({
@@ -316,10 +494,10 @@ router.get('/:id', async (req, res, next) => {
   }
 })
 
-// PATCH /api/reports/:id - Update report
-router.patch('/:id', async (req, res, next) => {
+// PATCH /api/reports/by-slug/:slug - Update report by slug
+router.patch('/by-slug/:slug', async (req, res, next) => {
   try {
-    const { id } = req.params
+    const { slug } = req.params
     const updateData = { ...req.body }
 
     // Remove fields that shouldn't be updated directly
@@ -330,7 +508,7 @@ router.patch('/:id', async (req, res, next) => {
 
     // If title is being updated, regenerate slug
     if (updateData.title && updateData.title.trim()) {
-      const currentReport = await Report.findById(id).lean()
+      const currentReport = await Report.findOne({ slug }).lean()
       if (!currentReport) {
         return res.status(404).json({
           error: 'Not Found',
@@ -347,11 +525,99 @@ router.patch('/:id', async (req, res, next) => {
     // Update lastUpdated
     updateData.lastUpdated = new Date()
 
-    const updatedReport = await Report.findByIdAndUpdate(
-      id,
+    const updatedReport = await Report.findOneAndUpdate(
+      { slug },
       updateData,
       { new: true, runValidators: true }
     )
+
+    if (!updatedReport) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Report not found'
+      })
+    }
+
+    res.json({
+      success: true,
+      data: updatedReport,
+      message: 'Report updated successfully'
+    })
+  } catch (error) {
+    console.error('Error updating report by slug:', error)
+
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: error.message,
+        details: error.errors
+      })
+    }
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        error: 'Duplicate Error',
+        message: 'A report with this slug already exists'
+      })
+    }
+
+    next(error)
+  }
+})
+
+// PATCH /api/reports/:id - Update report (legacy support)
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const updateData = { ...req.body }
+
+    // Remove fields that shouldn't be updated directly
+    delete updateData._id
+    delete updateData.createdAt
+    delete updateData.updatedAt
+    delete updateData.__v
+
+    // Try to find by slug first, then by ID for backward compatibility
+    let currentReport = await Report.findOne({ slug: id }).lean()
+    
+    if (!currentReport && id.match(/^[0-9a-fA-F]{24}$/)) {
+      currentReport = await Report.findById(id).lean()
+    }
+
+    if (!currentReport) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Report not found'
+      })
+    }
+
+    // If title is being updated, regenerate slug
+    if (updateData.title && updateData.title.trim()) {
+      // Only regenerate slug if title actually changed
+      if (updateData.title.trim() !== currentReport.title) {
+        updateData.slug = await generateUniqueSlug(updateData.title.trim())
+      }
+    }
+
+    // Update lastUpdated
+    updateData.lastUpdated = new Date()
+
+    let updatedReport
+    if (currentReport.slug === id) {
+      // Update by slug
+      updatedReport = await Report.findOneAndUpdate(
+        { slug: id },
+        updateData,
+        { new: true, runValidators: true }
+      )
+    } else {
+      // Update by ID
+      updatedReport = await Report.findByIdAndUpdate(
+        id,
+        updateData,
+        { new: true, runValidators: true }
+      )
+    }
 
     if (!updatedReport) {
       return res.status(404).json({
@@ -390,12 +656,42 @@ router.patch('/:id', async (req, res, next) => {
   }
 })
 
-// DELETE /api/reports/:id - Delete report
+// DELETE /api/reports/by-slug/:slug - Delete report by slug
+router.delete('/by-slug/:slug', async (req, res, next) => {
+  try {
+    const { slug } = req.params
+
+    const deletedReport = await Report.findOneAndDelete({ slug })
+
+    if (!deletedReport) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Report not found'
+      })
+    }
+
+    res.json({
+      success: true,
+      message: 'Report deleted successfully'
+    })
+  } catch (error) {
+    console.error('Error deleting report by slug:', error)
+    next(error)
+  }
+})
+
+// DELETE /api/reports/:id - Delete report (legacy support)
 router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params
 
-    const deletedReport = await Report.findByIdAndDelete(id)
+    // Try to find by slug first, then by ID for backward compatibility
+    let deletedReport = await Report.findOneAndDelete({ slug: id })
+    
+    if (!deletedReport && id.match(/^[0-9a-fA-F]{24}$/)) {
+      // If it looks like a MongoDB ObjectId, try deleting by ID
+      deletedReport = await Report.findByIdAndDelete(id)
+    }
 
     if (!deletedReport) {
       return res.status(404).json({
@@ -422,7 +718,53 @@ router.delete('/:id', async (req, res, next) => {
   }
 })
 
-// POST /api/reports/:id/cover - Upload cover image
+// POST /api/reports/by-slug/:slug/cover - Upload cover image by slug
+router.post('/by-slug/:slug/cover', upload.single('file'), async (req, res, next) => {
+  try {
+    const { slug } = req.params
+
+    if (!req.file) {
+      return res.status(400).json({
+        error: 'No File',
+        message: 'No file uploaded'
+      })
+    }
+
+    const fileUrl = `/uploads/${path.basename(req.file.path)}`
+    const altText = req.body.alt || ''
+
+    const updatedReport = await Report.findOneAndUpdate(
+      { slug },
+      {
+        coverImage: {
+          url: fileUrl,
+          alt: altText
+        }
+      },
+      { new: true }
+    )
+
+    if (!updatedReport) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Report not found'
+      })
+    }
+
+    res.json({
+      success: true,
+      data: {
+        coverImage: updatedReport.coverImage,
+        message: 'Cover image uploaded successfully'
+      }
+    })
+  } catch (error) {
+    console.error('Error uploading cover image by slug:', error)
+    next(error)
+  }
+})
+
+// POST /api/reports/:id/cover - Upload cover image (legacy support)
 router.post('/:id/cover', upload.single('file'), async (req, res, next) => {
   try {
     const { id } = req.params
@@ -437,8 +779,9 @@ router.post('/:id/cover', upload.single('file'), async (req, res, next) => {
     const fileUrl = `/uploads/${path.basename(req.file.path)}`
     const altText = req.body.alt || ''
 
-    const updatedReport = await Report.findByIdAndUpdate(
-      id,
+    // Try to find by slug first, then by ID for backward compatibility
+    let updatedReport = await Report.findOneAndUpdate(
+      { slug: id },
       {
         coverImage: {
           url: fileUrl,
@@ -447,6 +790,20 @@ router.post('/:id/cover', upload.single('file'), async (req, res, next) => {
       },
       { new: true }
     )
+    
+    if (!updatedReport && id.match(/^[0-9a-fA-F]{24}$/)) {
+      // If it looks like a MongoDB ObjectId, try updating by ID
+      updatedReport = await Report.findByIdAndUpdate(
+        id,
+        {
+          coverImage: {
+            url: fileUrl,
+            alt: altText
+          }
+        },
+        { new: true }
+      )
+    }
 
     if (!updatedReport) {
       return res.status(404).json({
@@ -513,6 +870,7 @@ router.get('/export', async (req, res, next) => {
         'Sub Category': report.subCategory || report.subdomain || report.reportType || '',
         'SEGMENTATION': report.segment || '',
         'Region': report.region || '',
+        'Sub Regions': report.subRegions || '',
         'Author Name': report.author || '',
         'Report Code': report.reportCode || '',
         'Number of Page': report.numberOfPages || '',
@@ -641,7 +999,7 @@ router.get('/export', async (req, res, next) => {
       res.send(excelBuffer)
     } else {
       // CSV format
-      const csvHeaders = ['Report Title', 'Title Meta Tag', 'REPORT OVERVIEW', 'Table of Contents', 'Category', 'Sub Category', 'SEGMENTATION', 'Region', 'Author Name', 'Report Code', 'Number of Page', 'Price', 'Excel Datapack Prices', 'Single User Prices', 'Enterprise License Prices', 'Internet Handling Charges', 'Currency', 'Status', 'Publish Date', 'Last Updated', 'Title Tag', 'URL Slug', 'Meta Description', 'Keywords']
+      const csvHeaders = ['Report Title', 'Title Meta Tag', 'REPORT OVERVIEW', 'Table of Contents', 'Category', 'Sub Category', 'SEGMENTATION', 'Region', 'Sub Regions', 'Author Name', 'Report Code', 'Number of Page', 'Price', 'Excel Datapack Prices', 'Single User Prices', 'Enterprise License Prices', 'Internet Handling Charges', 'Currency', 'Status', 'Publish Date', 'Last Updated', 'Title Tag', 'URL Slug', 'Meta Description', 'Keywords']
       const csvRows = reports.map(report => [
         `"${(report.title || '').replace(/"/g, '""')}"`,
         `"${(report.subTitle || '').replace(/"/g, '""')}"`,
@@ -651,6 +1009,7 @@ router.get('/export', async (req, res, next) => {
         `"${(report.subCategory || report.subdomain || report.reportType || '').replace(/"/g, '""')}"`,
         `"${(report.segment || '').replace(/"/g, '""')}"`,
         `"${(report.region || '').replace(/"/g, '""')}"`,
+        `"${(report.subRegions || '').replace(/"/g, '""')}"`,
         `"${report.author || ''}"`,
         `"${(report.reportCode || '').replace(/"/g, '""')}"`,
         `"${report.numberOfPages || ''}"`,
@@ -944,13 +1303,40 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
                   row['CATEGORIES'] || 
                   row['Categories'] || 
                   row['Category'] || 
+                  row['CATEGORY'] || 
                   row['Domain'] || 
-                  row['category'] || '';
+                  row['DOMAIN'] || 
+                  row['Industry'] || 
+                  row['INDUSTRY'] || 
+                  row['category'] || 
+                  row['domain'] || 
+                  row['industry'] || '';
                   
         subCategory = row['Report Sub Category'] || 
+                     row['Report Sub Categories'] || 
                      row['Sub Category'] || 
+                     row['Sub Categories'] || 
+                     row['SUB CATEGORY'] || 
+                     row['SUB CATEGORIES'] || 
                      row['Sub Domain'] || 
-                     row['subCategory'] || '';
+                     row['SUB DOMAIN'] || 
+                     row['Subdomain'] || 
+                     row['SUBDOMAIN'] || 
+                     row['subCategory'] || 
+                     row['subCategories'] || 
+                     row['subdomain'] || '';
+        
+        // Debug category extraction for first 3 rows
+        if (i < 3) {
+          console.log(`🏷️ Row ${i + 1} CATEGORY EXTRACTION:`, {
+            'category result': category,
+            'subCategory result': subCategory,
+            'category length': category ? category.length : 0,
+            'subCategory length': subCategory ? subCategory.length : 0,
+            'category isEmpty': !category || category.trim() === '',
+            'subCategory isEmpty': !subCategory || subCategory.trim() === ''
+          });
+        }
         
         // Try multiple variations for segment - ENHANCED for SEGMENTATION
         const segment = row['SEGMENTATION'] || 
@@ -974,40 +1360,11 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
                          row['Company'] || 
                          row['company'] || '';
         
-        // Extract SEO fields
-        const titleTag = row['Title Tag'] || row['SEO Title'] || row['titleTag'] || '';
-        const urlSlug = row['URL Slug'] || row['URL'] || row['url'] || row['Slug'] || '';
-        const metaDescription = row['Meta Description'] || row['metaDescription'] || row['SEO Description'] || '';
-        const keywords = row['Keywords'] || row['keywords'] || row['SEO Keywords'] || '';
-
-        // Enhanced cleaning and validation with better type handling
-        cleanTitle = (title !== null && title !== undefined && title !== '') ? String(title).replace(cleanTextRegex, ' ').trim() : '';
-        cleanSubTitle = (subTitle !== null && subTitle !== undefined && subTitle !== '') ? String(subTitle).replace(cleanTextRegex, ' ').trim() : '';
-        cleanSegment = (segment !== null && segment !== undefined && segment !== '') ? String(segment).replace(cleanTextRegex, ' ').trim() : '';
-        cleanDescription = (reportDescription !== null && reportDescription !== undefined && reportDescription !== '') ? String(reportDescription).replace(cleanTextRegex, ' ').trim() : '';
-        cleanCompanies = (companies !== null && companies !== undefined && companies !== '') ? String(companies).replace(cleanTextRegex, ' ').trim() : '';
-        
-        // CRITICAL DEBUG: Log SEGMENTATION data extraction for first 3 rows
-        if (i < 3) {
-          console.log(`🔍 Row ${i + 1} SEGMENTATION Debug:`, {
-            'Available Excel Columns': Object.keys(row),
-            'Excel SEGMENTATION Column': row['SEGMENTATION'],
-            'Excel Segmentation Column': row['Segmentation'], 
-            'Excel SEGMENT Column': row['SEGMENT'],
-            'Raw segment extracted': segment,
-            'cleanSegment after processing': cleanSegment,
-            'cleanSegment length': cleanSegment ? cleanSegment.length : 0,
-            'cleanSegment isEmpty': cleanSegment === '' || !cleanSegment
-          });
-        }
-        
-        // Clean SEO fields
-        const cleanTitleTag = titleTag ? titleTag.toString().trim() : '';
-        const cleanUrlSlug = urlSlug ? urlSlug.toString().trim() : '';
-        const cleanMetaDescription = metaDescription ? metaDescription.toString().trim() : '';
-        const cleanKeywords = keywords ? keywords.toString().trim() : '';
-
+        // Extract region and sub-regions fields
         const region = row['Region'] || row['region'] || '';
+        const subRegions = row['Sub Regions'] || row['Sub Region'] || row['subRegions'] || row['sub_regions'] || '';
+        
+        // Extract additional fields for bulk upload
         const authorName = row['Author Name'] || row['Author'] || row['author'] || '';
         reportCode = row['Report Code'] || row['Code'] || row['reportCode'] || '';
         const numberOfPages = row['Number of Page'] || row['Pages'] || row['numberOfPages'] || '';
@@ -1026,15 +1383,67 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         const enterprisePrice = row['Enterprise License Prices'] || row['Enterprise Price'] || row['Enterprise Prices'] || row['enterprisePrice'] || '';
         const internetHandlingCharges = row['Internet Handling Charges'] || row['internetHandlingCharges'] || '';
         
-        const {
-          excelDataPackLicense = '',
-          singleUserLicense = '',
-          enterpriseLicensePrice = '',
-          status = 'draft',
-          featured = false,
-          popular = false,
-          ...otherFields
-        } = row;
+        // License fields
+        const excelDataPackLicense = row['Excel Data Pack License'] || row['excelDataPackLicense'] || '';
+        const singleUserLicense = row['Single User License'] || row['singleUserLicense'] || '';
+        const enterpriseLicensePrice = row['Enterprise License Price'] || row['enterpriseLicensePrice'] || '';
+        
+        // Status fields
+        const status = row['Status'] || row['status'] || 'draft';
+        const featured = row['Featured'] || row['featured'] || false;
+        const popular = row['Popular'] || row['popular'] || false;
+        
+        // Extract SEO fields
+        const titleTag = row['Title Tag'] || row['SEO Title'] || row['titleTag'] || '';
+        const urlSlug = row['URL Slug'] || row['URL'] || row['url'] || row['Slug'] || '';
+        const metaDescription = row['Meta Description'] || row['metaDescription'] || row['SEO Description'] || '';
+        const keywords = row['Keywords'] || row['keywords'] || row['SEO Keywords'] || '';
+
+        // Enhanced cleaning and validation with better type handling
+        cleanTitle = (title !== null && title !== undefined && title !== '') ? String(title).replace(cleanTextRegex, ' ').trim() : '';
+        cleanSubTitle = (subTitle !== null && subTitle !== undefined && subTitle !== '') ? String(subTitle).replace(cleanTextRegex, ' ').trim() : '';
+        cleanSegment = (segment !== null && segment !== undefined && segment !== '') ? String(segment).replace(cleanTextRegex, ' ').trim() : '';
+        cleanDescription = (reportDescription !== null && reportDescription !== undefined && reportDescription !== '') ? String(reportDescription).replace(cleanTextRegex, ' ').trim() : '';
+        cleanCompanies = (companies !== null && companies !== undefined && companies !== '') ? String(companies).replace(cleanTextRegex, ' ').trim() : '';
+        
+        // CRITICAL DEBUG: Log SEGMENTATION and REGION data extraction for first 3 rows
+        if (i < 3) {
+          console.log(`🔍 Row ${i + 1} BULK UPLOAD Debug:`, {
+            'Available Excel Columns': Object.keys(row),
+            'SEGMENTATION Data': {
+              'Excel SEGMENTATION Column': row['SEGMENTATION'],
+              'Excel Segmentation Column': row['Segmentation'], 
+              'Excel SEGMENT Column': row['SEGMENT'],
+              'Raw segment extracted': segment,
+              'cleanSegment after processing': cleanSegment
+            },
+            'REGION Data': {
+              'Excel Region Column': row['Region'],
+              'Excel region Column': row['region'],
+              'Raw region extracted': region,
+              'Raw subRegions extracted': subRegions
+            },
+            'COMPANIES Data': {
+              'Excel COMPANIES Column': row['COMPANIES'],
+              'Raw companies extracted': companies,
+              'cleanCompanies after processing': cleanCompanies
+            },
+            'CATEGORY Data': {
+              'Excel Categories Column': row['Categories'],
+              'Excel Category Column': row['Category'],
+              'Excel Report Category Column': row['Report Category'],
+              'Excel Report Categories Column': row['Report Categories'],
+              'Raw category extracted': category,
+              'Raw subCategory extracted': subCategory
+            }
+          });
+        }
+        
+        // Clean SEO fields
+        const cleanTitleTag = titleTag ? titleTag.toString().trim() : '';
+        const cleanUrlSlug = urlSlug ? urlSlug.toString().trim() : '';
+        const cleanMetaDescription = metaDescription ? metaDescription.toString().trim() : '';
+        const cleanKeywords = keywords ? keywords.toString().trim() : '';
 
         // Enhanced validation with better error messages
         if (!cleanTitle || cleanTitle.length < 3) {
@@ -1072,6 +1481,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           category: category?.toString().trim() || '',
           subCategory: subCategory?.toString().trim() || '',
           region: region?.toString().trim() || '',
+          subRegions: subRegions?.toString().trim() || '',
           reportCode: reportCode?.toString().trim() || '',
           numberOfPages: numberOfPages ? parseInt(numberOfPages) || 1 : 1,
           price: price ? parseFloat(price) || 0 : 0,
@@ -1093,10 +1503,6 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           url: (cleanUrlSlug && cleanUrlSlug !== '') ? cleanUrlSlug : null,
           metaDescription: (cleanMetaDescription && cleanMetaDescription !== '') ? cleanMetaDescription : null,
           keywords: (cleanKeywords && cleanKeywords !== '') ? cleanKeywords : null,
-          
-          // Also map to category field for backward compatibility
-          category: category?.toString().trim() || '',
-          subCategory: subCategory?.toString().trim() || '',
           
           // Pricing fields - matching Excel image exactly
           excelDatapackPrice: excelDatapackPrice?.toString() || '',
@@ -1377,5 +1783,881 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
     });
   }
 });
+
+// ========================================
+// PUBLIC SLUG-BASED OPERATIONS
+// ========================================
+
+// Middleware to validate slug and find published report
+const validateSlugAndReport = async (req, res, next) => {
+  try {
+    const { slug } = req.params
+    
+    if (!slug) {
+      return res.status(400).json({
+        success: false,
+        error: 'Slug is required'
+      })
+    }
+
+    // Find report by slug
+    const report = await Report.findOne({ 
+      slug: slug.toLowerCase(),
+      status: 'published' // Only show published reports
+    }).lean()
+
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        error: 'Report not found',
+        message: 'The requested report does not exist or is not published'
+      })
+    }
+
+    // Attach report to request object
+    req.report = report
+    next()
+  } catch (error) {
+    console.error('Slug validation error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: 'Failed to validate report slug'
+    })
+  }
+}
+
+// Helper function to track interactions
+const trackInteraction = async (reportId, interactionType, metadata = {}) => {
+  try {
+    console.log(`📊 Interaction tracked: ${interactionType} for report ${reportId}`, metadata)
+    // You can implement analytics tracking here
+  } catch (error) {
+    console.error('Failed to track interaction:', error)
+  }
+}
+
+// 1. Reports Store - List all published reports
+// GET /api/reports/public/store
+router.get('/public/store', async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 20, 
+      category, 
+      search, 
+      featured,
+      popular 
+    } = req.query
+
+    const query = { status: 'published' }
+    
+    // Add filters
+    if (category) query.category = category
+    if (featured === 'true') query.featured = true
+    if (popular === 'true') query.popular = true
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { summary: { $regex: search, $options: 'i' } },
+        { category: { $regex: search, $options: 'i' } }
+      ]
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    
+    const [reports, total] = await Promise.all([
+      Report.find(query)
+        .select('title slug summary category subCategory price currency coverImage publishDate featured popular')
+        .sort({ publishDate: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Report.countDocuments(query)
+    ])
+
+    await trackInteraction(null, 'reports_store_view', { 
+      page, 
+      limit, 
+      total, 
+      filters: { category, search, featured, popular } 
+    })
+
+    res.json({
+      success: true,
+      data: {
+        reports,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / parseInt(limit))
+        }
+      }
+    })
+  } catch (error) {
+    console.error('Reports store error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch reports'
+    })
+  }
+})
+
+// 2. Individual Report View by Slug
+// GET /api/reports/public/:slug
+router.get('/public/:slug', validateSlugAndReport, async (req, res) => {
+  try {
+    const report = req.report
+
+    // Track report view
+    await trackInteraction(report._id, 'report_view', { 
+      slug: report.slug,
+      title: report.title 
+    })
+
+    // Return full report details with action URLs
+    res.json({
+      success: true,
+      data: {
+        report: {
+          ...report,
+          // Generate related URLs for frontend
+          actionUrls: {
+            sampleRequest: `/api/reports/request-sample/${report.slug}`,
+            buyNow: `/api/reports/buy-now/${report.slug}`,
+            inquiry: `/api/reports/inquiry/${report.slug}`,
+            talkToAnalyst: `/api/reports/talk-to-analyst/${report.slug}`,
+            thankYou: `/api/reports/thank-you/${report.slug}`
+          }
+        }
+      }
+    })
+  } catch (error) {
+    console.error('Report view error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch report details'
+    })
+  }
+})
+
+// 3. Request Sample Operations
+// GET /api/reports/request-sample/:slug
+router.get('/request-sample/:slug', validateSlugAndReport, async (req, res) => {
+  try {
+    const report = req.report
+
+    await trackInteraction(report._id, 'sample_request_page_view', { 
+      slug: report.slug 
+    })
+
+    res.json({
+      success: true,
+      data: {
+        report: {
+          _id: report._id,
+          title: report.title,
+          slug: report.slug,
+          summary: report.summary,
+          category: report.category,
+          coverImage: report.coverImage
+        },
+        action: 'sample_request',
+        message: 'Sample request page loaded successfully',
+        formFields: [
+          { name: 'name', type: 'text', required: true, label: 'Full Name' },
+          { name: 'email', type: 'email', required: true, label: 'Email Address' },
+          { name: 'phone', type: 'tel', required: false, label: 'Phone Number' },
+          { name: 'company', type: 'text', required: false, label: 'Company Name' },
+          { name: 'jobTitle', type: 'text', required: false, label: 'Job Title' },
+          { name: 'country', type: 'text', required: false, label: 'Country' },
+          { name: 'message', type: 'textarea', required: false, label: 'Additional Message' }
+        ]
+      }
+    })
+  } catch (error) {
+    console.error('Sample request page error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to load sample request page'
+    })
+  }
+})
+
+// POST /api/reports/request-sample/:slug - Submit sample request
+router.post('/request-sample/:slug', validateSlugAndReport, async (req, res) => {
+  try {
+    const report = req.report
+    const { 
+      name, 
+      email, 
+      phone, 
+      company, 
+      jobTitle, 
+      country, 
+      message 
+    } = req.body
+
+    // Validate required fields
+    if (!name || !email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name and email are required'
+      })
+    }
+
+    // Import Inquiry model at the top if not already imported
+    const Inquiry = (await import('../models/Inquiry.js')).default
+
+    // Create inquiry record
+    const inquiry = await Inquiry.create({
+      type: 'Request for Sample',
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone?.trim() || '',
+      company: company?.trim() || '',
+      jobTitle: jobTitle?.trim() || '',
+      country: country?.trim() || '',
+      message: message?.trim() || `Sample request for: ${report.title}`,
+      reportId: report._id,
+      reportTitle: report.title,
+      reportSlug: report.slug,
+      status: 'new'
+    })
+
+    await trackInteraction(report._id, 'sample_request_submitted', { 
+      inquiryId: inquiry._id,
+      email: email.trim()
+    })
+
+    res.json({
+      success: true,
+      data: {
+        inquiryId: inquiry._id,
+        message: 'Sample request submitted successfully',
+        redirectUrl: `/api/reports/thank-you/${report.slug}?type=sample`,
+        nextSteps: [
+          'We will send the sample report to your email within 24 hours',
+          'Check your spam folder if you don\'t receive it',
+          'Contact us if you need any assistance'
+        ]
+      }
+    })
+  } catch (error) {
+    console.error('Sample request submission error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to submit sample request'
+    })
+  }
+})
+
+// 4. Buy Now Operations
+// GET /api/reports/buy-now/:slug
+router.get('/buy-now/:slug', validateSlugAndReport, async (req, res) => {
+  try {
+    const report = req.report
+
+    await trackInteraction(report._id, 'buy_now_page_view', { 
+      slug: report.slug 
+    })
+
+    res.json({
+      success: true,
+      data: {
+        report: {
+          _id: report._id,
+          title: report.title,
+          slug: report.slug,
+          summary: report.summary,
+          category: report.category,
+          price: report.price,
+          currency: report.currency,
+          coverImage: report.coverImage,
+          // License pricing options
+          pricing: {
+            singleUser: {
+              price: report.singleUserPrice || report.singleUserLicense || report.price,
+              description: 'Single User License - For individual use'
+            },
+            excelDatapack: {
+              price: report.excelDatapackPrice || report.excelDataPackLicense,
+              description: 'Excel Datapack - Raw data in Excel format'
+            },
+            enterprise: {
+              price: report.enterprisePrice || report.enterpriseLicensePrice,
+              description: 'Enterprise License - For organizational use'
+            }
+          }
+        },
+        action: 'buy_now',
+        message: 'Buy now page loaded successfully',
+        formFields: [
+          { name: 'licenseType', type: 'select', required: true, label: 'License Type', 
+            options: [
+              { value: 'single_user', label: 'Single User License' },
+              { value: 'excel_datapack', label: 'Excel Datapack' },
+              { value: 'enterprise', label: 'Enterprise License' }
+            ]
+          },
+          { name: 'customerName', type: 'text', required: true, label: 'Full Name' },
+          { name: 'customerEmail', type: 'email', required: true, label: 'Email Address' },
+          { name: 'customerPhone', type: 'tel', required: false, label: 'Phone Number' },
+          { name: 'customerCompany', type: 'text', required: false, label: 'Company Name' }
+        ]
+      }
+    })
+  } catch (error) {
+    console.error('Buy now page error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to load buy now page'
+    })
+  }
+})
+
+// POST /api/reports/buy-now/:slug - Create order
+router.post('/buy-now/:slug', validateSlugAndReport, async (req, res) => {
+  try {
+    const report = req.report
+    const { 
+      licenseType = 'single_user',
+      customerName,
+      customerEmail,
+      customerPhone,
+      customerCompany,
+      billingInfo 
+    } = req.body
+
+    // Validate customer info
+    if (!customerName || !customerEmail) {
+      return res.status(400).json({
+        success: false,
+        error: 'Customer name and email are required'
+      })
+    }
+
+    // Determine price based on license type
+    let price = report.price || 0
+    let licenseDescription = 'Single User License'
+
+    switch (licenseType) {
+      case 'excel_datapack':
+        price = parseFloat(report.excelDatapackPrice?.replace(/[^0-9.]/g, '') || report.price || 0)
+        licenseDescription = 'Excel Datapack License'
+        break
+      case 'enterprise':
+        price = parseFloat(report.enterprisePrice?.replace(/[^0-9.]/g, '') || report.price || 0)
+        licenseDescription = 'Enterprise License'
+        break
+      default:
+        price = parseFloat(report.singleUserPrice?.replace(/[^0-9.]/g, '') || report.price || 0)
+        break
+    }
+
+    // Import Order model
+    const Order = (await import('../models/Order.js')).default
+
+    // Create order
+    const order = await Order.create({
+      reportId: report._id,
+      reportTitle: report.title,
+      reportSlug: report.slug,
+      licenseType,
+      licenseDescription,
+      price,
+      currency: report.currency || 'USD',
+      customer: {
+        name: customerName.trim(),
+        email: customerEmail.trim(),
+        phone: customerPhone?.trim() || '',
+        company: customerCompany?.trim() || ''
+      },
+      billing: billingInfo || {},
+      status: 'pending',
+      orderDate: new Date()
+    })
+
+    await trackInteraction(report._id, 'order_created', { 
+      orderId: order._id,
+      licenseType,
+      price,
+      email: customerEmail.trim()
+    })
+
+    res.json({
+      success: true,
+      data: {
+        orderId: order._id,
+        message: 'Order created successfully',
+        order: {
+          id: order._id,
+          reportTitle: report.title,
+          licenseType,
+          licenseDescription,
+          price,
+          currency: order.currency,
+          status: order.status
+        },
+        // Return payment URL or next steps
+        nextSteps: {
+          paymentUrl: `/payment/${order._id}`,
+          redirectUrl: `/api/reports/thank-you/${report.slug}?type=order&orderId=${order._id}`
+        }
+      }
+    })
+  } catch (error) {
+    console.error('Order creation error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create order'
+    })
+  }
+})
+
+// 5. Inquiry Before Buying Operations
+// GET /api/reports/inquiry/:slug
+router.get('/inquiry/:slug', validateSlugAndReport, async (req, res) => {
+  try {
+    const report = req.report
+
+    await trackInteraction(report._id, 'inquiry_page_view', { 
+      slug: report.slug 
+    })
+
+    res.json({
+      success: true,
+      data: {
+        report: {
+          _id: report._id,
+          title: report.title,
+          slug: report.slug,
+          summary: report.summary,
+          category: report.category,
+          coverImage: report.coverImage,
+          pricing: {
+            singleUser: report.singleUserPrice || report.singleUserLicense,
+            excelDatapack: report.excelDatapackPrice || report.excelDataPackLicense,
+            enterprise: report.enterprisePrice || report.enterpriseLicensePrice
+          }
+        },
+        action: 'inquiry',
+        message: 'Inquiry page loaded successfully',
+        formFields: [
+          { name: 'name', type: 'text', required: true, label: 'Full Name' },
+          { name: 'email', type: 'email', required: true, label: 'Email Address' },
+          { name: 'phone', type: 'tel', required: false, label: 'Phone Number' },
+          { name: 'company', type: 'text', required: false, label: 'Company Name' },
+          { name: 'jobTitle', type: 'text', required: false, label: 'Job Title' },
+          { name: 'country', type: 'text', required: false, label: 'Country' },
+          { name: 'inquiryType', type: 'select', required: false, label: 'Inquiry Type',
+            options: [
+              { value: 'Inquiry Before Buying', label: 'General Inquiry' },
+              { value: 'Pricing Information', label: 'Pricing Information' },
+              { value: 'Custom Requirements', label: 'Custom Requirements' },
+              { value: 'Bulk Purchase', label: 'Bulk Purchase' }
+            ]
+          },
+          { name: 'message', type: 'textarea', required: true, label: 'Your Message' }
+        ]
+      }
+    })
+  } catch (error) {
+    console.error('Inquiry page error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to load inquiry page'
+    })
+  }
+})
+
+// POST /api/reports/inquiry/:slug - Submit inquiry
+router.post('/inquiry/:slug', validateSlugAndReport, async (req, res) => {
+  try {
+    const report = req.report
+    const { 
+      name, 
+      email, 
+      phone, 
+      company, 
+      jobTitle, 
+      country, 
+      message,
+      inquiryType = 'Inquiry Before Buying'
+    } = req.body
+
+    // Validate required fields
+    if (!name || !email || !message) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name, email, and message are required'
+      })
+    }
+
+    // Import Inquiry model
+    const Inquiry = (await import('../models/Inquiry.js')).default
+
+    // Create inquiry record
+    const inquiry = await Inquiry.create({
+      type: inquiryType,
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone?.trim() || '',
+      company: company?.trim() || '',
+      jobTitle: jobTitle?.trim() || '',
+      country: country?.trim() || '',
+      message: message.trim(),
+      reportId: report._id,
+      reportTitle: report.title,
+      reportSlug: report.slug,
+      status: 'new'
+    })
+
+    await trackInteraction(report._id, 'inquiry_submitted', { 
+      inquiryId: inquiry._id,
+      inquiryType,
+      email: email.trim()
+    })
+
+    res.json({
+      success: true,
+      data: {
+        inquiryId: inquiry._id,
+        message: 'Inquiry submitted successfully',
+        redirectUrl: `/api/reports/thank-you/${report.slug}?type=inquiry`,
+        nextSteps: [
+          'We have received your inquiry',
+          'Our team will respond within 24 hours',
+          'You will receive updates via email'
+        ]
+      }
+    })
+  } catch (error) {
+    console.error('Inquiry submission error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to submit inquiry'
+    })
+  }
+})
+
+// 6. Talk to Analyst Operations
+// GET /api/reports/talk-to-analyst/:slug
+router.get('/talk-to-analyst/:slug', validateSlugAndReport, async (req, res) => {
+  try {
+    const report = req.report
+
+    await trackInteraction(report._id, 'talk_to_analyst_page_view', { 
+      slug: report.slug 
+    })
+
+    res.json({
+      success: true,
+      data: {
+        report: {
+          _id: report._id,
+          title: report.title,
+          slug: report.slug,
+          summary: report.summary,
+          category: report.category,
+          coverImage: report.coverImage
+        },
+        action: 'talk_to_analyst',
+        message: 'Talk to analyst page loaded successfully',
+        analystInfo: {
+          availability: 'Available for consultation',
+          responseTime: '24-48 hours',
+          consultationTypes: [
+            'Report clarification',
+            'Custom analysis',
+            'Market insights',
+            'Data interpretation',
+            'Industry trends discussion'
+          ]
+        },
+        formFields: [
+          { name: 'name', type: 'text', required: true, label: 'Full Name' },
+          { name: 'email', type: 'email', required: true, label: 'Email Address' },
+          { name: 'phone', type: 'tel', required: true, label: 'Phone Number' },
+          { name: 'company', type: 'text', required: false, label: 'Company Name' },
+          { name: 'jobTitle', type: 'text', required: false, label: 'Job Title' },
+          { name: 'country', type: 'text', required: false, label: 'Country' },
+          { name: 'consultationType', type: 'select', required: false, label: 'Consultation Type',
+            options: [
+              { value: 'General Consultation', label: 'General Consultation' },
+              { value: 'Report Clarification', label: 'Report Clarification' },
+              { value: 'Custom Analysis', label: 'Custom Analysis' },
+              { value: 'Market Insights', label: 'Market Insights' },
+              { value: 'Data Interpretation', label: 'Data Interpretation' }
+            ]
+          },
+          { name: 'preferredTime', type: 'text', required: false, label: 'Preferred Time/Date' },
+          { name: 'message', type: 'textarea', required: false, label: 'Additional Details' }
+        ]
+      }
+    })
+  } catch (error) {
+    console.error('Talk to analyst page error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to load talk to analyst page'
+    })
+  }
+})
+
+// POST /api/reports/talk-to-analyst/:slug - Schedule analyst consultation
+router.post('/talk-to-analyst/:slug', validateSlugAndReport, async (req, res) => {
+  try {
+    const report = req.report
+    const { 
+      name, 
+      email, 
+      phone, 
+      company, 
+      jobTitle, 
+      country, 
+      message,
+      preferredTime,
+      consultationType = 'General Consultation'
+    } = req.body
+
+    // Validate required fields
+    if (!name || !email || !phone) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name, email, and phone are required for analyst consultation'
+      })
+    }
+
+    // Import Inquiry model
+    const Inquiry = (await import('../models/Inquiry.js')).default
+
+    // Create inquiry record for analyst consultation
+    const inquiry = await Inquiry.create({
+      type: 'Talk to Analyst/Expert',
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      company: company?.trim() || '',
+      jobTitle: jobTitle?.trim() || '',
+      country: country?.trim() || '',
+      message: `${message?.trim() || ''}\n\nConsultation Type: ${consultationType}\nPreferred Time: ${preferredTime || 'Not specified'}`,
+      reportId: report._id,
+      reportTitle: report.title,
+      reportSlug: report.slug,
+      status: 'new',
+      metadata: {
+        consultationType,
+        preferredTime: preferredTime || null
+      }
+    })
+
+    await trackInteraction(report._id, 'analyst_consultation_requested', { 
+      inquiryId: inquiry._id,
+      consultationType,
+      email: email.trim()
+    })
+
+    res.json({
+      success: true,
+      data: {
+        inquiryId: inquiry._id,
+        message: 'Analyst consultation request submitted successfully',
+        expectedResponse: '24-48 hours',
+        redirectUrl: `/api/reports/thank-you/${report.slug}?type=analyst`,
+        nextSteps: [
+          'Our analyst will contact you within 24-48 hours',
+          'Please keep your phone available',
+          'You will receive a confirmation email'
+        ]
+      }
+    })
+  } catch (error) {
+    console.error('Analyst consultation request error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to submit analyst consultation request'
+    })
+  }
+})
+
+// 7. Thank You Page
+// GET /api/reports/thank-you/:slug
+router.get('/thank-you/:slug', validateSlugAndReport, async (req, res) => {
+  try {
+    const report = req.report
+    const { type, orderId, inquiryId } = req.query
+
+    await trackInteraction(report._id, 'thank_you_page_view', { 
+      slug: report.slug,
+      type,
+      orderId,
+      inquiryId
+    })
+
+    let message = 'Thank you for your interest!'
+    let nextSteps = []
+    let additionalInfo = {}
+
+    switch (type) {
+      case 'sample':
+        message = 'Thank you for requesting a sample!'
+        nextSteps = [
+          'We will send the sample report to your email within 24 hours',
+          'Check your spam folder if you don\'t receive it',
+          'Contact us if you need any assistance'
+        ]
+        break
+      case 'order':
+        message = 'Thank you for your order!'
+        nextSteps = [
+          'Your order has been received and is being processed',
+          'You will receive a confirmation email shortly',
+          'The report will be delivered within 24-48 hours'
+        ]
+        if (orderId) {
+          additionalInfo.orderId = orderId
+          additionalInfo.orderStatus = 'Processing'
+        }
+        break
+      case 'inquiry':
+        message = 'Thank you for your inquiry!'
+        nextSteps = [
+          'We have received your inquiry',
+          'Our team will respond within 24 hours',
+          'You will receive updates via email'
+        ]
+        break
+      case 'analyst':
+        message = 'Thank you for requesting analyst consultation!'
+        nextSteps = [
+          'Our analyst will contact you within 24-48 hours',
+          'Please keep your phone available',
+          'You will receive a confirmation email'
+        ]
+        break
+      default:
+        nextSteps = [
+          'We have received your request',
+          'Our team will get back to you soon'
+        ]
+    }
+
+    res.json({
+      success: true,
+      data: {
+        report: {
+          title: report.title,
+          slug: report.slug,
+          category: report.category
+        },
+        message,
+        nextSteps,
+        type,
+        additionalInfo,
+        relatedReports: {
+          url: `/api/reports/public/store?category=${encodeURIComponent(report.category)}`,
+          message: 'Explore more reports in this category'
+        },
+        contactInfo: {
+          email: 'support@bizwitresearch.com',
+          phone: '+1-XXX-XXX-XXXX',
+          businessHours: 'Monday to Friday, 9 AM to 6 PM EST'
+        }
+      }
+    })
+  } catch (error) {
+    console.error('Thank you page error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to load thank you page'
+    })
+  }
+})
+
+// Additional utility routes for slug operations
+
+// Get report by slug (for internal use)
+router.get('/slug/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params
+    const report = await Report.findOne({ 
+      slug: slug.toLowerCase(),
+      status: 'published' 
+    }).lean()
+
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        error: 'Report not found'
+      })
+    }
+
+    res.json({
+      success: true,
+      data: { report }
+    })
+  } catch (error) {
+    console.error('Report lookup error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch report'
+    })
+  }
+})
+
+// Validate slug availability
+router.get('/validate-slug/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params
+    const exists = await Report.exists({ slug: slug.toLowerCase() })
+
+    res.json({
+      success: true,
+      data: {
+        slug,
+        available: !exists,
+        exists: !!exists
+      }
+    })
+  } catch (error) {
+    console.error('Slug validation error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to validate slug'
+    })
+  }
+})
+
+// Get all available categories for filtering
+router.get('/public/categories', async (req, res) => {
+  try {
+    const categories = await Report.distinct('category', { status: 'published' })
+    const categoriesWithCounts = await Promise.all(
+      categories.map(async (category) => {
+        const count = await Report.countDocuments({ 
+          category, 
+          status: 'published' 
+        })
+        return { name: category, count }
+      })
+    )
+
+    res.json({
+      success: true,
+      data: {
+        categories: categoriesWithCounts.filter(cat => cat.name && cat.name.trim())
+      }
+    })
+  } catch (error) {
+    console.error('Categories fetch error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch categories'
+    })
+  }
+})
+
 
 export default router

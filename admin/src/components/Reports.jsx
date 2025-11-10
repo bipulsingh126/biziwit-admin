@@ -153,6 +153,7 @@ const Reports = () => {
           author: report.author || 'N/A',
           reportCode: report.reportCode || 'N/A',
           region: report.region || 'Global',
+          subRegions: report.subRegions || 'N/A',
           pages: report.numberOfPages || 'N/A',
           price: report.price || 'N/A',
           excelPrice: report.excelDatapackPrice || 'N/A',
@@ -855,6 +856,7 @@ const Reports = () => {
           </div>
         </div>
       </div>
+
 
       {/* Import Progress Indicator */}
       {importProgress && (

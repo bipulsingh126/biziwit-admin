@@ -20,6 +20,7 @@ import Login from './components/Login'
 import ProtectedRoute from './components/ProtectedRoute'
 import Inquiries from './components/Inquiries'
 import Categories from './components/Categories'
+import HomePageManagement from './components/HomePageManagement'
 
 const AppContent = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -186,6 +187,14 @@ const AppContent = () => {
                   element={
                     <ProtectedRoute route="/case-studies">
                       <CaseStudyCreate />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/home-page-management" 
+                  element={
+                    <ProtectedRoute route="/home-page-management">
+                      <HomePageManagement />
                     </ProtectedRoute>
                   } 
                 />

@@ -25,6 +25,7 @@ import categoriesRoutes from './src/routes/categories.js'
 import blogsRoutes from './src/routes/blogs.js'
 import caseStudiesRoutes from './src/routes/caseStudies.js'
 import servicePagesRoutes from './src/routes/servicePages.js'
+import homePageRoutes from './src/routes/homePage.js'
 
 dotenv.config()
 
@@ -98,6 +99,7 @@ app.use(express.json({ limit: '2mb' }))
 app.use(express.urlencoded({ extended: true }))
 app.use(morgan('dev'))
 app.use('/uploads', express.static(UPLOAD_DIR))
+app.use('/images', express.static(path.join(process.cwd(), 'public', 'images')))
 
 // Health check
 app.get('/health', (req, res) => res.json({ ok: true }))
@@ -132,6 +134,7 @@ app.use('/api/categories', categoriesRoutes)
 app.use('/api/blogs', blogsRoutes)
 app.use('/api/case-studies', caseStudiesRoutes)
 app.use('/api/service-pages', servicePagesRoutes)
+app.use('/api/homepage', homePageRoutes)
 
 // 404 handler
 app.use((req, res) => {
