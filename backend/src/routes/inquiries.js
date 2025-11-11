@@ -62,7 +62,7 @@ router.use(authenticate, requireRole('super_admin', 'admin'))
 // List
 router.get('/', async (req, res, next) => {
   try {
-    const { q = '', status, inquiryType, priority, limit = 50, offset = 0, sortBy = 'createdAt', sortOrder = 'desc' } = req.query
+    const { q = '', slug = '', status, inquiryType, priority, limit = 50, offset = 0, sortBy = 'createdAt', sortOrder = 'desc' } = req.query
     const query = {}
     
     // Filters
@@ -70,19 +70,24 @@ router.get('/', async (req, res, next) => {
     if (inquiryType && inquiryType !== 'all') query.inquiryType = inquiryType
     if (priority && priority !== 'all') query.priority = priority
     
-    // Search
-    if (q) {
-      const rx = new RegExp(q, 'i')
+    // Text search
+    if (q.trim()) {
       query.$or = [
-        { name: rx }, 
-        { email: rx }, 
-        { phone: rx }, 
-        { company: rx }, 
-        { subject: rx }, 
-        { message: rx },
-        { inquiryNumber: rx },
-        { pageReportTitle: rx }
+        { name: { $regex: q, $options: 'i' } },
+        { email: { $regex: q, $options: 'i' } },
+        { phone: { $regex: q, $options: 'i' } },
+        { company: { $regex: q, $options: 'i' } },
+        { subject: { $regex: q, $options: 'i' } },
+        { message: { $regex: q, $options: 'i' } },
+        { inquiryNumber: { $regex: q, $options: 'i' } },
+        { slug: { $regex: q, $options: 'i' } },
+        { pageReportTitle: { $regex: q, $options: 'i' } }
       ]
+    }
+    
+    // Slug filter
+    if (slug.trim()) {
+      query.slug = { $regex: slug, $options: 'i' }
     }
     
     // Sort
@@ -114,30 +119,99 @@ router.get('/', async (req, res, next) => {
   } catch (e) { next(e) }
 })
 
-// Read
-router.get('/:id', async (req, res, next) => {
+// Get single inquiry by slug
+router.get('/by-slug/:slug', async (req, res, next) => {
   try {
-    const doc = await Inquiry.findById(req.params.id)
-    if (!doc) return res.status(404).json({ error: 'Not found' })
+    const doc = await Inquiry.findOne({ slug: req.params.slug })
+      .populate('assignedTo', 'name email')
+    if (!doc) return res.status(404).json({ error: 'Inquiry not found' })
     res.json(doc)
   } catch (e) { next(e) }
 })
 
-// Update (e.g., change status or add notes in meta)
-router.patch('/:id', async (req, res, next) => {
+// Read by slug or ID (with slug priority)
+router.get('/:identifier', async (req, res, next) => {
   try {
-    const updated = await Inquiry.findByIdAndUpdate(req.params.id, req.body, { new: true })
-    if (!updated) return res.status(404).json({ error: 'Not found' })
+    const { identifier } = req.params
+    
+    // Try to find by slug first, then by ID for backward compatibility
+    let doc = await Inquiry.findOne({ slug: identifier })
+      .populate('assignedTo', 'name email')
+    
+    if (!doc && identifier.match(/^[0-9a-fA-F]{24}$/)) {
+      // If it looks like a MongoDB ObjectId, try finding by ID
+      doc = await Inquiry.findById(identifier)
+        .populate('assignedTo', 'name email')
+    }
+    
+    if (!doc) return res.status(404).json({ error: 'Inquiry not found' })
+    res.json(doc)
+  } catch (e) { next(e) }
+})
+
+// Update inquiry by slug
+router.patch('/by-slug/:slug', async (req, res, next) => {
+  try {
+    const updated = await Inquiry.findOneAndUpdate(
+      { slug: req.params.slug },
+      req.body,
+      { new: true, runValidators: true }
+    ).populate('assignedTo', 'name email')
+    if (!updated) return res.status(404).json({ error: 'Inquiry not found' })
     res.json(updated)
   } catch (e) { next(e) }
 })
 
-// Delete
+// Update inquiry by ID (legacy support)
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params
+    
+    // Try to find by slug first, then by ID
+    let inquiry = await Inquiry.findOne({ slug: id })
+    
+    if (!inquiry && id.match(/^[0-9a-fA-F]{24}$/)) {
+      inquiry = await Inquiry.findById(id)
+    }
+    
+    if (!inquiry) return res.status(404).json({ error: 'Inquiry not found' })
+    
+    // Update the inquiry
+    Object.assign(inquiry, req.body)
+    await inquiry.save()
+    
+    // Populate and return
+    await inquiry.populate('assignedTo', 'name email')
+    res.json(inquiry)
+  } catch (e) { next(e) }
+})
+
+// Delete inquiry by slug
+router.delete('/by-slug/:slug', async (req, res, next) => {
+  try {
+    const r = await Inquiry.findOneAndDelete({ slug: req.params.slug })
+    if (!r) return res.status(404).json({ error: 'Inquiry not found' })
+    res.json({ ok: true, message: 'Inquiry deleted successfully' })
+  } catch (e) { next(e) }
+})
+
+// Delete inquiry by ID (legacy support)
 router.delete('/:id', async (req, res, next) => {
   try {
-    const r = await Inquiry.findByIdAndDelete(req.params.id)
-    if (!r) return res.status(404).json({ error: 'Not found' })
-    res.json({ ok: true })
+    const { id } = req.params
+    
+    // Try to find by slug first, then by ID
+    let inquiry = await Inquiry.findOne({ slug: id })
+    
+    if (!inquiry && id.match(/^[0-9a-fA-F]{24}$/)) {
+      inquiry = await Inquiry.findById(id)
+    }
+    
+    if (!inquiry) return res.status(404).json({ error: 'Inquiry not found' })
+    
+    // Delete the inquiry
+    await Inquiry.findByIdAndDelete(inquiry._id)
+    res.json({ ok: true, message: 'Inquiry deleted successfully' })
   } catch (e) { next(e) }
 })
 
@@ -187,11 +261,17 @@ router.get('/export/csv', async (req, res, next) => {
     if (inquiryType && inquiryType !== 'all') query.inquiryType = inquiryType
     if (priority && priority !== 'all') query.priority = priority
     
-    if (q) {
-      const rx = new RegExp(q, 'i')
+    if (q.trim()) {
       query.$or = [
-        { name: rx }, { email: rx }, { phone: rx }, { company: rx }, 
-        { subject: rx }, { message: rx }, { inquiryNumber: rx }, { pageReportTitle: rx }
+        { name: { $regex: q, $options: 'i' } },
+        { email: { $regex: q, $options: 'i' } },
+        { phone: { $regex: q, $options: 'i' } },
+        { company: { $regex: q, $options: 'i' } },
+        { subject: { $regex: q, $options: 'i' } },
+        { message: { $regex: q, $options: 'i' } },
+        { inquiryNumber: { $regex: q, $options: 'i' } },
+        { slug: { $regex: q, $options: 'i' } },
+        { pageReportTitle: { $regex: q, $options: 'i' } }
       ]
     }
     
@@ -202,13 +282,14 @@ router.get('/export/csv', async (req, res, next) => {
     
     // Generate CSV
     const csvHeaders = [
-      'Inquiry Number', 'Date', 'Name', 'Email', 'Phone', 'Company', 
+      'Inquiry Number', 'Slug', 'Date', 'Name', 'Email', 'Phone', 'Company', 
       'Inquiry Type', 'Page/Report Title', 'Subject', 'Message', 
       'Status', 'Priority', 'Assigned To', 'Source'
     ]
     
     const csvRows = inquiries.map(inquiry => [
       inquiry.inquiryNumber || '',
+      inquiry.slug || '',
       inquiry.createdAt.toISOString().split('T')[0],
       inquiry.name || '',
       inquiry.email || '',

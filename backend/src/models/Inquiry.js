@@ -57,6 +57,16 @@ const InquirySchema = new mongoose.Schema({
   meta: { type: Object },
 }, { timestamps: true })
 
+// Helper function to generate slug
+InquirySchema.methods.generateSlug = function(baseText) {
+  return baseText
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim('-');
+};
+
 // Generate inquiry number and slug before saving
 InquirySchema.pre('save', async function(next) {
   if (!this.inquiryNumber) {
@@ -64,19 +74,24 @@ InquirySchema.pre('save', async function(next) {
     this.inquiryNumber = `INQ-${String(count + 1).padStart(6, '0')}`
   }
   
-  // Generate slug from inquiry number and subject
-  if (!this.slug) {
+  // Generate slug if not provided or if inquiry number/subject changed
+  if (!this.slug || this.isModified('inquiryNumber') || this.isModified('subject')) {
     let baseSlug = this.inquiryNumber.toLowerCase()
     if (this.subject) {
-      const subjectSlug = this.subject
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .trim('-')
+      const subjectSlug = this.generateSlug(this.subject)
       baseSlug = `${baseSlug}-${subjectSlug}`
     }
-    this.slug = baseSlug
+    
+    let slug = baseSlug
+    let counter = 1
+    
+    // Check for existing slugs and make unique
+    while (await this.constructor.findOne({ slug: slug, _id: { $ne: this._id } })) {
+      slug = `${baseSlug}-${counter}`
+      counter++
+    }
+    
+    this.slug = slug
   }
   
   next()

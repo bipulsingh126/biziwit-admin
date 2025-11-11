@@ -50,6 +50,7 @@ router.get('/', async (req, res) => {
       page = 1,
       limit = 10,
       search = '',
+      slug = '',
       status,
       author,
       dateRange
@@ -59,8 +60,19 @@ router.get('/', async (req, res) => {
     const query = {}
     
     // Text search
-    if (search) {
-      query.$text = { $search: search }
+    if (search.trim()) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { slug: { $regex: search, $options: 'i' } },
+        { content: { $regex: search, $options: 'i' } },
+        { authorName: { $regex: search, $options: 'i' } },
+        { keywords: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    // Slug filter
+    if (slug.trim()) {
+      query.slug = { $regex: slug, $options: 'i' };
     }
     
     // Status filter
@@ -69,8 +81,8 @@ router.get('/', async (req, res) => {
     }
     
     // Author filter
-    if (author) {
-      query.authorName = new RegExp(author, 'i')
+    if (author && author.trim()) {
+      query.authorName = { $regex: author, $options: 'i' };
     }
     
     // Date range filter
@@ -131,7 +143,7 @@ router.get('/', async (req, res) => {
 // Get single case study by slug
 router.get('/by-slug/:slug', async (req, res) => {
   try {
-    const caseStudy = await CaseStudy.findOne({ url: req.params.slug })
+    const caseStudy = await CaseStudy.findOne({ slug: req.params.slug })
     if (!caseStudy) {
       return res.status(404).json({ error: 'Case study not found' })
     }
@@ -142,17 +154,17 @@ router.get('/by-slug/:slug', async (req, res) => {
   }
 })
 
-// Get single case study (legacy support)
-router.get('/:id', async (req, res) => {
+// Get single case study by slug or ID (with slug priority)
+router.get('/:identifier', async (req, res) => {
   try {
-    const { id } = req.params
+    const { identifier } = req.params
     
     // Try to find by slug first, then by ID for backward compatibility
-    let caseStudy = await CaseStudy.findOne({ url: id })
+    let caseStudy = await CaseStudy.findOne({ slug: identifier })
     
-    if (!caseStudy && id.match(/^[0-9a-fA-F]{24}$/)) {
+    if (!caseStudy && identifier.match(/^[0-9a-fA-F]{24}$/)) {
       // If it looks like a MongoDB ObjectId, try finding by ID
-      caseStudy = await CaseStudy.findById(id)
+      caseStudy = await CaseStudy.findById(identifier)
     }
     
     if (!caseStudy) {
@@ -180,17 +192,17 @@ router.post('/', authenticate, requireRole('super_admin', 'admin', 'editor'), as
   } catch (error) {
     console.error('Error creating case study:', error)
     if (error.code === 11000) {
-      return res.status(400).json({ error: 'URL slug already exists' })
+      return res.status(400).json({ error: 'Slug or URL already exists' })
     }
     res.status(400).json({ error: error.message })
   }
 })
 
-// Update case study
-router.patch('/:id', authenticate, requireRole('super_admin', 'admin', 'editor'), async (req, res) => {
+// Update case study by slug
+router.patch('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin', 'editor'), async (req, res) => {
   try {
-    const caseStudy = await CaseStudy.findByIdAndUpdate(
-      req.params.id,
+    const caseStudy = await CaseStudy.findOneAndUpdate(
+      { slug: req.params.slug },
       req.body,
       { new: true, runValidators: true }
     )
@@ -203,16 +215,77 @@ router.patch('/:id', authenticate, requireRole('super_admin', 'admin', 'editor')
   } catch (error) {
     console.error('Error updating case study:', error)
     if (error.code === 11000) {
-      return res.status(400).json({ error: 'URL slug already exists' })
+      return res.status(400).json({ error: 'Slug or URL already exists' })
     }
     res.status(400).json({ error: error.message })
   }
 })
 
-// Delete case study
+// Update case study by ID (legacy support)
+router.patch('/:id', authenticate, requireRole('super_admin', 'admin', 'editor'), async (req, res) => {
+  try {
+    const { id } = req.params
+    
+    // Try to find by slug first, then by ID
+    let caseStudy = await CaseStudy.findOne({ slug: id })
+    
+    if (!caseStudy && id.match(/^[0-9a-fA-F]{24}$/)) {
+      caseStudy = await CaseStudy.findById(id)
+    }
+    
+    if (!caseStudy) {
+      return res.status(404).json({ error: 'Case study not found' })
+    }
+    
+    // Update the case study
+    Object.assign(caseStudy, req.body)
+    await caseStudy.save()
+    
+    res.json(caseStudy)
+  } catch (error) {
+    console.error('Error updating case study:', error)
+    if (error.code === 11000) {
+      return res.status(400).json({ error: 'Slug or URL already exists' })
+    }
+    res.status(400).json({ error: error.message })
+  }
+})
+
+// Delete case study by slug
+router.delete('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin'), async (req, res) => {
+  try {
+    const caseStudy = await CaseStudy.findOneAndDelete({ slug: req.params.slug })
+    if (!caseStudy) {
+      return res.status(404).json({ error: 'Case study not found' })
+    }
+    
+    // Delete associated image file if exists
+    if (caseStudy.mainImage && !caseStudy.mainImage.startsWith('http')) {
+      const imagePath = path.join(process.cwd(), caseStudy.mainImage)
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath)
+      }
+    }
+    
+    res.json({ message: 'Case study deleted successfully' })
+  } catch (error) {
+    console.error('Error deleting case study:', error)
+    res.status(500).json({ error: 'Failed to delete case study' })
+  }
+})
+
+// Delete case study by ID (legacy support)
 router.delete('/:id', authenticate, requireRole('super_admin', 'admin'), async (req, res) => {
   try {
-    const caseStudy = await CaseStudy.findById(req.params.id)
+    const { id } = req.params
+    
+    // Try to find by slug first, then by ID
+    let caseStudy = await CaseStudy.findOne({ slug: id })
+    
+    if (!caseStudy && id.match(/^[0-9a-fA-F]{24}$/)) {
+      caseStudy = await CaseStudy.findById(id)
+    }
+    
     if (!caseStudy) {
       return res.status(404).json({ error: 'Case study not found' })
     }
@@ -225,7 +298,8 @@ router.delete('/:id', authenticate, requireRole('super_admin', 'admin'), async (
       }
     }
     
-    await CaseStudy.findByIdAndDelete(req.params.id)
+    // Delete the case study
+    await CaseStudy.findByIdAndDelete(caseStudy._id)
     res.json({ message: 'Case study deleted successfully' })
   } catch (error) {
     console.error('Error deleting case study:', error)
@@ -233,7 +307,85 @@ router.delete('/:id', authenticate, requireRole('super_admin', 'admin'), async (
   }
 })
 
-// Upload case study image (single image only)
+// Upload case study image by slug
+router.post('/by-slug/:slug/image', authenticate, requireRole('super_admin', 'admin', 'editor'), upload.single('file'), async (req, res) => {
+  try {
+    console.log('🚀 Starting case study image upload for slug:', req.params.slug)
+    
+    if (!req.file) {
+      console.log('❌ No file uploaded')
+      return res.status(400).json({ error: 'No file uploaded' })
+    }
+    
+    console.log('📸 File details:', {
+      filename: req.file.filename,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    })
+    
+    const caseStudy = await CaseStudy.findOne({ slug: req.params.slug })
+    if (!caseStudy) {
+      console.log('❌ Case study not found')
+      return res.status(404).json({ error: 'Case study not found' })
+    }
+    
+    const imageUrl = `/uploads/case-studies/${req.file.filename}`
+    console.log('🖼️ Generated image URL:', imageUrl)
+    
+    // Verify file exists on disk
+    const filePath = path.join(process.cwd(), 'uploads', 'case-studies', req.file.filename)
+    if (!fs.existsSync(filePath)) {
+      console.log('❌ File not found on disk:', filePath)
+      return res.status(500).json({ error: 'File upload failed - file not saved' })
+    }
+    
+    // Delete old image if exists
+    if (caseStudy.mainImage) {
+      const oldImagePath = path.join(process.cwd(), 'uploads', 'case-studies', path.basename(caseStudy.mainImage))
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath)
+        console.log('🗑️ Deleted old image:', oldImagePath)
+      }
+    }
+    
+    // Update mainImage in database
+    caseStudy.mainImage = imageUrl
+    await caseStudy.save()
+    
+    console.log('💾 Updated case study with image URL:', imageUrl)
+    console.log('✅ Image upload completed successfully')
+    
+    res.json({ 
+      success: true,
+      message: 'Image uploaded successfully',
+      imageUrl: imageUrl,
+      fullUrl: `http://localhost:4000${imageUrl}`,
+      fileInfo: {
+        filename: req.file.filename,
+        size: req.file.size,
+        mimetype: req.file.mimetype
+      }
+    })
+  } catch (error) {
+    console.error('❌ Error uploading image:', error)
+    
+    // Clean up uploaded file if database save fails
+    if (req.file) {
+      const filePath = path.join(process.cwd(), 'uploads', 'case-studies', req.file.filename)
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath)
+        console.log('🗑️ Cleaned up failed upload file')
+      }
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to upload image',
+      details: error.message 
+    })
+  }
+})
+
+// Upload case study image by ID (legacy support)
 router.post('/:id/image', authenticate, requireRole('super_admin', 'admin', 'editor'), upload.single('file'), async (req, res) => {
   try {
     console.log('🚀 Starting case study image upload for ID:', req.params.id)
@@ -249,7 +401,14 @@ router.post('/:id/image', authenticate, requireRole('super_admin', 'admin', 'edi
       mimetype: req.file.mimetype
     })
     
-    const caseStudy = await CaseStudy.findById(req.params.id)
+    const { id } = req.params
+    
+    // Try to find by slug first, then by ID
+    let caseStudy = await CaseStudy.findOne({ slug: id })
+    
+    if (!caseStudy && id.match(/^[0-9a-fA-F]{24}$/)) {
+      caseStudy = await CaseStudy.findById(id)
+    }
     if (!caseStudy) {
       console.log('❌ Case study not found')
       return res.status(404).json({ error: 'Case study not found' })

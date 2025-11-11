@@ -35,6 +35,12 @@ const caseStudySchema = new mongoose.Schema({
     trim: true,
     maxlength: 60
   },
+  slug: {
+    type: String,
+    trim: true,
+    unique: true,
+    sparse: true // Allows null values while maintaining uniqueness for non-null values
+  },
   url: {
     type: String,
     trim: true,
@@ -86,6 +92,7 @@ caseStudySchema.index({ status: 1 })
 caseStudySchema.index({ publishDate: -1 })
 caseStudySchema.index({ authorName: 1 })
 caseStudySchema.index({ homePageVisibility: 1 })
+caseStudySchema.index({ slug: 1 }) // Index for slug-based queries
 
 // Virtual for excerpt
 caseStudySchema.virtual('excerpt').get(function() {
@@ -105,17 +112,39 @@ caseStudySchema.pre('save', function(next) {
   next()
 })
 
-// Auto-generate URL slug from title if not provided
-caseStudySchema.pre('save', function(next) {
-  if (!this.url && this.title) {
-    this.url = this.title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim('-')
+// Helper function to generate slug
+caseStudySchema.methods.generateSlug = function(baseTitle) {
+  return baseTitle
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim('-');
+};
+
+// Pre-save middleware to generate slug and URL if not provided
+caseStudySchema.pre('save', async function(next) {
+  // Generate slug if not provided or if title changed
+  if (!this.slug || (this.isModified('title') && this.title)) {
+    let baseSlug = this.generateSlug(this.title);
+    let slug = baseSlug;
+    let counter = 1;
+    
+    // Check for existing slugs and make unique
+    while (await this.constructor.findOne({ slug: slug, _id: { $ne: this._id } })) {
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+    
+    this.slug = slug;
   }
-  next()
-})
+  
+  // Generate URL from slug if not provided
+  if (!this.url && this.slug) {
+    this.url = this.slug;
+  }
+  
+  next();
+});
 
 export default mongoose.model('CaseStudy', caseStudySchema)

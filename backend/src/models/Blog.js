@@ -37,6 +37,12 @@ const blogSchema = new mongoose.Schema({
     trim: true,
     maxlength: 60
   },
+  slug: {
+    type: String,
+    trim: true,
+    unique: true,
+    sparse: true // Allows null values while maintaining uniqueness for non-null values
+  },
   url: {
     type: String,
     trim: true,
@@ -91,18 +97,40 @@ blogSchema.index({ title: 'text', content: 'text', authorName: 'text', keywords:
 blogSchema.index({ status: 1 });
 blogSchema.index({ publishDate: -1 });
 blogSchema.index({ authorName: 1 });
-// Note: url index is automatically created by unique: true constraint
+blogSchema.index({ slug: 1 }); // Index for slug-based queries
+// Note: url and slug indexes are automatically created by unique: true constraint
 blogSchema.index({ createdAt: -1 });
 
-// Pre-save middleware to generate URL slug if not provided
-blogSchema.pre('save', function(next) {
-  if (!this.url && this.title) {
-    this.url = this.title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim('-');
+// Helper function to generate slug
+blogSchema.methods.generateSlug = function(baseTitle) {
+  return baseTitle
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim('-');
+};
+
+// Pre-save middleware to generate slug and URL if not provided
+blogSchema.pre('save', async function(next) {
+  // Generate slug if not provided or if title changed
+  if (!this.slug || (this.isModified('title') && this.title)) {
+    let baseSlug = this.generateSlug(this.title);
+    let slug = baseSlug;
+    let counter = 1;
+    
+    // Check for existing slugs and make unique
+    while (await this.constructor.findOne({ slug: slug, _id: { $ne: this._id } })) {
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+    
+    this.slug = slug;
+  }
+  
+  // Generate URL from slug if not provided
+  if (!this.url && this.slug) {
+    this.url = this.slug;
   }
   
   // Update the updatedAt field
