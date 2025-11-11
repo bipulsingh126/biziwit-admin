@@ -2636,5 +2636,118 @@ router.get('/public/categories', async (req, res) => {
   }
 })
 
+// POST /api/reports/import - Import processed Excel/CSV data
+router.post('/import', authenticate, requireRole('super_admin', 'admin', 'editor'), async (req, res) => {
+  try {
+    const { reports, duplicateHandling = 'update' } = req.body
+
+    if (!reports || !Array.isArray(reports) || reports.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No reports data provided'
+      })
+    }
+
+    console.log(`🚀 Starting import of ${reports.length} reports with ${duplicateHandling} handling`)
+
+    let created = 0
+    let updated = 0
+    let skipped = 0
+    let errors = 0
+    const errorDetails = []
+
+    // Process reports with proper HTML formatting preservation
+    for (let i = 0; i < reports.length; i++) {
+      const reportData = reports[i]
+      
+      try {
+        // Generate unique slug if not provided
+        if (!reportData.slug && reportData.title) {
+          reportData.slug = await generateUniqueSlug(reportData.title)
+        }
+
+        // Set default values
+        reportData.status = reportData.status || 'draft'
+        reportData.visibility = reportData.visibility || 'public'
+        reportData.reportType = reportData.reportType || 'market-research'
+        reportData.currency = reportData.currency || 'USD'
+        reportData.format = reportData.format || 'pdf'
+        reportData.author = reportData.author || req.user?.name || 'System'
+
+        // Handle duplicates based on strategy
+        const filter = reportData.reportCode && reportData.reportCode.trim()
+          ? { reportCode: reportData.reportCode }
+          : { 
+              $or: [
+                { slug: reportData.slug },
+                { title: reportData.title }
+              ]
+            }
+
+        if (duplicateHandling === 'skip') {
+          const existing = await Report.findOne(filter)
+          if (existing) {
+            skipped++
+            continue
+          }
+          await Report.create(reportData)
+          created++
+        } else if (duplicateHandling === 'create') {
+          // Force create new (may create duplicates)
+          await Report.create(reportData)
+          created++
+        } else {
+          // Default: update existing or create new
+          const result = await Report.findOneAndUpdate(
+            filter,
+            { $set: reportData },
+            { new: true, upsert: true, runValidators: true }
+          )
+          
+          if (result.isNew !== false) {
+            created++
+          } else {
+            updated++
+          }
+        }
+
+      } catch (error) {
+        console.error(`Error processing report ${i + 1}:`, error.message)
+        errors++
+        errorDetails.push({
+          row: i + 1,
+          title: reportData.title || 'Unknown',
+          error: error.message
+        })
+      }
+    }
+
+    const stats = {
+      total: reports.length,
+      created,
+      updated,
+      skipped,
+      errors
+    }
+
+    console.log('✅ Import completed:', stats)
+
+    res.json({
+      success: true,
+      message: `Import completed: ${created} created, ${updated} updated, ${skipped} skipped, ${errors} errors`,
+      stats,
+      errorDetails: errorDetails.slice(0, 10) // Limit error details
+    })
+
+  } catch (error) {
+    console.error('❌ Import error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Import failed',
+      message: error.message
+    })
+  }
+})
+
 
 export default router

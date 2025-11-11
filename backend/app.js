@@ -78,10 +78,16 @@ app.use((req, res, next) => {
   
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*')
+    const origin = req.headers.origin
+    if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+      res.header('Access-Control-Allow-Origin', origin)
+      res.header('Access-Control-Allow-Credentials', 'true')
+    } else {
+      res.header('Access-Control-Allow-Origin', '*')
+      res.header('Access-Control-Allow-Credentials', 'false')
+    }
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS')
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control')
-    res.header('Access-Control-Allow-Credentials', 'true')
     return res.status(200).end()
   }
   
@@ -99,11 +105,15 @@ app.use(cors({
       return callback(null, true)
     }
     
-    // In production, allow all origins (since we have specific CORS headers for static files)
-    // This is safe because we have comprehensive CORS headers set above
+    // In production, check allowed origins
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true)
+    }
+    
+    // Fallback: allow all origins for now (can be restricted later)
     return callback(null, true)
   },
-  credentials: false, // Set to false for static files to avoid CORS issues
+  credentials: true, // Enable credentials for authentication
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar']

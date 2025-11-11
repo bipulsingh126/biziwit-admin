@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Filter, Download, Upload, FileText, Plus, Eye, Edit, Trash2, MoreVertical, Share, X, Camera, Image, ExternalLink, CheckCircle, AlertCircle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react'
+import { Search, Filter, Download, Upload, FileText, FileSpreadsheet, Plus, Eye, Edit, Trash2, MoreVertical, Share, X, Camera, Image, ExternalLink, CheckCircle, AlertCircle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react'
+import * as XLSX from 'xlsx'
+import Papa from 'papaparse'
+import sanitizeHtml from 'sanitize-html'
 import api from '../utils/api'
 import { getImageUrl } from '../utils/imageUtils'
 
@@ -40,6 +43,11 @@ const Reports = () => {
   const [selectAll, setSelectAll] = useState(false)
   const [bulkOperating, setBulkOperating] = useState(false)
   const [uploadingCover, setUploadingCover] = useState({})
+  const [parsedData, setParsedData] = useState([])
+  const [previewData, setPreviewData] = useState([])
+  const [columns, setColumns] = useState([])
+  const [columnMapping, setColumnMapping] = useState({})
+  const [showPreview, setShowPreview] = useState(false)
   const searchTimeoutRef = useRef(null)
 
 
@@ -543,6 +551,164 @@ const Reports = () => {
     }
   }
 
+  // Convert Excel text to HTML with proper formatting preservation
+  const convertToHTML = (text) => {
+    if (!text || typeof text !== 'string') return ''
+    
+    let html = text.trim()
+    
+    // Handle different bullet point styles from Excel
+    html = html.replace(/^[•·▪▫◦‣⁃]\s*/gm, '• ')
+    html = html.replace(/^[-*]\s*/gm, '• ')
+    html = html.replace(/^o\s+/gm, '• ') // Handle 'o' bullets
+    html = html.replace(/^\u2022\s*/gm, '• ') // Unicode bullet
+    
+    // Handle numbered lists from Excel
+    html = html.replace(/^(\d+)[\.\)]\s*/gm, '$1. ')
+    
+    // Convert line breaks to proper HTML structure
+    const lines = html.split(/\r?\n/).filter(line => line.trim())
+    let formattedLines = []
+    let inList = false
+    let inNumberedList = false
+    
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim()
+      
+      if (!trimmedLine) return
+      
+      // Handle numbered lists (1. 2. 3.)
+      if (trimmedLine.match(/^\d+\.\s/)) {
+        if (inList && !inNumberedList) {
+          formattedLines.push('</ul>')
+          inList = false
+        }
+        if (!inNumberedList) {
+          formattedLines.push('<ol>')
+          inNumberedList = true
+        }
+        const content = trimmedLine.replace(/^\d+\.\s*/, '')
+        formattedLines.push(`<li>${content}</li>`)
+      }
+      // Handle bullet points
+      else if (trimmedLine.startsWith('•') || trimmedLine.match(/^[-*]\s/)) {
+        if (inNumberedList) {
+          formattedLines.push('</ol>')
+          inNumberedList = false
+        }
+        if (!inList) {
+          formattedLines.push('<ul>')
+          inList = true
+        }
+        const content = trimmedLine.replace(/^[•\-*]\s*/, '')
+        formattedLines.push(`<li>${content}</li>`)
+      } else {
+        // Close any open lists
+        if (inList) {
+          formattedLines.push('</ul>')
+          inList = false
+        }
+        if (inNumberedList) {
+          formattedLines.push('</ol>')
+          inNumberedList = false
+        }
+        
+        // Check if it looks like a heading
+        const isHeading = (
+          trimmedLine.length < 80 && 
+          (
+            trimmedLine === trimmedLine.toUpperCase() || // ALL CAPS
+            (trimmedLine.split(' ').length <= 6 && // Short title
+             trimmedLine.split(' ').every(word => word.length > 0 && word[0] === word[0].toUpperCase())) || // Title Case
+            trimmedLine.endsWith(':') // Ends with colon
+          )
+        )
+        
+        if (isHeading) {
+          formattedLines.push(`<h3>${trimmedLine.replace(/:$/, '')}</h3>`)
+        } else {
+          formattedLines.push(`<p>${trimmedLine}</p>`)
+        }
+      }
+    })
+    
+    // Close any remaining open lists
+    if (inList) {
+      formattedLines.push('</ul>')
+    }
+    if (inNumberedList) {
+      formattedLines.push('</ol>')
+    }
+    
+    // Sanitize HTML to ensure safety
+    const result = sanitizeHtml(formattedLines.join('\n'), {
+      allowedTags: ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'strong', 'em', 'br', 'div'],
+      allowedAttributes: {}
+    })
+    
+    console.log('🔄 Converting Excel text to HTML:', {
+      original: text.substring(0, 100) + '...',
+      converted: result.substring(0, 200) + '...'
+    })
+    
+    return result
+  }
+
+  // Column mapping for Excel to database fields
+  const fieldMappings = {
+    'Report Title': 'title',
+    'REPORT TITLE': 'title',
+    'Title': 'title',
+    'Sub Title': 'subTitle',
+    'SUB TITLE': 'subTitle',
+    'Subtitle': 'subTitle',
+    'Report Overview': 'reportDescription',
+    'REPORT OVERVIEW': 'reportDescription',
+    'Overview': 'reportDescription',
+    'Description': 'reportDescription',
+    'Table of Contents': 'tableOfContents',
+    'TABLE OF CONTENTS': 'tableOfContents',
+    'TOC': 'tableOfContents',
+    'Category': 'category',
+    'CATEGORY': 'category',
+    'Categories': 'category',
+    'Sub Category': 'subCategory',
+    'SUB CATEGORY': 'subCategory',
+    'Subcategory': 'subCategory',
+    'Segmentation': 'segment',
+    'SEGMENTATION': 'segment',
+    'Market Segmentation': 'segment',
+    'Companies': 'companies',
+    'COMPANIES': 'companies',
+    'Company': 'companies',
+    'Author': 'author',
+    'AUTHOR': 'author',
+    'Author Name': 'author',
+    'Report Code': 'reportCode',
+    'REPORT CODE': 'reportCode',
+    'Code': 'reportCode',
+    'Pages': 'numberOfPages',
+    'PAGES': 'numberOfPages',
+    'Number of Pages': 'numberOfPages',
+    'Date': 'reportDate',
+    'DATE': 'reportDate',
+    'Report Date': 'reportDate',
+    'Region': 'region',
+    'REGION': 'region',
+    'Price': 'price',
+    'PRICE': 'price',
+    'Title Tag': 'titleTag',
+    'TITLE TAG': 'titleTag',
+    'Meta Title': 'titleTag',
+    'URL': 'url',
+    'URL SLUG': 'url',
+    'Slug': 'url',
+    'Meta Description': 'metaDescription',
+    'META DESCRIPTION': 'metaDescription',
+    'Keywords': 'keywords',
+    'KEYWORDS': 'keywords'
+  }
+
   const handleFileSelect = async (file) => {
     // Validate file type
     const validTypes = ['.xlsx', '.xls', '.csv']
@@ -563,8 +729,124 @@ const Reports = () => {
     setSelectedFile(file)
     setError('')
     
-    // Check for potential duplicates
-    await checkForDuplicates(file)
+    // Parse the file immediately for preview
+    await parseFileForPreview(file)
+  }
+
+  const parseFileForPreview = async (file) => {
+    try {
+      setImportProgress({ status: 'parsing', message: 'Parsing file...', progress: 25 })
+      
+      let parsedRows = []
+      let headers = []
+      
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        // Parse CSV
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            if (results.errors.length > 0) {
+              setError(`CSV parsing error: ${results.errors[0].message}`)
+              return
+            }
+            
+            parsedRows = results.data
+            headers = Object.keys(parsedRows[0] || {})
+            processParseResults(headers, parsedRows)
+          },
+          error: (error) => {
+            setError(`Failed to parse CSV: ${error.message}`)
+            setImportProgress(null)
+          }
+        })
+      } else {
+        // Parse Excel
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target.result)
+            const workbook = XLSX.read(data, { type: 'array' })
+            const sheetName = workbook.SheetNames[0]
+            const worksheet = workbook.Sheets[sheetName]
+            
+            // Convert to JSON with header row
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+              header: 1,
+              defval: '',
+              blankrows: false
+            })
+            
+            if (jsonData.length < 2) {
+              setError('Excel file must have at least a header row and one data row')
+              setImportProgress(null)
+              return
+            }
+            
+            headers = jsonData[0]
+            const rows = jsonData.slice(1).filter(row => row.some(cell => cell !== ''))
+            
+            // Convert to object format
+            parsedRows = rows.map(row => {
+              const obj = {}
+              headers.forEach((header, index) => {
+                obj[header] = row[index] || ''
+              })
+              return obj
+            })
+            
+            processParseResults(headers, parsedRows)
+          } catch (err) {
+            setError(`Failed to parse Excel file: ${err.message}`)
+            setImportProgress(null)
+          }
+        }
+        reader.readAsArrayBuffer(file)
+      }
+    } catch (err) {
+      setError(`File processing error: ${err.message}`)
+      setImportProgress(null)
+    }
+  }
+
+  const processParseResults = (headers, rows) => {
+    setColumns(headers)
+    setParsedData(rows)
+    setPreviewData(rows.slice(0, 5)) // Show first 5 rows for preview
+    
+    // Generate automatic column mapping
+    const mapping = {}
+    console.log('🔍 Excel Headers Found:', headers)
+    
+    headers.forEach(col => {
+      const mappedField = fieldMappings[col] || fieldMappings[col.toUpperCase()]
+      if (mappedField) {
+        mapping[col] = mappedField
+        
+        // Debug REPORT OVERVIEW mapping
+        if (col.toUpperCase().includes('REPORT OVERVIEW') || col.toUpperCase().includes('OVERVIEW')) {
+          console.log('✅ REPORT OVERVIEW Column Mapped:', {
+            excelColumn: col,
+            mappedTo: mappedField,
+            availableInFieldMappings: !!fieldMappings[col]
+          })
+        }
+      } else {
+        // Debug unmapped columns
+        console.log('⚠️ Unmapped column:', col)
+      }
+    })
+    
+    console.log('🗺️ Final Column Mapping:', mapping)
+    setColumnMapping(mapping)
+    
+    setImportProgress({ status: 'completed', message: 'File parsed successfully', progress: 100 })
+    setShowPreview(true)
+    
+    // Auto-hide progress after 2 seconds
+    setTimeout(() => {
+      setImportProgress(null)
+    }, 2000)
   }
 
   const checkForDuplicates = async (file) => {
@@ -595,27 +877,106 @@ const Reports = () => {
   }
 
   const processImport = async () => {
-    if (!selectedFile) return
+    if (!parsedData || parsedData.length === 0) {
+      setError('No data to import. Please select and parse a file first.')
+      return
+    }
     
     try {
-      const formData = new FormData()
-      formData.append('file', selectedFile)
-      formData.append('duplicateHandling', duplicateHandling)
-      
       setIsImporting(true)
       setImportProgress({ 
+        status: 'processing', 
+        message: `Processing ${parsedData.length} reports...`,
+        progress: 25
+      })
+      
+      // Process data for import with HTML formatting
+      const processedReports = parsedData.map(row => {
+        const processedRow = {}
+        
+        Object.keys(columnMapping).forEach(excelCol => {
+          const dbField = columnMapping[excelCol]
+          let value = row[excelCol] || ''
+          
+          // Debug logging for REPORT OVERVIEW
+          if (excelCol.toUpperCase().includes('REPORT OVERVIEW') || excelCol.toUpperCase().includes('OVERVIEW')) {
+            console.log('🔍 Processing REPORT OVERVIEW:', {
+              excelColumn: excelCol,
+              dbField: dbField,
+              originalValue: value,
+              valueLength: value.length
+            })
+          }
+          
+          // Convert rich text fields to HTML
+          if (['reportDescription', 'tableOfContents', 'segment', 'companies', 'content'].includes(dbField)) {
+            const originalValue = value
+            value = convertToHTML(value)
+            
+            // Debug for rich text conversion
+            if (excelCol.toUpperCase().includes('REPORT OVERVIEW') || excelCol.toUpperCase().includes('OVERVIEW')) {
+              console.log('🔄 HTML Conversion for REPORT OVERVIEW:', {
+                original: originalValue.substring(0, 200),
+                converted: value.substring(0, 200),
+                dbField: dbField
+              })
+            }
+          }
+          
+          // Handle special field conversions
+          if (dbField === 'numberOfPages' && value) {
+            value = parseInt(value) || 1
+          }
+          
+          if (dbField === 'price' && value) {
+            value = parseFloat(value.toString().replace(/[^0-9.]/g, '')) || 0
+          }
+          
+          if (dbField === 'reportDate' && value) {
+            try {
+              value = new Date(value).toISOString()
+            } catch {
+              value = new Date().toISOString()
+            }
+          }
+          
+          processedRow[dbField] = value
+          
+          // Final debug for REPORT OVERVIEW
+          if (excelCol.toUpperCase().includes('REPORT OVERVIEW') || excelCol.toUpperCase().includes('OVERVIEW')) {
+            console.log('✅ Final REPORT OVERVIEW value:', {
+              dbField: dbField,
+              finalValue: value.substring(0, 200) + '...'
+            })
+          }
+        })
+        
+        // Set default values
+        processedRow.status = processedRow.status || 'draft'
+        processedRow.visibility = processedRow.visibility || 'public'
+        processedRow.reportType = processedRow.reportType || 'market-research'
+        processedRow.currency = processedRow.currency || 'USD'
+        processedRow.format = processedRow.format || 'pdf'
+        
+        return processedRow
+      })
+      
+      setImportProgress({ 
         status: 'uploading', 
-        message: `Uploading ${selectedFile.name}...`,
-        progress: 0
+        message: 'Sending data to server...',
+        progress: 50
       })
       
       const startTime = Date.now()
-      const result = await api.importReports(formData)
+      const result = await api.importReports({
+        reports: processedReports,
+        duplicateHandling: duplicateHandling
+      })
       const processingTime = ((Date.now() - startTime) / 1000).toFixed(1)
       
       setImportProgress({ 
         status: 'completed', 
-        message: 'Processing complete!',
+        message: 'Import completed!',
         progress: 100
       })
       
@@ -627,7 +988,7 @@ const Reports = () => {
           fileName: selectedFile.name,
           duplicateHandling
         })
-        setImportErrors(result.errors || [])
+        setImportErrors(result.errorDetails || [])
         
         loadReports() // Refresh the list
         
@@ -1066,6 +1427,12 @@ const Reports = () => {
                   setImportProgress(null)
                   setImportStats(null)
                   setImportErrors([])
+                  setParsedData([])
+                  setPreviewData([])
+                  setColumns([])
+                  setColumnMapping({})
+                  setShowPreview(false)
+                  setError('')
                 }}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
@@ -1173,6 +1540,97 @@ const Reports = () => {
                     </button>
                   </div>
 
+                  {/* Data Preview Section */}
+                  {showPreview && parsedData.length > 0 && (
+                    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <h3 className="font-medium text-blue-900 mb-4">
+                        Data Preview ({parsedData.length} rows total, showing first 5)
+                      </h3>
+                      
+                      {/* Column Mapping */}
+                      <div className="mb-4">
+                        <h4 className="text-sm font-medium text-blue-800 mb-2">Column Mapping:</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                          {columns.map((col, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <span className="font-medium text-blue-700">{col}</span>
+                              <span className="text-blue-600">→</span>
+                              <select
+                                value={columnMapping[col] || ''}
+                                onChange={(e) => setColumnMapping(prev => ({
+                                  ...prev,
+                                  [col]: e.target.value
+                                }))}
+                                className="text-xs px-2 py-1 border border-blue-300 rounded bg-white"
+                              >
+                                <option value="">Skip</option>
+                                <option value="title">Title</option>
+                                <option value="subTitle">Sub Title</option>
+                                <option value="reportDescription">Report Overview</option>
+                                <option value="tableOfContents">Table of Contents</option>
+                                <option value="category">Category</option>
+                                <option value="subCategory">Sub Category</option>
+                                <option value="segment">Segmentation</option>
+                                <option value="companies">Companies</option>
+                                <option value="author">Author</option>
+                                <option value="reportCode">Report Code</option>
+                                <option value="numberOfPages">Pages</option>
+                                <option value="reportDate">Date</option>
+                                <option value="region">Region</option>
+                                <option value="price">Price</option>
+                                <option value="titleTag">Title Tag</option>
+                                <option value="url">URL Slug</option>
+                                <option value="metaDescription">Meta Description</option>
+                                <option value="keywords">Keywords</option>
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      {/* Data Preview Table */}
+                      <div className="overflow-x-auto max-h-64 border border-blue-300 rounded">
+                        <table className="min-w-full text-xs">
+                          <thead className="bg-blue-100">
+                            <tr>
+                              {columns.map((col, index) => (
+                                <th key={index} className="px-2 py-1 text-left font-medium text-blue-800 border-r border-blue-300">
+                                  {col}
+                                  {columnMapping[col] && (
+                                    <div className="text-blue-600 font-normal">→ {columnMapping[col]}</div>
+                                  )}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white">
+                            {previewData.map((row, rowIndex) => (
+                              <tr key={rowIndex} className="border-b border-blue-200">
+                                {columns.map((col, colIndex) => (
+                                  <td key={colIndex} className="px-2 py-1 border-r border-blue-200 max-w-32 truncate" title={row[col]}>
+                                    {row[col] || '-'}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      
+                      {/* Format Preview */}
+                      {previewData.length > 0 && (
+                        <div className="mt-4 p-3 bg-white border border-blue-300 rounded">
+                          <h4 className="text-sm font-medium text-blue-800 mb-2">Formatting Preview:</h4>
+                          <div className="text-xs text-blue-700">
+                            <div><strong>Rich Text Fields:</strong> Report Overview, Segmentation, Companies will be converted to HTML</div>
+                            <div><strong>Example:</strong> Bullet points (•) → &lt;ul&gt;&lt;li&gt;...&lt;/li&gt;&lt;/ul&gt;</div>
+                            <div><strong>Headings:</strong> ALL CAPS or Title Case → &lt;h3&gt;...&lt;/h3&gt;</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* File Upload Area */}
                   <div
                     className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
@@ -1269,6 +1727,12 @@ const Reports = () => {
                         setShowImportModal(false)
                         setSelectedFile(null)
                         setImportProgress(null)
+                        setParsedData([])
+                        setPreviewData([])
+                        setColumns([])
+                        setColumnMapping({})
+                        setShowPreview(false)
+                        setError('')
                       }}
                       className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                       disabled={isImporting}
@@ -1277,18 +1741,18 @@ const Reports = () => {
                     </button>
                     <button
                       onClick={processImport}
-                      disabled={!selectedFile || isImporting}
+                      disabled={!parsedData || parsedData.length === 0 || isImporting || Object.keys(columnMapping).length === 0}
                       className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                     >
                       {isImporting ? (
                         <>
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Importing...
+                          Processing...
                         </>
                       ) : (
                         <>
                           <Upload className="w-4 h-4" />
-                          Start Import
+                          Import {parsedData.length || 0} Reports
                         </>
                       )}
                     </button>

@@ -153,7 +153,16 @@ class ApiClient {
     return this.request(`/api/reports/${id}`, { method: 'DELETE' })
   }
 
-  async importReports(formData) {
+  async importReports(data) {
+    // New streamlined import for processed Excel data
+    return this.request('/api/reports/import', {
+      method: 'POST',
+      body: data
+    })
+  }
+
+  async bulkUploadReports(formData) {
+    // Legacy bulk upload with file
     return this.request('/api/reports/bulk-upload', {
       method: 'POST',
       body: formData,
