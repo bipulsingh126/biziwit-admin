@@ -1,8 +1,8 @@
 import mongoose from 'mongoose'
 
 const InquirySchema = new mongoose.Schema({
-  inquiryNumber: { type: String, unique: true, index: true },
-  slug: { type: String, unique: true, lowercase: true, trim: true, index: true },
+  inquiryNumber: { type: String, unique: true },
+  slug: { type: String, unique: true, lowercase: true, trim: true },
   name: { type: String, required: true, trim: true },
   email: { type: String, required: true, lowercase: true, trim: true },
   phone: { type: String, trim: true },

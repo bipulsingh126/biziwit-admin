@@ -12,8 +12,7 @@ const categorySchema = new mongoose.Schema({
     required: true,
     unique: true,
     lowercase: true,
-    trim: true,
-    index: true
+    trim: true
   },
   description: {
     type: String,
@@ -65,6 +64,7 @@ const categorySchema = new mongoose.Schema({
 })
 
 // Create compound index for subcategory slugs within a category
+// Note: main slug index is automatically created by unique: true constraint
 categorySchema.index({ 'subcategories.slug': 1, slug: 1 })
 
 // Text index for search

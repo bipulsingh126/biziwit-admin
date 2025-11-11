@@ -14,7 +14,7 @@ const FileSchema = new mongoose.Schema({
 
 const MegatrendSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
-  slug: { type: String, required: true, unique: true, lowercase: true, index: true },
+  slug: { type: String, required: true, unique: true, lowercase: true },
   summary: { type: String, trim: true },
   content: { type: String }, // HTML or rich text JSON string
   heroImage: ImageSchema,

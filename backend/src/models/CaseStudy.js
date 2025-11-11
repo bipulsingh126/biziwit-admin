@@ -92,7 +92,7 @@ caseStudySchema.index({ status: 1 })
 caseStudySchema.index({ publishDate: -1 })
 caseStudySchema.index({ authorName: 1 })
 caseStudySchema.index({ homePageVisibility: 1 })
-caseStudySchema.index({ slug: 1 }) // Index for slug-based queries
+// Note: slug index is automatically created by unique: true constraint
 
 // Virtual for excerpt
 caseStudySchema.virtual('excerpt').get(function() {

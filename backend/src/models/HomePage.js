@@ -113,9 +113,7 @@ const homePageSchema = new mongoose.Schema({
 })
 
 // Indexes for better performance
-homePageSchema.index({ slug: 1 })
-homePageSchema.index({ 'banners.slug': 1 })
-homePageSchema.index({ 'megatrends.slug': 1 })
+// Note: slug indexes are automatically created by unique: true constraints
 homePageSchema.index({ isActive: 1 })
 
 // Text search index

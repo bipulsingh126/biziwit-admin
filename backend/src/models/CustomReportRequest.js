@@ -2,7 +2,7 @@ import mongoose from 'mongoose'
 
 const CustomReportRequestSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  slug: { type: String, unique: true, lowercase: true, trim: true, index: true },
+  slug: { type: String, unique: true, lowercase: true, trim: true },
   email: { type: String, required: true, index: true },
   company: { type: String, required: true },
   industry: { type: String, required: true },

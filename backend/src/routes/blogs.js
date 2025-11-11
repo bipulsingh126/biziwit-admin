@@ -43,7 +43,7 @@ const upload = multer({
 });
 
 // Get all blogs with pagination, search, and filters
-router.get('/', authenticate, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const {
       q = '',
@@ -140,8 +140,8 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
-// Get single blog by slug
-router.get('/by-slug/:slug', authenticate, async (req, res) => {
+// Get single blog by slug (public access)
+router.get('/by-slug/:slug', async (req, res) => {
   try {
     const blog = await Blog.findOne({ slug: req.params.slug });
     
@@ -155,6 +155,38 @@ router.get('/by-slug/:slug', authenticate, async (req, res) => {
     res.json({
       success: true,
       data: blog
+    });
+  } catch (error) {
+    console.error('Error fetching blog by slug:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch blog',
+      error: error.message
+    });
+  }
+});
+
+// Public blog access by slug (SEO-friendly URL)
+router.get('/slug/:slug', async (req, res) => {
+  try {
+    const blog = await Blog.findOne({ 
+      slug: req.params.slug,
+      status: 'published' // Only show published blogs for public access
+    });
+    
+    if (!blog) {
+      return res.status(404).json({
+        success: false,
+        message: 'Blog not found'
+      });
+    }
+
+    // Increment view count for public access
+    await Blog.findByIdAndUpdate(blog._id, { $inc: { views: 1 } });
+
+    res.json({
+      success: true,
+      blog: blog
     });
   } catch (error) {
     console.error('Error fetching blog by slug:', error);

@@ -7,7 +7,7 @@ const ImageSchema = new mongoose.Schema({
 
 const PostSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
-  slug: { type: String, required: true, unique: true, lowercase: true, index: true },
+  slug: { type: String, required: true, unique: true, lowercase: true },
   type: { type: String, enum: ['blog', 'news'], default: 'blog', index: true },
   excerpt: { type: String, trim: true },
   content: { type: String }, // HTML or rich text JSON string

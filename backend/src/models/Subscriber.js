@@ -1,8 +1,8 @@
 import mongoose from 'mongoose'
 
 const SubscriberSchema = new mongoose.Schema({
-  email: { type: String, required: true, lowercase: true, trim: true, unique: true, index: true },
-  slug: { type: String, unique: true, lowercase: true, trim: true, index: true },
+  email: { type: String, required: true, lowercase: true, trim: true, unique: true },
+  slug: { type: String, unique: true, lowercase: true, trim: true },
   name: { type: String, trim: true },
   source: { type: String, trim: true },
   status: { type: String, enum: ['subscribed', 'unsubscribed'], default: 'subscribed', index: true },

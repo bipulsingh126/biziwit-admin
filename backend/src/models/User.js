@@ -3,8 +3,8 @@ import bcrypt from 'bcrypt'
 
 const UserSchema = new mongoose.Schema({
   name: { type: String, trim: true },
-  slug: { type: String, unique: true, lowercase: true, trim: true, index: true, sparse: true },
-  email: { type: String, required: true, unique: true, lowercase: true, index: true },
+  slug: { type: String, unique: true, lowercase: true, trim: true, sparse: true },
+  email: { type: String, required: true, unique: true, lowercase: true },
   password: { type: String, required: true },
   role: { type: String, enum: ['super_admin', 'admin', 'editor'], default: 'editor', index: true },
   permissions: {

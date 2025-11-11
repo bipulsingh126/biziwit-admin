@@ -97,8 +97,7 @@ blogSchema.index({ title: 'text', content: 'text', authorName: 'text', keywords:
 blogSchema.index({ status: 1 });
 blogSchema.index({ publishDate: -1 });
 blogSchema.index({ authorName: 1 });
-blogSchema.index({ slug: 1 }); // Index for slug-based queries
-// Note: url and slug indexes are automatically created by unique: true constraint
+// Note: slug and url indexes are automatically created by unique: true constraint
 blogSchema.index({ createdAt: -1 });
 
 // Helper function to generate slug

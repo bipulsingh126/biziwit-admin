@@ -28,8 +28,8 @@ const CustomerSchema = new mongoose.Schema({
 }, { _id: false })
 
 const OrderSchema = new mongoose.Schema({
-  number: { type: String, unique: true, index: true },
-  slug: { type: String, unique: true, lowercase: true, trim: true, index: true },
+  number: { type: String, unique: true },
+  slug: { type: String, unique: true, lowercase: true, trim: true },
   items: { type: [OrderItemSchema], default: [] },
   subtotal: { type: Number, required: true, min: 0 },
   tax: { type: Number, default: 0 },
