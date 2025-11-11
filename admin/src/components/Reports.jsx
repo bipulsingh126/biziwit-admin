@@ -557,98 +557,128 @@ const Reports = () => {
     
     let html = text.trim()
     
+    // Clean up Excel formatting
+    html = html.replace(/\t/g, ' ') // Replace tabs with spaces
+    html = html.replace(/\r/g, '') // Remove carriage returns
+    
     // Handle different bullet point styles from Excel
     html = html.replace(/^[•·▪▫◦‣⁃]\s*/gm, '• ')
     html = html.replace(/^[-*]\s*/gm, '• ')
-    html = html.replace(/^o\s+/gm, '• ') // Handle 'o' bullets
     html = html.replace(/^\u2022\s*/gm, '• ') // Unicode bullet
+    html = html.replace(/^\s*•\s*/gm, '• ') // Clean up bullet spacing
     
     // Handle numbered lists from Excel
     html = html.replace(/^(\d+)[\.\)]\s*/gm, '$1. ')
     
-    // Convert line breaks to proper HTML structure
-    const lines = html.split(/\r?\n/).filter(line => line.trim())
-    let formattedLines = []
-    let inList = false
-    let inNumberedList = false
+    // Split into paragraphs by double line breaks first
+    let paragraphs = html.split(/\n\s*\n/).filter(para => para.trim())
     
-    lines.forEach((line, index) => {
-      const trimmedLine = line.trim()
+    // If no double line breaks, treat as single content block
+    if (paragraphs.length === 1) {
+      paragraphs = [html]
+    }
+    
+    let allFormattedLines = []
+    
+    paragraphs.forEach((paragraph, paraIndex) => {
+      const lines = paragraph.split(/\n/).filter(line => line.trim())
+      let formattedLines = []
+      let inList = false
+      let inNumberedList = false
       
-      if (!trimmedLine) return
-      
-      // Handle numbered lists (1. 2. 3.)
-      if (trimmedLine.match(/^\d+\.\s/)) {
-        if (inList && !inNumberedList) {
-          formattedLines.push('</ul>')
-          inList = false
-        }
-        if (!inNumberedList) {
-          formattedLines.push('<ol>')
-          inNumberedList = true
-        }
-        const content = trimmedLine.replace(/^\d+\.\s*/, '')
-        formattedLines.push(`<li>${content}</li>`)
-      }
-      // Handle bullet points
-      else if (trimmedLine.startsWith('•') || trimmedLine.match(/^[-*]\s/)) {
-        if (inNumberedList) {
-          formattedLines.push('</ol>')
-          inNumberedList = false
-        }
-        if (!inList) {
-          formattedLines.push('<ul>')
-          inList = true
-        }
-        const content = trimmedLine.replace(/^[•\-*]\s*/, '')
-        formattedLines.push(`<li>${content}</li>`)
-      } else {
-        // Close any open lists
-        if (inList) {
-          formattedLines.push('</ul>')
-          inList = false
-        }
-        if (inNumberedList) {
-          formattedLines.push('</ol>')
-          inNumberedList = false
-        }
+      lines.forEach((line, index) => {
+        const trimmedLine = line.trim()
         
-        // Check if it looks like a heading
-        const isHeading = (
-          trimmedLine.length < 80 && 
-          (
-            trimmedLine === trimmedLine.toUpperCase() || // ALL CAPS
-            (trimmedLine.split(' ').length <= 6 && // Short title
-             trimmedLine.split(' ').every(word => word.length > 0 && word[0] === word[0].toUpperCase())) || // Title Case
-            trimmedLine.endsWith(':') // Ends with colon
-          )
-        )
+        if (!trimmedLine) return
         
-        if (isHeading) {
-          formattedLines.push(`<h3>${trimmedLine.replace(/:$/, '')}</h3>`)
+        // Handle numbered lists (1. 2. 3.)
+        if (trimmedLine.match(/^\d+\.\s/)) {
+          if (inList && !inNumberedList) {
+            formattedLines.push('</ul>')
+            inList = false
+          }
+          if (!inNumberedList) {
+            formattedLines.push('<ol>')
+            inNumberedList = true
+          }
+          const content = trimmedLine.replace(/^\d+\.\s*/, '')
+          formattedLines.push(`<li>${content}</li>`)
+        }
+        // Handle bullet points
+        else if (trimmedLine.startsWith('•') || trimmedLine.match(/^[-*]\s/)) {
+          if (inNumberedList) {
+            formattedLines.push('</ol>')
+            inNumberedList = false
+          }
+          if (!inList) {
+            formattedLines.push('<ul>')
+            inList = true
+          }
+          const content = trimmedLine.replace(/^[•\-*]\s*/, '')
+          formattedLines.push(`<li>${content}</li>`)
         } else {
-          formattedLines.push(`<p>${trimmedLine}</p>`)
+          // Close any open lists
+          if (inList) {
+            formattedLines.push('</ul>')
+            inList = false
+          }
+          if (inNumberedList) {
+            formattedLines.push('</ol>')
+            inNumberedList = false
+          }
+          
+          // Check if it looks like a heading
+          const isHeading = (
+            trimmedLine.length < 100 && 
+            (
+              trimmedLine === trimmedLine.toUpperCase() || // ALL CAPS
+              trimmedLine.endsWith(':') || // Ends with colon
+              (trimmedLine.split(' ').length <= 8 && // Short title
+               trimmedLine.split(' ').every(word => word.length > 0 && word[0] === word[0].toUpperCase())) // Title Case
+            )
+          )
+          
+          if (isHeading) {
+            formattedLines.push(`<h3>${trimmedLine.replace(/:$/, '')}</h3>`)
+          } else {
+            // For long content, combine multiple lines into paragraphs
+            const isLongContent = trimmedLine.length > 50
+            if (isLongContent || formattedLines.length === 0 || formattedLines[formattedLines.length - 1].startsWith('<')) {
+              formattedLines.push(`<p>${trimmedLine}</p>`)
+            } else {
+              // Combine with previous paragraph
+              const lastIndex = formattedLines.length - 1
+              if (formattedLines[lastIndex].startsWith('<p>')) {
+                formattedLines[lastIndex] = formattedLines[lastIndex].replace('</p>', ` ${trimmedLine}</p>`)
+              } else {
+                formattedLines.push(`<p>${trimmedLine}</p>`)
+              }
+            }
+          }
         }
+      })
+      
+      // Close any remaining open lists
+      if (inList) {
+        formattedLines.push('</ul>')
       }
+      if (inNumberedList) {
+        formattedLines.push('</ol>')
+      }
+      
+      allFormattedLines.push(...formattedLines)
     })
     
-    // Close any remaining open lists
-    if (inList) {
-      formattedLines.push('</ul>')
-    }
-    if (inNumberedList) {
-      formattedLines.push('</ol>')
-    }
-    
     // Sanitize HTML to ensure safety
-    const result = sanitizeHtml(formattedLines.join('\n'), {
+    const result = sanitizeHtml(allFormattedLines.join('\n'), {
       allowedTags: ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'strong', 'em', 'br', 'div'],
       allowedAttributes: {}
     })
     
     console.log('🔄 Converting Excel text to HTML:', {
       original: text.substring(0, 100) + '...',
-      converted: result.substring(0, 200) + '...'
+      converted: result.substring(0, 200) + '...',
+      hasHTML: result.includes('<')
     })
     
     return result
@@ -666,6 +696,14 @@ const Reports = () => {
     'REPORT OVERVIEW': 'reportDescription',
     'Overview': 'reportDescription',
     'Description': 'reportDescription',
+    'Report Description': 'reportDescription',
+    'REPORT DESCRIPTION': 'reportDescription',
+    'Content': 'reportDescription',
+    'CONTENT': 'reportDescription',
+    'Summary': 'reportDescription',
+    'SUMMARY': 'reportDescription',
+    'Executive Summary': 'reportDescription',
+    'EXECUTIVE SUMMARY': 'reportDescription',
     'Table of Contents': 'tableOfContents',
     'TABLE OF CONTENTS': 'tableOfContents',
     'TOC': 'tableOfContents',

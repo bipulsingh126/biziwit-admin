@@ -37,9 +37,115 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
 
   useEffect(() => {
     if (editorRef.current && value !== editorRef.current.innerHTML) {
-      editorRef.current.innerHTML = value || ''
+      const newValue = value || ''
+      
+      // If content doesn't have HTML tags, convert it to proper HTML format
+      if (newValue && !newValue.includes('<') && newValue.length > 100) {
+        const formattedHTML = convertPlainTextToHTML(newValue)
+        editorRef.current.innerHTML = formattedHTML
+      } 
+      // If content is one big paragraph, try to reformat it
+      else if (newValue && newValue.startsWith('<p>') && !newValue.includes('</p><p>') && newValue.length > 500) {
+        const textContent = newValue.replace(/<\/?p>/g, '')
+        const formattedHTML = convertPlainTextToHTML(textContent)
+        editorRef.current.innerHTML = formattedHTML
+      } else {
+        editorRef.current.innerHTML = newValue
+      }
     }
   }, [value])
+
+  // Convert plain text to HTML format
+  const convertPlainTextToHTML = (text) => {
+    if (!text || typeof text !== 'string') return ''
+    
+    let html = text.trim()
+    
+    // Clean up formatting
+    html = html.replace(/\t/g, ' ')
+    html = html.replace(/\r/g, '')
+    
+    // Handle bullet points that might be mixed in with text
+    html = html.replace(/([.!?])\s*([•·▪▫◦‣⁃])\s*/g, '$1\n$2 ')
+    html = html.replace(/([.!?])\s*([-*])\s+([A-Z])/g, '$1\n$2 $3')
+    
+    // Split paragraphs by looking for sentence endings followed by capital letters
+    html = html.replace(/([.!?])\s+([A-Z][a-z])/g, '$1\n\n$2')
+    
+    // Handle section headings (text ending with colon)
+    html = html.replace(/([.!?])\s+([A-Z][^.!?]*:)\s*/g, '$1\n\n$2\n')
+    
+    // Handle bullet points
+    html = html.replace(/^[•·▪▫◦‣⁃]\s*/gm, '• ')
+    html = html.replace(/^[-*]\s*/gm, '• ')
+    html = html.replace(/^\u2022\s*/gm, '• ')
+    
+    // Split into paragraphs by double line breaks first
+    let paragraphs = html.split(/\n\s*\n/).filter(para => para.trim())
+    
+    // If no paragraphs found, try to split by sentence patterns
+    if (paragraphs.length === 1) {
+      paragraphs = html.split(/(?<=[.!?])\s+(?=[A-Z])/).filter(para => para.trim())
+    }
+    
+    let allFormattedLines = []
+    
+    paragraphs.forEach((paragraph, paraIndex) => {
+      const lines = paragraph.split(/\n/).filter(line => line.trim())
+      let formattedLines = []
+      let inList = false
+      
+      lines.forEach((line, index) => {
+        const trimmedLine = line.trim()
+        
+        if (!trimmedLine) return
+        
+        // Handle bullet points
+        if (trimmedLine.startsWith('•') || trimmedLine.match(/^[-*]\s/)) {
+          if (!inList) {
+            formattedLines.push('<ul>')
+            inList = true
+          }
+          const content = trimmedLine.replace(/^[•\-*]\s*/, '')
+          formattedLines.push(`<li>${content}</li>`)
+        } else {
+          // Close list if needed
+          if (inList) {
+            formattedLines.push('</ul>')
+            inList = false
+          }
+          
+          // Check if it's a heading
+          const isHeading = (
+            trimmedLine.length < 100 && 
+            (
+              trimmedLine.endsWith(':') ||
+              trimmedLine === trimmedLine.toUpperCase() ||
+              (trimmedLine.split(' ').length <= 10 && 
+               trimmedLine.includes('Market') || trimmedLine.includes('Report') || 
+               trimmedLine.includes('Application') || trimmedLine.includes('Region') ||
+               trimmedLine.includes('Takeaways'))
+            )
+          )
+          
+          if (isHeading) {
+            formattedLines.push(`<h3>${trimmedLine.replace(/:$/, '')}</h3>`)
+          } else {
+            formattedLines.push(`<p>${trimmedLine}</p>`)
+          }
+        }
+      })
+      
+      // Close any remaining list
+      if (inList) {
+        formattedLines.push('</ul>')
+      }
+      
+      allFormattedLines.push(...formattedLines)
+    })
+    
+    return allFormattedLines.join('\n')
+  }
 
   // Close dropdowns when clicking outside and handle keyboard shortcuts
   useEffect(() => {
@@ -773,6 +879,13 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
           color: #9ca3af;
         }
         
+        /* Ensure HTML elements render properly */
+        [contenteditable] {
+          line-height: 1.6;
+          font-size: 14px;
+          color: #374151;
+        }
+        
         [contenteditable] h1 {
           font-size: 2em;
           font-weight: bold;
@@ -812,14 +925,30 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
         [contenteditable] ul, [contenteditable] ol {
           margin: 1em 0;
           padding-left: 2em;
+          list-style-type: disc;
+        }
+        
+        [contenteditable] ol {
+          list-style-type: decimal;
         }
         
         [contenteditable] li {
           margin: 0.5em 0;
+          display: list-item;
         }
         
         [contenteditable] p {
           margin: 1em 0;
+          line-height: 1.6;
+          text-align: justify;
+        }
+        
+        [contenteditable] p:first-child {
+          margin-top: 0;
+        }
+        
+        [contenteditable] p:last-child {
+          margin-bottom: 0;
         }
         
         [contenteditable] a {
