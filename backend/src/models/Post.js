@@ -32,13 +32,19 @@ const PostSchema = new mongoose.Schema({
 
 // Pre-save middleware to generate slug
 PostSchema.pre('save', function(next) {
-  if (!this.slug && this.title) {
-    this.slug = this.title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim('-')
+  // Generate slug if it's empty or if title changed and slug wasn't manually set
+  if (!this.slug || (this.isModified('title') && !this.isModified('slug'))) {
+    if (this.title) {
+      this.slug = this.title
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .trim('-')
+    } else {
+      // Fallback if no title
+      this.slug = `post-${Date.now()}`
+    }
   }
   next()
 })

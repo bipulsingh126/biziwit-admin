@@ -354,14 +354,11 @@ router.post('/', async (req, res, next) => {
       })
     }
 
-    // Generate unique slug
-    const slug = await generateUniqueSlug(title)
-
     // Clean and prepare data
     const reportData = {
       title: title.trim(),
       subTitle: subTitle?.trim() || '',
-      slug,
+      // Let the model generate the slug automatically
       summary: summary?.trim() || '',
       content: content || '',
       category: category?.trim() || '',
@@ -506,21 +503,7 @@ router.patch('/by-slug/:slug', async (req, res, next) => {
     delete updateData.updatedAt
     delete updateData.__v
 
-    // If title is being updated, regenerate slug
-    if (updateData.title && updateData.title.trim()) {
-      const currentReport = await Report.findOne({ slug }).lean()
-      if (!currentReport) {
-        return res.status(404).json({
-          error: 'Not Found',
-          message: 'Report not found'
-        })
-      }
-
-      // Only regenerate slug if title actually changed
-      if (updateData.title.trim() !== currentReport.title) {
-        updateData.slug = await generateUniqueSlug(updateData.title.trim())
-      }
-    }
+    // Let the model handle slug generation automatically when title changes
 
     // Update lastUpdated
     updateData.lastUpdated = new Date()
@@ -591,13 +574,7 @@ router.patch('/:id', async (req, res, next) => {
       })
     }
 
-    // If title is being updated, regenerate slug
-    if (updateData.title && updateData.title.trim()) {
-      // Only regenerate slug if title actually changed
-      if (updateData.title.trim() !== currentReport.title) {
-        updateData.slug = await generateUniqueSlug(updateData.title.trim())
-      }
-    }
+    // Let the model handle slug generation automatically when title changes
 
     // Update lastUpdated
     updateData.lastUpdated = new Date()

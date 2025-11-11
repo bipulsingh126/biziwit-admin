@@ -280,15 +280,21 @@ reportSchema.index({ trendingReportForHomePage: 1 })
 
 // Auto-generate slug from title
 reportSchema.pre('save', function (next) {
-  if (this.isModified('title') && !this.slug) {
-    this.slug = this.title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
+  // Generate slug if it's empty or if title changed and we want to update slug
+  if (!this.slug || (this.isModified('title') && !this.isModified('slug'))) {
+    if (this.title) {
+      this.slug = this.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+    } else {
+      // Fallback if no title
+      this.slug = `report-${Date.now()}`
+    }
   }
 
   // Auto-generate report code if not provided
-  if (this.isModified('title') && !this.reportCode) {
+  if (!this.reportCode) {
     const prefix = 'RPT'
     const timestamp = Date.now().toString().slice(-6)
     this.reportCode = `${prefix}${timestamp}`
