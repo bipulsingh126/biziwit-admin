@@ -1,47 +1,15 @@
 import express from 'express'
 import CaseStudy from '../models/CaseStudy.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
-import multer from 'multer'
-import path from 'path'
-import fs from 'fs'
-import { fileURLToPath } from 'url'
-import { dirname } from 'path'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+import { 
+  caseStudyUpload, 
+  handleImageUploadResponse, 
+  handleUploadError,
+  deleteImageFile,
+  generateImageUrl 
+} from '../utils/imageUpload.js'
 
 const router = express.Router()
-
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(process.cwd(), 'uploads', 'case-studies')
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true })
-    }
-    cb(null, uploadDir)
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-    cb(null, `case-study-${uniqueSuffix}${path.extname(file.originalname)}`)
-  }
-})
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|webp/
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase())
-    const mimetype = allowedTypes.test(file.mimetype)
-    
-    if (mimetype && extname) {
-      return cb(null, true)
-    } else {
-      cb(new Error('Only image files are allowed'))
-    }
-  }
-})
 
 // Get all case studies with pagination, search, and filters
 router.get('/', async (req, res) => {
@@ -308,77 +276,47 @@ router.delete('/:id', authenticate, requireRole('super_admin', 'admin'), async (
 })
 
 // Upload case study image by slug
-router.post('/by-slug/:slug/image', authenticate, requireRole('super_admin', 'admin', 'editor'), upload.single('file'), async (req, res) => {
+router.post('/by-slug/:slug/image', authenticate, requireRole('super_admin', 'admin', 'editor'), caseStudyUpload.single('file'), async (req, res) => {
   try {
     console.log('🚀 Starting case study image upload for slug:', req.params.slug)
-    
-    if (!req.file) {
-      console.log('❌ No file uploaded')
-      return res.status(400).json({ error: 'No file uploaded' })
-    }
-    
-    console.log('📸 File details:', {
-      filename: req.file.filename,
-      size: req.file.size,
-      mimetype: req.file.mimetype
-    })
     
     const caseStudy = await CaseStudy.findOne({ slug: req.params.slug })
     if (!caseStudy) {
       console.log('❌ Case study not found')
-      return res.status(404).json({ error: 'Case study not found' })
-    }
-    
-    const imageUrl = `/uploads/case-studies/${req.file.filename}`
-    console.log('🖼️ Generated image URL:', imageUrl)
-    
-    // Verify file exists on disk
-    const filePath = path.join(process.cwd(), 'uploads', 'case-studies', req.file.filename)
-    if (!fs.existsSync(filePath)) {
-      console.log('❌ File not found on disk:', filePath)
-      return res.status(500).json({ error: 'File upload failed - file not saved' })
+      return res.status(404).json({ 
+        success: false,
+        error: 'Case study not found' 
+      })
     }
     
     // Delete old image if exists
     if (caseStudy.mainImage) {
-      const oldImagePath = path.join(process.cwd(), 'uploads', 'case-studies', path.basename(caseStudy.mainImage))
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath)
-        console.log('🗑️ Deleted old image:', oldImagePath)
-      }
+      const oldFilename = caseStudy.mainImage.split('/').pop();
+      deleteImageFile('case-studies', oldFilename);
     }
     
+    // Generate new image URL
+    const imageUrl = generateImageUrl('case-studies', req.file.filename);
+    
     // Update mainImage in database
-    caseStudy.mainImage = imageUrl
-    await caseStudy.save()
+    caseStudy.mainImage = imageUrl;
+    await caseStudy.save();
     
     console.log('💾 Updated case study with image URL:', imageUrl)
     console.log('✅ Image upload completed successfully')
     
-    res.json({ 
-      success: true,
-      message: 'Image uploaded successfully',
-      imageUrl: imageUrl,
-      fullUrl: `http://localhost:4000${imageUrl}`,
-      fileInfo: {
-        filename: req.file.filename,
-        size: req.file.size,
-        mimetype: req.file.mimetype
-      }
-    })
+    // Use centralized response handler
+    handleImageUploadResponse(req, res, 'case-studies');
   } catch (error) {
-    console.error('❌ Error uploading image:', error)
+    console.error('❌ Error uploading case study image:', error)
     
     // Clean up uploaded file if database save fails
     if (req.file) {
-      const filePath = path.join(process.cwd(), 'uploads', 'case-studies', req.file.filename)
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath)
-        console.log('🗑️ Cleaned up failed upload file')
-      }
+      deleteImageFile('case-studies', req.file.filename);
     }
     
     res.status(500).json({ 
+      success: false,
       error: 'Failed to upload image',
       details: error.message 
     })
@@ -386,20 +324,9 @@ router.post('/by-slug/:slug/image', authenticate, requireRole('super_admin', 'ad
 })
 
 // Upload case study image by ID (legacy support)
-router.post('/:id/image', authenticate, requireRole('super_admin', 'admin', 'editor'), upload.single('file'), async (req, res) => {
+router.post('/:id/image', authenticate, requireRole('super_admin', 'admin', 'editor'), caseStudyUpload.single('file'), async (req, res) => {
   try {
     console.log('🚀 Starting case study image upload for ID:', req.params.id)
-    
-    if (!req.file) {
-      console.log('❌ No file uploaded')
-      return res.status(400).json({ error: 'No file uploaded' })
-    }
-    
-    console.log('📸 File details:', {
-      filename: req.file.filename,
-      size: req.file.size,
-      mimetype: req.file.mimetype
-    })
     
     const { id } = req.params
     
@@ -411,59 +338,40 @@ router.post('/:id/image', authenticate, requireRole('super_admin', 'admin', 'edi
     }
     if (!caseStudy) {
       console.log('❌ Case study not found')
-      return res.status(404).json({ error: 'Case study not found' })
-    }
-    
-    const imageUrl = `/uploads/case-studies/${req.file.filename}`
-    console.log('🖼️ Generated image URL:', imageUrl)
-    
-    // Verify file exists on disk
-    const filePath = path.join(process.cwd(), 'uploads', 'case-studies', req.file.filename)
-    if (!fs.existsSync(filePath)) {
-      console.log('❌ File not found on disk:', filePath)
-      return res.status(500).json({ error: 'File upload failed - file not saved' })
+      return res.status(404).json({ 
+        success: false,
+        error: 'Case study not found' 
+      })
     }
     
     // Delete old image if exists
     if (caseStudy.mainImage) {
-      const oldImagePath = path.join(process.cwd(), 'uploads', 'case-studies', path.basename(caseStudy.mainImage))
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath)
-        console.log('🗑️ Deleted old image:', oldImagePath)
-      }
+      const oldFilename = caseStudy.mainImage.split('/').pop();
+      deleteImageFile('case-studies', oldFilename);
     }
     
+    // Generate new image URL
+    const imageUrl = generateImageUrl('case-studies', req.file.filename);
+    
     // Update mainImage in database
-    caseStudy.mainImage = imageUrl
-    await caseStudy.save()
+    caseStudy.mainImage = imageUrl;
+    await caseStudy.save();
     
     console.log('💾 Updated case study with image URL:', imageUrl)
     console.log('✅ Image upload completed successfully')
     
-    res.json({ 
-      success: true,
-      message: 'Image uploaded successfully',
-      imageUrl: imageUrl,
-      fullUrl: `http://localhost:4000${imageUrl}`,
-      fileInfo: {
-        filename: req.file.filename,
-        size: req.file.size,
-        mimetype: req.file.mimetype
-      }
-    })
+    // Use centralized response handler
+    handleImageUploadResponse(req, res, 'case-studies');
   } catch (error) {
-    console.error('❌ Error uploading image:', error)
+    console.error('❌ Error uploading case study image:', error)
     
     // Clean up uploaded file if database save fails
     if (req.file) {
-      const filePath = path.join(process.cwd(), 'uploads', 'case-studies', req.file.filename)
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath)
-        console.log('🗑️ Cleaned up failed upload file')
-      }
+      deleteImageFile('case-studies', req.file.filename);
     }
     
     res.status(500).json({ 
+      success: false,
       error: 'Failed to upload image',
       details: error.message 
     })

@@ -52,6 +52,7 @@ const allowedOrigins = [
   'http://localhost:3001',
   'https://admin.bizwitresearch.com',
   'https://bizwitresearch.com',
+  'https://api.bizwitresearch.com',
   process.env.FRONTEND_URL,
   process.env.ADMIN_URL
 ].filter(Boolean) // Remove undefined values
@@ -319,8 +320,34 @@ app.use((req, res) => {
   })
 })
 
-// Error handler
+// Image upload error handler
 app.use((err, req, res, next) => {
+  // Handle multer errors specifically
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({
+      success: false,
+      error: 'File too large',
+      message: 'The uploaded file exceeds the maximum allowed size'
+    });
+  }
+  
+  if (err.code === 'LIMIT_FILE_COUNT') {
+    return res.status(400).json({
+      success: false,
+      error: 'Too many files',
+      message: 'Maximum number of files exceeded'
+    });
+  }
+  
+  if (err.message && err.message.includes('Only image files are allowed')) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid file type',
+      message: 'Only image files are allowed'
+    });
+  }
+  
+  // General error handler
   console.error('Error occurred:', err)
   res.status(err.status || 500).json({
     success: false,

@@ -1,46 +1,16 @@
 import express from 'express';
 import Blog from '../models/Blog.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import XLSX from 'xlsx';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { 
+  blogUpload, 
+  handleImageUploadResponse, 
+  handleUploadError,
+  deleteImageFile,
+  generateImageUrl 
+} from '../utils/imageUpload.js';
 
 const router = express.Router();
-
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = 'uploads/blogs';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'blog-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed!'), false);
-    }
-  }
-});
 
 // Get all blogs with pagination, search, and filters
 router.get('/', async (req, res) => {
@@ -366,10 +336,8 @@ router.delete('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin'
 
     // Delete associated image file if exists
     if (blog.mainImage && !blog.mainImage.startsWith('http')) {
-      const imagePath = path.join(__dirname, '../../', blog.mainImage);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
-      }
+      const filename = blog.mainImage.split('/').pop();
+      deleteImageFile('blogs', filename);
     }
 
     res.json({
@@ -410,10 +378,8 @@ router.delete('/:id', authenticate, requireRole('super_admin', 'admin'), async (
 
     // Delete associated image file if exists
     if (blog.mainImage && !blog.mainImage.startsWith('http')) {
-      const imagePath = path.join(__dirname, '../../', blog.mainImage);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
-      }
+      const filename = blog.mainImage.split('/').pop();
+      deleteImageFile('blogs', filename);
     }
 
     res.json({
@@ -431,77 +397,47 @@ router.delete('/:id', authenticate, requireRole('super_admin', 'admin'), async (
 });
 
 // Upload blog cover image by slug
-router.post('/by-slug/:slug/cover', authenticate, requireRole('super_admin', 'admin', 'editor'), upload.single('file'), async (req, res) => {
+router.post('/by-slug/:slug/cover', authenticate, requireRole('super_admin', 'admin', 'editor'), blogUpload.single('file'), async (req, res) => {
   try {
     console.log('🚀 Starting blog cover image upload for slug:', req.params.slug)
-    
-    if (!req.file) {
-      console.log('❌ No file uploaded')
-      return res.status(400).json({ error: 'No file uploaded' })
-    }
-    
-    console.log('📸 File details:', {
-      filename: req.file.filename,
-      size: req.file.size,
-      mimetype: req.file.mimetype
-    })
     
     const blog = await Blog.findOne({ slug: req.params.slug })
     if (!blog) {
       console.log('❌ Blog not found')
-      return res.status(404).json({ error: 'Blog not found' })
-    }
-    
-    const imageUrl = `/uploads/blogs/${req.file.filename}`
-    console.log('🖼️ Generated image URL:', imageUrl)
-    
-    // Verify file exists on disk
-    const filePath = path.join(process.cwd(), 'uploads', 'blogs', req.file.filename)
-    if (!fs.existsSync(filePath)) {
-      console.log('❌ File not found on disk:', filePath)
-      return res.status(500).json({ error: 'File upload failed - file not saved' })
+      return res.status(404).json({ 
+        success: false,
+        error: 'Blog not found' 
+      })
     }
     
     // Delete old image if exists
     if (blog.mainImage) {
-      const oldImagePath = path.join(process.cwd(), 'uploads', 'blogs', path.basename(blog.mainImage))
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath)
-        console.log('🗑️ Deleted old image:', oldImagePath)
-      }
+      const oldFilename = blog.mainImage.split('/').pop();
+      deleteImageFile('blogs', oldFilename);
     }
     
+    // Generate new image URL
+    const imageUrl = generateImageUrl('blogs', req.file.filename);
+    
     // Update mainImage in database
-    blog.mainImage = imageUrl
-    await blog.save()
+    blog.mainImage = imageUrl;
+    await blog.save();
     
     console.log('💾 Updated blog with image URL:', imageUrl)
     console.log('✅ Image upload completed successfully')
     
-    res.json({ 
-      success: true,
-      message: 'Image uploaded successfully',
-      imageUrl: imageUrl,
-      fullUrl: `http://localhost:4000${imageUrl}`,
-      fileInfo: {
-        filename: req.file.filename,
-        size: req.file.size,
-        mimetype: req.file.mimetype
-      }
-    })
+    // Use centralized response handler
+    handleImageUploadResponse(req, res, 'blogs');
   } catch (error) {
-    console.error('❌ Error uploading image:', error)
+    console.error('❌ Error uploading blog image:', error)
     
     // Clean up uploaded file if database save fails
     if (req.file) {
-      const filePath = path.join(process.cwd(), 'uploads', 'blogs', req.file.filename)
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath)
-        console.log('🗑️ Cleaned up failed upload file')
-      }
+      deleteImageFile('blogs', req.file.filename);
     }
     
     res.status(500).json({ 
+      success: false,
       error: 'Failed to upload image',
       details: error.message 
     })
@@ -596,20 +532,9 @@ router.get('/export/:format', authenticate, requireRole('super_admin', 'admin'),
 });
 
 // Upload blog cover image by ID (legacy support)
-router.post('/:id/cover', authenticate, requireRole('super_admin', 'admin', 'editor'), upload.single('file'), async (req, res) => {
+router.post('/:id/cover', authenticate, requireRole('super_admin', 'admin', 'editor'), blogUpload.single('file'), async (req, res) => {
   try {
     console.log('🚀 Starting blog cover image upload for ID:', req.params.id)
-    
-    if (!req.file) {
-      console.log('❌ No file uploaded')
-      return res.status(400).json({ error: 'No file uploaded' })
-    }
-    
-    console.log('📸 File details:', {
-      filename: req.file.filename,
-      size: req.file.size,
-      mimetype: req.file.mimetype
-    })
     
     const { id } = req.params;
     
@@ -622,59 +547,40 @@ router.post('/:id/cover', authenticate, requireRole('super_admin', 'admin', 'edi
     
     if (!blog) {
       console.log('❌ Blog not found')
-      return res.status(404).json({ error: 'Blog not found' })
-    }
-    
-    const imageUrl = `/uploads/blogs/${req.file.filename}`
-    console.log('🖼️ Generated image URL:', imageUrl)
-    
-    // Verify file exists on disk
-    const filePath = path.join(process.cwd(), 'uploads', 'blogs', req.file.filename)
-    if (!fs.existsSync(filePath)) {
-      console.log('❌ File not found on disk:', filePath)
-      return res.status(500).json({ error: 'File upload failed - file not saved' })
+      return res.status(404).json({ 
+        success: false,
+        error: 'Blog not found' 
+      })
     }
     
     // Delete old image if exists
     if (blog.mainImage) {
-      const oldImagePath = path.join(process.cwd(), 'uploads', 'blogs', path.basename(blog.mainImage))
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath)
-        console.log('🗑️ Deleted old image:', oldImagePath)
-      }
+      const oldFilename = blog.mainImage.split('/').pop();
+      deleteImageFile('blogs', oldFilename);
     }
     
+    // Generate new image URL
+    const imageUrl = generateImageUrl('blogs', req.file.filename);
+    
     // Update mainImage in database
-    blog.mainImage = imageUrl
-    await blog.save()
+    blog.mainImage = imageUrl;
+    await blog.save();
     
     console.log('💾 Updated blog with image URL:', imageUrl)
     console.log('✅ Image upload completed successfully')
     
-    res.json({ 
-      success: true,
-      message: 'Image uploaded successfully',
-      imageUrl: imageUrl,
-      fullUrl: `http://localhost:4000${imageUrl}`,
-      fileInfo: {
-        filename: req.file.filename,
-        size: req.file.size,
-        mimetype: req.file.mimetype
-      }
-    })
+    // Use centralized response handler
+    handleImageUploadResponse(req, res, 'blogs');
   } catch (error) {
-    console.error('❌ Error uploading image:', error)
+    console.error('❌ Error uploading blog image:', error)
     
     // Clean up uploaded file if database save fails
     if (req.file) {
-      const filePath = path.join(process.cwd(), 'uploads', 'blogs', req.file.filename)
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath)
-        console.log('🗑️ Cleaned up failed upload file')
-      }
+      deleteImageFile('blogs', req.file.filename);
     }
     
     res.status(500).json({ 
+      success: false,
       error: 'Failed to upload image',
       details: error.message 
     })

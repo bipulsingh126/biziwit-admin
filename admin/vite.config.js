@@ -5,15 +5,23 @@ import tailwindcss from '@tailwindcss/vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-   server: {
+  server: {
     proxy: {
       '/api': {
         target: 'https://api.bizwitresearch.com',
-        //procee production -https://api.bizwitresearch.com
+        changeOrigin: true,
+        secure: true,
+      },
+      '/images': {
+        target: 'https://api.bizwitresearch.com',
+        changeOrigin: true,
+        secure: true,
+      },
+      '/uploads': {
+        target: 'https://api.bizwitresearch.com',
         changeOrigin: true,
         secure: true,
       }
     }
   }
-}
-)
+})
