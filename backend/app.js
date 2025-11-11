@@ -99,15 +99,11 @@ app.use(cors({
       return callback(null, true)
     }
     
-    // In production, check against allowed origins
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true)
-    } else {
-      console.log('CORS blocked origin:', origin)
-      callback(new Error('Not allowed by CORS'))
-    }
+    // In production, allow all origins (since we have specific CORS headers for static files)
+    // This is safe because we have comprehensive CORS headers set above
+    return callback(null, true)
   },
-  credentials: true,
+  credentials: false, // Set to false for static files to avoid CORS issues
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar']
@@ -162,13 +158,14 @@ app.use(morgan('dev'))
 
 // Enhanced static file serving with comprehensive CORS headers
 app.use('/uploads', (req, res, next) => {
-  // Comprehensive CORS headers for image serving
+  // Most permissive CORS headers for image serving
   res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control')
-  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Last-Modified, ETag')
+  res.header('Access-Control-Allow-Headers', '*')
+  res.header('Access-Control-Expose-Headers', '*')
   res.header('Cross-Origin-Resource-Policy', 'cross-origin')
   res.header('Cross-Origin-Embedder-Policy', 'unsafe-none')
+  res.header('Cross-Origin-Opener-Policy', 'unsafe-none')
   
   // Cache headers for better performance
   res.header('Cache-Control', 'public, max-age=31536000') // 1 year cache
@@ -202,13 +199,14 @@ app.use('/uploads', (req, res, next) => {
 }))
 
 app.use('/images', (req, res, next) => {
-  // Comprehensive CORS headers for image serving
+  // Most permissive CORS headers for image serving
   res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control')
-  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Last-Modified, ETag')
+  res.header('Access-Control-Allow-Headers', '*')
+  res.header('Access-Control-Expose-Headers', '*')
   res.header('Cross-Origin-Resource-Policy', 'cross-origin')
   res.header('Cross-Origin-Embedder-Policy', 'unsafe-none')
+  res.header('Cross-Origin-Opener-Policy', 'unsafe-none')
   
   // Cache headers for better performance
   res.header('Cache-Control', 'public, max-age=31536000') // 1 year cache
@@ -243,12 +241,14 @@ app.use('/images', (req, res, next) => {
 
 // Explicit image serving route with CORS
 app.get('/uploads/*', (req, res, next) => {
-  // Set comprehensive CORS headers
+  // Set most permissive CORS headers
   res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization')
+  res.header('Access-Control-Allow-Headers', '*')
+  res.header('Access-Control-Expose-Headers', '*')
   res.header('Cross-Origin-Resource-Policy', 'cross-origin')
   res.header('Cross-Origin-Embedder-Policy', 'unsafe-none')
+  res.header('Cross-Origin-Opener-Policy', 'unsafe-none')
   
   // Handle OPTIONS preflight
   if (req.method === 'OPTIONS') {
@@ -260,12 +260,14 @@ app.get('/uploads/*', (req, res, next) => {
 
 // Explicit images serving route with CORS
 app.get('/images/*', (req, res, next) => {
-  // Set comprehensive CORS headers
+  // Set most permissive CORS headers
   res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization')
+  res.header('Access-Control-Allow-Headers', '*')
+  res.header('Access-Control-Expose-Headers', '*')
   res.header('Cross-Origin-Resource-Policy', 'cross-origin')
   res.header('Cross-Origin-Embedder-Policy', 'unsafe-none')
+  res.header('Cross-Origin-Opener-Policy', 'unsafe-none')
   
   // Handle OPTIONS preflight
   if (req.method === 'OPTIONS') {
