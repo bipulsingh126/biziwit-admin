@@ -45,6 +45,17 @@ const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || ''
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || ''
 const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null
 
+// Environment-based CORS origins
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:3001',
+  'https://admin.bizwitresearch.com',
+  'https://bizwitresearch.com',
+  process.env.FRONTEND_URL,
+  process.env.ADMIN_URL
+].filter(Boolean) // Remove undefined values
+
 // Security and CORS headers middleware
 app.use((req, res, next) => {
   // Remove problematic headers
@@ -55,11 +66,20 @@ app.use((req, res, next) => {
   res.header('Cross-Origin-Opener-Policy', 'unsafe-none')
   res.header('Cross-Origin-Resource-Policy', 'cross-origin')
   
+  // Special handling for static file requests (images, uploads)
+  if (req.path.startsWith('/uploads') || req.path.startsWith('/images')) {
+    res.header('Access-Control-Allow-Origin', '*')
+    res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control')
+    res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Last-Modified, ETag')
+    res.header('Vary', 'Origin')
+  }
+  
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*')
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization')
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS')
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control')
     res.header('Access-Control-Allow-Credentials', 'true')
     return res.status(200).end()
   }
@@ -67,17 +87,23 @@ app.use((req, res, next) => {
   next()
 })
 
-// CORS Configuration - Allow all origins in development
+// CORS Configuration - Environment-aware
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true)
     
+    // In development, allow all origins
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true)
+    }
+    
+    // In production, check against allowed origins
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true)
     } else {
       console.log('CORS blocked origin:', origin)
-      callback(null, true) // Allow all origins in development
+      callback(new Error('Not allowed by CORS'))
     }
   },
   credentials: true,
@@ -122,29 +148,135 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (r
   }
 })
 
+// Configure Helmet with CORS-friendly settings
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: { policy: "unsafe-none" }
+}))
+
 app.use(express.json({ limit: '2mb' }))
 app.use(express.urlencoded({ extended: true }))
 app.use(morgan('dev'))
 
-// Static file serving with CORS headers
+// Enhanced static file serving with comprehensive CORS headers
 app.use('/uploads', (req, res, next) => {
+  // Comprehensive CORS headers for image serving
   res.header('Access-Control-Allow-Origin', '*')
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization')
+  res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control')
+  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Last-Modified, ETag')
   res.header('Cross-Origin-Resource-Policy', 'cross-origin')
+  res.header('Cross-Origin-Embedder-Policy', 'unsafe-none')
+  
+  // Cache headers for better performance
+  res.header('Cache-Control', 'public, max-age=31536000') // 1 year cache
+  res.header('Vary', 'Origin')
+  
+  // Handle OPTIONS requests for CORS preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end()
+  }
+  
   next()
-}, express.static(UPLOAD_DIR))
+}, express.static(UPLOAD_DIR, {
+  // Additional express.static options for better file serving
+  maxAge: '1y',
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, path) => {
+    // Set appropriate content type based on file extension
+    if (path.endsWith('.jpg') || path.endsWith('.jpeg')) {
+      res.setHeader('Content-Type', 'image/jpeg')
+    } else if (path.endsWith('.png')) {
+      res.setHeader('Content-Type', 'image/png')
+    } else if (path.endsWith('.gif')) {
+      res.setHeader('Content-Type', 'image/gif')
+    } else if (path.endsWith('.webp')) {
+      res.setHeader('Content-Type', 'image/webp')
+    } else if (path.endsWith('.svg')) {
+      res.setHeader('Content-Type', 'image/svg+xml')
+    }
+  }
+}))
 
 app.use('/images', (req, res, next) => {
+  // Comprehensive CORS headers for image serving
   res.header('Access-Control-Allow-Origin', '*')
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+  res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control')
+  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Last-Modified, ETag')
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin')
+  res.header('Cross-Origin-Embedder-Policy', 'unsafe-none')
+  
+  // Cache headers for better performance
+  res.header('Cache-Control', 'public, max-age=31536000') // 1 year cache
+  res.header('Vary', 'Origin')
+  
+  // Handle OPTIONS requests for CORS preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end()
+  }
+  
+  next()
+}, express.static(path.join(process.cwd(), 'public', 'images'), {
+  // Additional express.static options for better file serving
+  maxAge: '1y',
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, path) => {
+    // Set appropriate content type based on file extension
+    if (path.endsWith('.jpg') || path.endsWith('.jpeg')) {
+      res.setHeader('Content-Type', 'image/jpeg')
+    } else if (path.endsWith('.png')) {
+      res.setHeader('Content-Type', 'image/png')
+    } else if (path.endsWith('.gif')) {
+      res.setHeader('Content-Type', 'image/gif')
+    } else if (path.endsWith('.webp')) {
+      res.setHeader('Content-Type', 'image/webp')
+    } else if (path.endsWith('.svg')) {
+      res.setHeader('Content-Type', 'image/svg+xml')
+    }
+  }
+}))
+
+// Explicit image serving route with CORS
+app.get('/uploads/*', (req, res, next) => {
+  // Set comprehensive CORS headers
+  res.header('Access-Control-Allow-Origin', '*')
+  res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization')
   res.header('Cross-Origin-Resource-Policy', 'cross-origin')
+  res.header('Cross-Origin-Embedder-Policy', 'unsafe-none')
+  
+  // Handle OPTIONS preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end()
+  }
+  
   next()
-}, express.static(path.join(process.cwd(), 'public', 'images')))
+})
+
+// Explicit images serving route with CORS
+app.get('/images/*', (req, res, next) => {
+  // Set comprehensive CORS headers
+  res.header('Access-Control-Allow-Origin', '*')
+  res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization')
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin')
+  res.header('Cross-Origin-Embedder-Policy', 'unsafe-none')
+  
+  // Handle OPTIONS preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end()
+  }
+  
+  next()
+})
 
 // Health check
 app.get('/health', (req, res) => res.json({ ok: true }))
+
 
 // Favicon route to prevent 404 errors
 app.get('/favicon.ico', (req, res) => res.status(204).end())
