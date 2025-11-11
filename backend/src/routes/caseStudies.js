@@ -504,4 +504,24 @@ router.get('/stats/overview', authenticate, async (req, res) => {
   }
 })
 
+// Utility route to populate slugs for existing case studies
+router.post('/utils/populate-slugs', authenticate, requireRole('super_admin', 'admin'), async (req, res) => {
+  try {
+    const updatedCount = await CaseStudy.populateSlugs();
+    
+    res.json({
+      success: true,
+      message: `Successfully populated slugs for ${updatedCount} case studies`,
+      updatedCount
+    });
+  } catch (error) {
+    console.error('Error populating case study slugs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to populate case study slugs',
+      error: error.message
+    });
+  }
+});
+
 export default router

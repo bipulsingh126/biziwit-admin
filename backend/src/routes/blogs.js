@@ -720,4 +720,24 @@ router.get('/stats/overview', authenticate, async (req, res) => {
   }
 });
 
+// Utility route to populate slugs for existing blogs
+router.post('/utils/populate-slugs', authenticate, requireRole('super_admin', 'admin'), async (req, res) => {
+  try {
+    const updatedCount = await Blog.populateSlugs();
+    
+    res.json({
+      success: true,
+      message: `Successfully populated slugs for ${updatedCount} blogs`,
+      updatedCount
+    });
+  } catch (error) {
+    console.error('Error populating blog slugs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to populate blog slugs',
+      error: error.message
+    });
+  }
+});
+
 export default router;

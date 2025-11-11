@@ -162,8 +162,44 @@ blogSchema.virtual('excerpt').get(function() {
   return plainText.length > 150 ? plainText.substring(0, 150) + '...' : plainText;
 });
 
-// Ensure virtual fields are serialized
-blogSchema.set('toJSON', { virtuals: true });
+// Ensure virtual fields are serialized and slug is always included
+blogSchema.set('toJSON', { 
+  virtuals: true,
+  transform: function(doc, ret) {
+    // Ensure slug is always present in JSON response
+    if (!ret.slug && ret.title) {
+      ret.slug = doc.generateSlug(ret.title);
+    }
+    return ret;
+  }
+});
 blogSchema.set('toObject', { virtuals: true });
+
+// Static method to populate slugs for existing records
+blogSchema.statics.populateSlugs = async function() {
+  const blogs = await this.find({ $or: [{ slug: null }, { slug: { $exists: false } }] });
+  
+  for (const blog of blogs) {
+    if (blog.title) {
+      let baseSlug = blog.generateSlug(blog.title);
+      let slug = baseSlug;
+      let counter = 1;
+      
+      // Check for existing slugs and make unique
+      while (await this.findOne({ slug: slug, _id: { $ne: blog._id } })) {
+        slug = `${baseSlug}-${counter}`;
+        counter++;
+      }
+      
+      blog.slug = slug;
+      if (!blog.url) {
+        blog.url = slug;
+      }
+      await blog.save();
+    }
+  }
+  
+  return blogs.length;
+};
 
 export default mongoose.model('Blog', blogSchema);

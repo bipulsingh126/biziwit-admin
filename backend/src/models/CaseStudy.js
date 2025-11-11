@@ -147,4 +147,44 @@ caseStudySchema.pre('save', async function(next) {
   next();
 });
 
+// Ensure slug is always included in JSON responses
+caseStudySchema.set('toJSON', { 
+  virtuals: true,
+  transform: function(doc, ret) {
+    // Ensure slug is always present in JSON response
+    if (!ret.slug && ret.title) {
+      ret.slug = doc.generateSlug(ret.title);
+    }
+    return ret;
+  }
+});
+caseStudySchema.set('toObject', { virtuals: true });
+
+// Static method to populate slugs for existing records
+caseStudySchema.statics.populateSlugs = async function() {
+  const caseStudies = await this.find({ $or: [{ slug: null }, { slug: { $exists: false } }] });
+  
+  for (const caseStudy of caseStudies) {
+    if (caseStudy.title) {
+      let baseSlug = caseStudy.generateSlug(caseStudy.title);
+      let slug = baseSlug;
+      let counter = 1;
+      
+      // Check for existing slugs and make unique
+      while (await this.findOne({ slug: slug, _id: { $ne: caseStudy._id } })) {
+        slug = `${baseSlug}-${counter}`;
+        counter++;
+      }
+      
+      caseStudy.slug = slug;
+      if (!caseStudy.url) {
+        caseStudy.url = slug;
+      }
+      await caseStudy.save();
+    }
+  }
+  
+  return caseStudies.length;
+};
+
 export default mongoose.model('CaseStudy', caseStudySchema)
