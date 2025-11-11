@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Filter, Upload, Download, Edit, Trash2, ExternalLink, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, FileSpreadsheet, AlertCircle, CheckCircle, Clock, Image, Camera } from 'lucide-react'
+import { Search, Filter, Download, Upload, FileText, Plus, Eye, Edit, Trash2, MoreVertical, Share, X, Camera, Image, ExternalLink, CheckCircle, AlertCircle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react'
 import api from '../utils/api'
+import { getImageUrl } from '../utils/imageUtils'
 
 const Reports = () => {
   const navigate = useNavigate()
@@ -1449,16 +1450,16 @@ const Reports = () => {
                     <div className="relative w-16 h-12 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
                       {report.coverImage?.url ? (
                         <img
-                          src={`http://localhost:4000${report.coverImage.url}`}
+                          src={getImageUrl(report.coverImage.url)}
                           alt={report.coverImage.alt || report.title}
                           className="w-full h-full object-cover"
                           onError={(e) => {
-                            console.error('Image failed to load:', `http://localhost:4000${report.coverImage.url}`)
+                            console.error('Image failed to load:', getImageUrl(report.coverImage.url))
                             e.target.style.display = 'none'
                             e.target.nextSibling.style.display = 'flex'
                           }}
                           onLoad={() => {
-                            console.log('Image loaded successfully:', `http://localhost:4000${report.coverImage.url}`)
+                            console.log('Image loaded successfully:', getImageUrl(report.coverImage.url))
                           }}
                         />
                       ) : null}

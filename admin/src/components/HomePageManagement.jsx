@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Upload, Save, Image as ImageIcon, Trash2, Eye, EyeOff, Loader2 } from 'lucide-react'
 import api from '../utils/api'
+import { getImageUrl } from '../utils/imageUtils'
 
 const HomePageManagement = () => {
   // State for homepage data from API
@@ -371,7 +372,7 @@ const HomePageManagement = () => {
                   ) : banner.image ? (
                     <div className="relative group">
                       <img
-                        src={banner.image.startsWith('http') ? banner.image : `http://localhost:4000${banner.image}`}
+                        src={getImageUrl(banner.image)}
                         alt={banner.title}
                         className="w-full h-36 object-cover rounded-lg border-2 border-gray-200"
                         onError={(e) => {
@@ -550,7 +551,7 @@ const HomePageManagement = () => {
                   ) : megatrend.image ? (
                     <div className="relative group">
                       <img
-                        src={megatrend.image.startsWith('http') ? megatrend.image : `http://localhost:4000${megatrend.image}`}
+                        src={getImageUrl(megatrend.image)}
                         alt={megatrend.title}
                         className="w-full h-36 object-cover rounded-lg border-2 border-gray-200"
                         onError={(e) => {

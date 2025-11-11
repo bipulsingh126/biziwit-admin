@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Search, Plus, Edit, Trash2, Eye, Filter, Download, X, Calendar, User, Globe, FileText, Tag, Image, Link as LinkIcon, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react'
 import api from '../utils/api'
 import { Link, useNavigate } from 'react-router-dom'
+import { getImageUrl } from '../utils/imageUtils'
 
 const Megatrends = () => {
   const navigate = useNavigate()
@@ -406,9 +407,7 @@ const Megatrends = () => {
                       <div className="flex items-center">
                         {(megatrend.mainImage || megatrend.heroImage?.url) ? (
                           <img
-                            src={(megatrend.mainImage || megatrend.heroImage?.url).startsWith('http') 
-                              ? (megatrend.mainImage || megatrend.heroImage?.url)
-                              : `http://localhost:4000${megatrend.mainImage || megatrend.heroImage?.url}`}
+                            src={getImageUrl(megatrend.mainImage || megatrend.heroImage?.url)}
                             alt={megatrend.title}
                             className="w-12 h-12 rounded-lg object-cover mr-3"
                             onError={(e) => {

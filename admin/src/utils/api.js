@@ -1,6 +1,8 @@
 // API client for backend communication
-// Force local development mode - use Vite proxy
-const API_BASE = import.meta.env.MODE === 'development' ? '' : (import.meta.env.VITE_API_BASE || '')
+import { getApiBaseUrl } from './environmentUtils.js'
+
+// Get environment-aware API base URL
+const API_BASE = getApiBaseUrl()
 
 class ApiClient {
   constructor() {
@@ -48,6 +50,12 @@ class ApiClient {
           this.setToken(null)
           window.location.reload()
           throw new Error('Session expired. Please login again.')
+        }
+        
+        // Handle 404 errors for trending endpoints gracefully
+        if (response.status === 404 && endpoint.includes('trending')) {
+          console.warn(`Trending endpoint not found: ${endpoint}`)
+          throw new Error('404')
         }
         
         throw new Error(error.error || error.message || `HTTP ${response.status}`)

@@ -127,6 +127,8 @@ router.get('/subcategories/trending', async (req, res, next) => {
     const categories = await Category.find(categoryQuery)
       .sort({ sortOrder: 1, name: 1 })
       .lean()
+      
+    console.log(`🏷️ Found ${categories.length} categories for trending subcategories`)
     
     // Flatten all subcategories with their parent category info
     const allSubcategories = []
@@ -142,20 +144,24 @@ router.get('/subcategories/trending', async (req, res, next) => {
               status: { $ne: 'archived' }
             })
             
+            console.log(`📊 Subcategory: ${subcategory.name} in ${category.name} has ${reportCount} reports`)
+            
             allSubcategories.push({
               _id: subcategory._id,
               name: subcategory.name,
               slug: subcategory.slug,
-              description: subcategory.description,
+              description: subcategory.description || '',
               reportCount,
               isTopTrending: subcategory.isTopTrending || false,
               category: {
                 _id: category._id,
                 name: category.name,
                 slug: category.slug,
-                description: category.description
+                description: category.description || ''
               }
             })
+            
+            console.log(`  ✅ Added subcategory: ${subcategory.name} (${reportCount} reports)`)
           }
         }
       }
@@ -171,6 +177,8 @@ router.get('/subcategories/trending', async (req, res, next) => {
         return (b.reportCount || 0) - (a.reportCount || 0)
       })
       .slice(0, parseInt(limit))
+      
+    console.log(`🔥 Returning ${trendingSubcategories.length} trending subcategories out of ${allSubcategories.length} total`)
     
     res.json({
       success: true,

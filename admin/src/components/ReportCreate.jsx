@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Save, CheckCircle, AlertCircle, Upload, Image, X } from 'lucide-react'
-import api from '../utils/api'
+import { useParams, useNavigate } from 'react-router-dom'
+import { ArrowLeft, Save, ChevronDown, Upload, X, Image as ImageIcon, FileText, BarChart3, Target, CheckCircle, AlertCircle } from 'lucide-react'
 import RichTextEditor from './RichTextEditor'
+import api from '../utils/api'
+import { getImageUrl } from '../utils/imageUtils'
 
 const ReportCreate = () => {
   const navigate = useNavigate()
@@ -212,8 +213,8 @@ const ReportCreate = () => {
       
       // Set existing cover image preview if available
       if (report.coverImage?.url) {
-        console.log('Setting cover image preview:', `http://localhost:4000${report.coverImage.url}`)
-        setCoverImagePreview(`http://localhost:4000${report.coverImage.url}`)
+        console.log('Setting cover image preview:', getImageUrl(report.coverImage.url))
+        setCoverImagePreview(getImageUrl(report.coverImage.url))
       } else {
         console.log('No cover image found in report data:', report.coverImage)
       }
@@ -327,7 +328,7 @@ const ReportCreate = () => {
           if (uploadResult.data?.coverImage?.url) {
             console.log('Setting cover image URL:', uploadResult.data.coverImage.url)
             setFormData(prev => ({ ...prev, coverImage: uploadResult.data.coverImage.url }))
-            setCoverImagePreview(`http://localhost:4000${uploadResult.data.coverImage.url}`)
+            setCoverImagePreview(getImageUrl(uploadResult.data.coverImage.url))
           } else {
             console.log('No cover image URL in response:', uploadResult)
           }
@@ -414,7 +415,7 @@ const ReportCreate = () => {
       // Update form data with uploaded image URL
       if (uploadResult.data?.coverImage?.url) {
         setFormData(prev => ({ ...prev, coverImage: uploadResult.data.coverImage.url }))
-        setCoverImagePreview(`http://localhost:4000${uploadResult.data.coverImage.url}`)
+        setCoverImagePreview(getImageUrl(uploadResult.data.coverImage.url))
       }
       
       setSuccess('Cover image uploaded successfully!')
@@ -900,7 +901,7 @@ const ReportCreate = () => {
                     </div>
                   ) : (
                     <div className="text-center">
-                      <Image className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <ImageIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                       <div className="mb-4">
                         <label className="cursor-pointer">
                           <span className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">

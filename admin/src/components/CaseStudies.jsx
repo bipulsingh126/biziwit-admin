@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Search, Plus, Edit, Trash2, Eye, Filter, Download, X, Calendar, User, Globe, FileText, Tag, Image, Link as LinkIcon, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Eye, Filter, Download, Upload, FileText, X, Check, Image as ImageIcon, Link as LinkIcon, ChevronLeft, ChevronRight } from 'lucide-react'
 import api from '../utils/api'
+import { getImageUrl } from '../utils/imageUtils'
 import { Link, useNavigate } from 'react-router-dom'
 
 const CaseStudies = () => {
@@ -392,9 +393,7 @@ const CaseStudies = () => {
                       <div className="flex items-center">
                         {caseStudy.mainImage ? (
                           <img
-                            src={caseStudy.mainImage.startsWith('http') 
-                              ? caseStudy.mainImage 
-                              : `http://localhost:4000${caseStudy.mainImage}`}
+                            src={getImageUrl(caseStudy.mainImage)}
                             alt={caseStudy.title}
                             className="w-12 h-12 rounded-lg object-cover mr-3"
                             onError={(e) => {
@@ -407,7 +406,7 @@ const CaseStudies = () => {
                         <div 
                           className={`w-12 h-12 rounded-lg bg-gray-100 border-2 border-dashed border-gray-300 mr-3 flex items-center justify-center ${caseStudy.mainImage ? 'hidden' : 'flex'}`}
                         >
-                          <Image className="w-6 h-6 text-gray-400" />
+                          <ImageIcon className="w-6 h-6 text-gray-400" />
                         </div>
                         <div>
                           <div className="text-sm font-medium text-gray-900 truncate max-w-xs">

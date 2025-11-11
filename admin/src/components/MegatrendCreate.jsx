@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Save, ChevronDown, Image, Globe, FileText, Tag, Calendar, User } from 'lucide-react'
-import api from '../utils/api'
+import { useParams, useNavigate } from 'react-router-dom'
+import { ArrowLeft, Save, Upload, X, Image as ImageIcon, FileText, Globe, Tag } from 'lucide-react'
 import RichTextEditor from './RichTextEditor'
+import api from '../utils/api'
+import { getImageUrl } from '../utils/imageUtils'
 
 const MegatrendCreate = () => {
   const navigate = useNavigate()
@@ -75,9 +76,7 @@ const MegatrendCreate = () => {
       // Set image preview if mainImage or heroImage exists
       const imageUrl = megatrend.mainImage || megatrend.heroImage?.url
       if (imageUrl) {
-        const fullUrl = imageUrl.startsWith('http') 
-          ? imageUrl 
-          : `http://localhost:4000${imageUrl}`
+        const fullUrl = getImageUrl(imageUrl)
         setImagePreview(fullUrl)
       }
     } catch (err) {
@@ -142,9 +141,7 @@ const MegatrendCreate = () => {
       setFormData(prev => ({ ...prev, mainImage: imageUrl }))
       
       // Update preview with full URL so it persists after reload
-      const fullUrl = imageUrl.startsWith('http') 
-        ? imageUrl 
-        : `http://localhost:4000${imageUrl}`
+      const fullUrl = getImageUrl(imageUrl)
       
       setImagePreview(fullUrl)
       setImageFile(null) // Clear file input after successful upload
@@ -426,7 +423,7 @@ const MegatrendCreate = () => {
                       </div>
                     ) : (
                       <label className="flex flex-col items-center justify-center h-48 cursor-pointer hover:bg-gray-50 transition-colors">
-                        <Image className="w-12 h-12 text-gray-400 mb-2" />
+                        <ImageIcon className="w-12 h-12 text-gray-400 mb-2" />
                         <span className="text-sm text-gray-500 font-medium">Upload Megatrend Hero Image</span>
                         <span className="text-xs text-gray-400 mt-1">Max 5MB • JPG, PNG, GIF, WebP</span>
                         <input

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -208,6 +208,45 @@ const AppContent = () => {
 }
 
 function App() {
+  useEffect(() => {
+    // Global error handler to suppress browser extension errors
+    const handleError = (event) => {
+      // Suppress browser extension errors
+      if (event.message && (
+        event.message.includes('Cannot find menu item') ||
+        event.message.includes('chrome-extension') ||
+        event.message.includes('moz-extension') ||
+        event.message.includes('safari-extension') ||
+        event.filename && event.filename.includes('extension')
+      )) {
+        console.warn('Browser extension error suppressed:', event.message)
+        event.preventDefault()
+        return false
+      }
+    }
+
+    const handleUnhandledRejection = (event) => {
+      // Suppress API 404 errors for trending endpoints
+      if (event.reason && event.reason.message && 
+          event.reason.message.includes('404') && 
+          event.reason.message.includes('trending')) {
+        console.warn('Trending API endpoint not available:', event.reason.message)
+        event.preventDefault()
+        return false
+      }
+    }
+
+    // Add global error listeners
+    window.addEventListener('error', handleError)
+    window.addEventListener('unhandledrejection', handleUnhandledRejection)
+
+    // Cleanup listeners on unmount
+    return () => {
+      window.removeEventListener('error', handleError)
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection)
+    }
+  }, [])
+
   return (
     <ErrorBoundary>
       <Router>

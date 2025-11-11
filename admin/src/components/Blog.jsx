@@ -2,18 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { Search, Plus, Edit, Trash2, Eye, ChevronDown, ChevronUp, Filter, Calendar, Share, X, Check } from 'lucide-react'
 import api from '../utils/api'
 import RichTextEditor from './RichTextEditor'
+import { getImageUrl } from '../utils/imageUtils'
 
 const Blog = () => {
-  // Helper function to get proper image URL
-  const getImageUrl = (imageUrl) => {
-    if (!imageUrl) return ''
-    if (imageUrl.startsWith('http')) return imageUrl
-    if (imageUrl.startsWith('data:')) return imageUrl // Base64 images
-    // Handle relative URLs from uploads
-    const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:4000'
-    return imageUrl.startsWith('/') ? `${API_BASE}${imageUrl}` : `${API_BASE}/${imageUrl}`
-  }
-
   // State management
   const [searchTerm, setSearchTerm] = useState('')
   const [blogs, setBlogs] = useState([])
@@ -156,7 +147,7 @@ const Blog = () => {
         setImagePreview(blog.mainImage)
       } else {
         // It's a relative path, prepend localhost
-        setImagePreview(`http://localhost:4000${blog.mainImage}`)
+        setImagePreview(getImageUrl(blog.mainImage))
       }
     } else {
       setImagePreview('')
@@ -221,7 +212,7 @@ const Blog = () => {
       if (imageUrl.startsWith('http') || imageUrl.startsWith('data:')) {
         fullUrl = imageUrl
       } else {
-        fullUrl = `http://localhost:4000${imageUrl}`
+        fullUrl = getImageUrl(imageUrl)
       }
       
       setImagePreview(fullUrl)

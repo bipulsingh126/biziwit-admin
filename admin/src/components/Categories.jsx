@@ -66,9 +66,11 @@ const Categories = () => {
   const loadTrendingSubcategories = async () => {
     try {
       const response = await api.getTrendingSubcategories({ limit: 15 })
+      console.log('🔥 Trending subcategories response:', response)
       setTrendingSubcategories(response.data || [])
     } catch (err) {
-      console.error('Failed to load trending subcategories:', err)
+      console.warn('Trending subcategories not available:', err.message)
+      setTrendingSubcategories([]) // Set empty array as fallback
     }
   }
 

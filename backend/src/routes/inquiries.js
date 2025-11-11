@@ -129,6 +129,33 @@ router.get('/by-slug/:slug', async (req, res, next) => {
   } catch (e) { next(e) }
 })
 
+// Get inquiry types and priorities for filters (MUST come before /:identifier)
+router.get('/metadata', async (req, res, next) => {
+  try {
+    const inquiryTypes = [
+      'General Inquiry', 
+      'Report Request', 
+      'Custom Report', 
+      'Technical Support', 
+      'Partnership', 
+      'Media Inquiry',
+      'Inquiry Before Buying',
+      'Request for Sample',
+      'Talk to Analyst/Expert',
+      'Buy Now',
+      'Contact Us',
+      'Submit Your Profile',
+      'Download White Paper',
+      'Individual Service Page',
+      'Other'
+    ]
+    const priorities = ['low', 'medium', 'high', 'urgent']
+    const statuses = ['new', 'open', 'in_progress', 'resolved', 'closed']
+    
+    res.json({ inquiryTypes, priorities, statuses })
+  } catch (e) { next(e) }
+})
+
 // Read by slug or ID (with slug priority)
 router.get('/:identifier', async (req, res, next) => {
   try {
@@ -312,33 +339,6 @@ router.get('/export/csv', async (req, res, next) => {
     res.setHeader('Content-Type', 'text/csv')
     res.setHeader('Content-Disposition', `attachment; filename="inquiries-${new Date().toISOString().split('T')[0]}.csv"`)
     res.send(csvContent)
-  } catch (e) { next(e) }
-})
-
-// Get inquiry types and priorities for filters
-router.get('/metadata', async (req, res, next) => {
-  try {
-    const inquiryTypes = [
-      'General Inquiry', 
-      'Report Request', 
-      'Custom Report', 
-      'Technical Support', 
-      'Partnership', 
-      'Media Inquiry',
-      'Inquiry Before Buying',
-      'Request for Sample',
-      'Talk to Analyst/Expert',
-      'Buy Now',
-      'Contact Us',
-      'Submit Your Profile',
-      'Download White Paper',
-      'Individual Service Page',
-      'Other'
-    ]
-    const priorities = ['low', 'medium', 'high', 'urgent']
-    const statuses = ['new', 'open', 'in_progress', 'resolved', 'closed']
-    
-    res.json({ inquiryTypes, priorities, statuses })
   } catch (e) { next(e) }
 })
 
