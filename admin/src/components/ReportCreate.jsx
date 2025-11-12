@@ -20,6 +20,7 @@ const ReportCreate = () => {
     // Backend-compatible fields
     reportDescription: '',
     segment: '',
+    companies: '',
     // SEO fields
     titleTag: '',
     slug: '',
@@ -219,7 +220,7 @@ const ReportCreate = () => {
         console.log('No cover image found in report data:', report.coverImage)
       }
       
-      // Reload categories with imported category and subcategory to ensure they appear in dropdowns
+      // Reload categories with Imported category and subcategory to ensure they appear in dropdowns
       if (report.category || report.subCategory) {
         console.log('🔄 Reloading categories with imported data:', { category: report.category, subCategory: report.subCategory })
         await loadCategories(report.category, report.subCategory)
@@ -976,7 +977,7 @@ const ReportCreate = () => {
                 }`}
                 disabled={saving}
               >
-                SEGMENTATION
+               Segment / Companies
               </button>
             </div>
 

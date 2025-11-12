@@ -41,7 +41,18 @@ export const getEnvironmentConfig = () => {
  */
 export const getApiBaseUrl = () => {
   const config = getEnvironmentConfig()
-  return config.apiBase
+  
+  // Priority: Environment variable > Config > Default
+  const apiBase = import.meta.env.VITE_API_BASE_URL || config.apiBase
+  
+  console.log('🌐 API Base URL Resolution:', {
+    configApiBase: config.apiBase,
+    envApiBase: import.meta.env.VITE_API_BASE_URL,
+    finalApiBase: apiBase,
+    environment: config.environment
+  })
+  
+  return apiBase
 }
 
 /**
@@ -69,8 +80,25 @@ export const getEnvironmentImageUrl = (imageUrl) => {
     return trimmedUrl
   }
   
+  // Get the appropriate API base URL for current environment
   const apiBase = getApiBaseUrl()
-  const cleanUrl = trimmedUrl.startsWith('/') ? trimmedUrl : `/${trimmedUrl}`
   
-  return `${apiBase}${cleanUrl}`
+  // Handle both relative paths and absolute paths
+  let cleanUrl = trimmedUrl
+  if (!cleanUrl.startsWith('/')) {
+    cleanUrl = `/${cleanUrl}`
+  }
+  
+  // For deployment: ensure we use the correct domain
+  const fullUrl = `${apiBase}${cleanUrl}`
+  
+  console.log('🖼️ Image URL Resolution:', {
+    input: imageUrl,
+    apiBase,
+    cleanUrl,
+    output: fullUrl,
+    environment: import.meta.env.MODE
+  })
+  
+  return fullUrl
 }

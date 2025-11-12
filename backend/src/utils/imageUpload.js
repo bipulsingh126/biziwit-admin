@@ -118,10 +118,22 @@ export const generateImageUrl = (component, filename, subFolder = '') => {
  * @returns {string} - Full image URL
  */
 export const generateFullImageUrl = (component, filename, subFolder = '', req = null) => {
-  // Use production domain for BiziWit Research
-  const baseUrl = process.env.NODE_ENV === 'production' 
-    ? 'https://api.bizwitresearch.com'
-    : process.env.BASE_URL || 'http://localhost:4000';
+  // Determine base URL based on environment and request
+  let baseUrl;
+  
+  if (req) {
+    // Use request headers to determine the correct domain
+    const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
+    const host = req.get('x-forwarded-host') || req.get('host') || 'localhost:4000';
+    baseUrl = `${protocol}://${host}`;
+  } else {
+    // Fallback to environment variables
+    if (process.env.NODE_ENV === 'production') {
+      baseUrl = process.env.API_BASE_URL || 'https://api.bizwitresearch.com';
+    } else {
+      baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+    }
+  }
   
   const imagePath = generateImageUrl(component, filename, subFolder);
   return `${baseUrl}${imagePath}`;
@@ -207,14 +219,17 @@ export const handleImageUploadResponse = (req, res, component, subFolder = '', a
     console.log(`✅ Image upload successful for ${component}:`, {
       filename: req.file.filename,
       imageUrl,
-      fullUrl
+      fullUrl,
+      requestHost: req.get('host'),
+      requestProtocol: req.protocol
     });
     
     res.json({ 
       success: true,
       message: 'Image uploaded successfully',
-      imageUrl,
+      imageUrl: fullUrl, // Return full URL as primary imageUrl for deployment compatibility
       fullUrl,
+      relativePath: imageUrl, // Keep relative path for backward compatibility
       fileInfo: {
         filename: req.file.filename,
         originalName: req.file.originalname,

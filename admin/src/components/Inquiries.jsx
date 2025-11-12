@@ -52,15 +52,39 @@ const Inquiries = () => {
   const loadInquiries = async () => {
     try {
       setLoading(true)
-      const params = {
-        q: searchTerm,
-        inquiryType: typeFilter !== 'all' ? typeFilter : undefined,
-        priority: priorityFilter !== 'all' ? priorityFilter : undefined
+      setError('') // Clear previous errors
+      
+      // Clean up parameters - remove undefined values
+      const params = {}
+      if (searchTerm && searchTerm.trim()) {
+        params.q = searchTerm.trim()
       }
+      if (typeFilter && typeFilter !== 'all') {
+        params.inquiryType = typeFilter
+      }
+      if (priorityFilter && priorityFilter !== 'all') {
+        params.priority = priorityFilter
+      }
+      
+      console.log('Loading inquiries with params:', params)
       const result = await api.getInquiries(params)
-      setInquiries(result.items || [])
+      console.log('API response:', result)
+      
+      if (result && result.items) {
+        setInquiries(result.items)
+        console.log(`Loaded ${result.items.length} inquiries`)
+      } else if (Array.isArray(result)) {
+        // Handle case where API returns array directly
+        setInquiries(result)
+        console.log(`Loaded ${result.length} inquiries (direct array)`)
+      } else {
+        console.warn('Unexpected API response format:', result)
+        setInquiries([])
+      }
     } catch (err) {
-      setError(err.message)
+      console.error('Error loading inquiries:', err)
+      setError(err.message || 'Failed to load inquiries')
+      setInquiries([])
     } finally {
       setLoading(false)
     }
@@ -102,11 +126,36 @@ const Inquiries = () => {
         <h1 className="text-2xl font-bold text-gray-900">Inquiries</h1>
         <div className="flex items-center gap-3">
           <button
-            onClick={loadInquiries}
+            onClick={() => {
+              console.log('Manual refresh clicked')
+              loadInquiries()
+            }}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
+          </button>
+          <button
+            onClick={async () => {
+              console.log('Testing API directly...')
+              try {
+                const response = await fetch('/api/inquiries', {
+                  headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                  }
+                })
+                const data = await response.json()
+                console.log('Direct API test result:', data)
+                alert(`API Test: ${response.status} - Found ${data.items?.length || 0} inquiries`)
+              } catch (err) {
+                console.error('Direct API test failed:', err)
+                alert(`API Test Failed: ${err.message}`)
+              }
+            }}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          >
+            Test API
           </button>
         </div>
       </div>
@@ -138,7 +187,7 @@ const Inquiries = () => {
 
           <div className="flex items-center text-sm text-gray-600">
             <Filter className="w-4 h-4 mr-2" />
-            {inquiries.length} inquiries
+            {inquiries.length} inquiries {loading && '(Loading...)'} {error && '(Error!)'}
           </div>
         </div>
       </div>
