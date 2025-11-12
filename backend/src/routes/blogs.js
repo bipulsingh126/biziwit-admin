@@ -168,7 +168,66 @@ router.get('/slug/:slug', async (req, res) => {
   }
 });
 
-// Get single blog by slug or ID (with slug priority)
+// Get blog statistics (MUST be before /:identifier route)
+router.get('/stats/overview', authenticate, async (req, res) => {
+  try {
+    const totalBlogs = await Blog.countDocuments();
+    const publishedBlogs = await Blog.countDocuments({ status: 'published' });
+    const draftBlogs = await Blog.countDocuments({ status: 'draft' });
+    const scheduledBlogs = await Blog.countDocuments({ status: 'scheduled' });
+    
+    const totalViews = await Blog.aggregate([
+      { $group: { _id: null, totalViews: { $sum: '$views' } } }
+    ]);
+
+    const topAuthors = await Blog.aggregate([
+      { $group: { _id: '$authorName', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 5 }
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        totalBlogs,
+        publishedBlogs,
+        draftBlogs,
+        scheduledBlogs,
+        totalViews: totalViews[0]?.totalViews || 0,
+        topAuthors
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching blog statistics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch blog statistics',
+      error: error.message
+    });
+  }
+});
+
+// Utility route to populate slugs for existing blogs (MUST be before /:identifier route)
+router.post('/utils/populate-slugs', authenticate, requireRole('super_admin', 'admin'), async (req, res) => {
+  try {
+    const updatedCount = await Blog.populateSlugs();
+    
+    res.json({
+      success: true,
+      message: `Successfully populated slugs for ${updatedCount} blogs`,
+      updatedCount
+    });
+  } catch (error) {
+    console.error('Error populating blog slugs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to populate blog slugs',
+      error: error.message
+    });
+  }
+});
+
+// Get single blog by slug or ID (with slug priority) - MUST be after specific routes
 router.get('/:identifier' , async (req, res) => {
   try {
     const { identifier } = req.params;
@@ -587,60 +646,26 @@ router.post('/:id/cover', authenticate, requireRole('super_admin', 'admin', 'edi
   }
 })
 
-// Get blog statistics
-router.get('/stats/overview', authenticate, async (req, res) => {
+// Test endpoint to debug slug functionality
+router.get('/test/debug-slugs', async (req, res) => {
   try {
+    const blogs = await Blog.find({}).limit(5).select('title slug url _id');
     const totalBlogs = await Blog.countDocuments();
-    const publishedBlogs = await Blog.countDocuments({ status: 'published' });
-    const draftBlogs = await Blog.countDocuments({ status: 'draft' });
-    const scheduledBlogs = await Blog.countDocuments({ status: 'scheduled' });
     
-    const totalViews = await Blog.aggregate([
-      { $group: { _id: null, totalViews: { $sum: '$views' } } }
-    ]);
-
-    const topAuthors = await Blog.aggregate([
-      { $group: { _id: '$authorName', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 5 }
-    ]);
-
     res.json({
       success: true,
-      data: {
-        totalBlogs,
-        publishedBlogs,
-        draftBlogs,
-        scheduledBlogs,
-        totalViews: totalViews[0]?.totalViews || 0,
-        topAuthors
+      message: 'Blog slug debug information',
+      totalBlogs,
+      sampleBlogs: blogs,
+      testInstructions: {
+        bySlug: '/api/blogs/by-slug/{slug}',
+        byId: '/api/blogs/{id}',
+        byIdentifier: '/api/blogs/{slug-or-id}'
       }
     });
   } catch (error) {
-    console.error('Error fetching blog statistics:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch blog statistics',
-      error: error.message
-    });
-  }
-});
-
-// Utility route to populate slugs for existing blogs
-router.post('/utils/populate-slugs', authenticate, requireRole('super_admin', 'admin'), async (req, res) => {
-  try {
-    const updatedCount = await Blog.populateSlugs();
-    
-    res.json({
-      success: true,
-      message: `Successfully populated slugs for ${updatedCount} blogs`,
-      updatedCount
-    });
-  } catch (error) {
-    console.error('Error populating blog slugs:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to populate blog slugs',
       error: error.message
     });
   }

@@ -3,9 +3,160 @@ import { useNavigate } from 'react-router-dom'
 import { Search, Filter, Download, Upload, FileText, FileSpreadsheet, Plus, Eye, Edit, Trash2, MoreVertical, Share, X, Camera, Image, ExternalLink, CheckCircle, AlertCircle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
-import sanitizeHtml from 'sanitize-html'
+// Removed sanitize-html import (not browser compatible)
 import api from '../utils/api'
 import { getImageUrl } from '../utils/imageUtils'
+
+// Professional browser-compatible HTML sanitization function with excellent formatting
+const sanitizeHtml = (html, options = {}) => {
+  const allowedTags = options.allowedTags || ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'strong', 'em', 'br', 'div', 'span', 'a', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'blockquote', 'code', 'pre']
+  const allowedAttributes = options.allowedAttributes || {
+    'a': ['href', 'title'],
+    'img': ['src', 'alt', 'title'],
+    'table': ['border', 'cellpadding', 'cellspacing'],
+    'td': ['colspan', 'rowspan'],
+    'th': ['colspan', 'rowspan']
+  }
+  
+  // If input is empty or null, return empty string
+  if (!html || typeof html !== 'string') {
+    return ''
+  }
+  
+  // Normalize the HTML first
+  html = html
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\n\s*\n/g, '\n\n')
+  
+  // Use DOMParser for better HTML parsing
+  let doc
+  try {
+    const parser = new DOMParser()
+    doc = parser.parseFromString(`<div>${html}</div>`, 'text/html')
+  } catch (e) {
+    // Fallback to innerHTML method
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = html
+    doc = { body: { firstChild: tempDiv } }
+  }
+  
+  const container = doc.body.firstChild
+  
+  // Function to recursively clean and format elements
+  const cleanElement = (element) => {
+    if (!element) return
+    
+    // Remove dangerous tags completely
+    const dangerousTags = ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'link', 'meta', 'base', 'title']
+    dangerousTags.forEach(tag => {
+      const elements = element.querySelectorAll(tag)
+      elements.forEach(el => el.remove())
+    })
+    
+    // Process all elements in reverse order to avoid issues with DOM manipulation
+    const allElements = Array.from(element.querySelectorAll('*')).reverse()
+    allElements.forEach(el => {
+      const tagName = el.tagName.toLowerCase()
+      
+      // Handle disallowed tags
+      if (!allowedTags.includes(tagName)) {
+        // Smart tag conversion
+        let replacement = null
+        
+        switch (tagName) {
+          case 'b':
+          case 'bold':
+            replacement = document.createElement('strong')
+            break
+          case 'i':
+          case 'italic':
+            replacement = document.createElement('em')
+            break
+          case 'u':
+            replacement = document.createElement('span')
+            replacement.style.textDecoration = 'underline'
+            break
+          case 'center':
+            replacement = document.createElement('div')
+            replacement.style.textAlign = 'center'
+            break
+          case 'font':
+            replacement = document.createElement('span')
+            break
+          case 'big':
+            replacement = document.createElement('span')
+            replacement.style.fontSize = 'larger'
+            break
+          case 'small':
+            replacement = document.createElement('span')
+            replacement.style.fontSize = 'smaller'
+            break
+          default:
+            // For unknown tags, preserve content but remove tag
+            const isBlock = window.getComputedStyle ? 
+              (el.offsetWidth !== undefined && el.offsetHeight !== undefined) :
+              ['div', 'p', 'section', 'article', 'header', 'footer', 'main', 'aside', 'nav'].includes(tagName)
+            replacement = document.createElement(isBlock ? 'div' : 'span')
+        }
+        
+        if (replacement) {
+          replacement.innerHTML = el.innerHTML
+          el.parentNode.replaceChild(replacement, el)
+        }
+      } else {
+        // Clean attributes for allowed tags
+        const allowedAttrs = allowedAttributes[tagName] || []
+        const attrs = Array.from(el.attributes)
+        
+        attrs.forEach(attr => {
+          if (!allowedAttrs.includes(attr.name)) {
+            el.removeAttribute(attr.name)
+          } else {
+            // Sanitize attribute values
+            if (attr.name === 'href' && attr.value) {
+              // Only allow safe protocols
+              if (!/^(https?:|mailto:|tel:|#)/.test(attr.value)) {
+                el.removeAttribute(attr.name)
+              }
+            }
+          }
+        })
+      }
+    })
+  }
+  
+  // Clean the content
+  cleanElement(container)
+  
+  // Get the cleaned HTML
+  let cleanedHtml = container.innerHTML
+  
+  // Advanced post-processing for professional formatting
+  cleanedHtml = cleanedHtml
+    // Remove empty elements
+    .replace(/<(p|div|span|h[1-6])[^>]*>\s*<\/\1>/gi, '')
+    // Fix multiple consecutive line breaks
+    .replace(/(<br\s*\/?>){4,}/gi, '<br><br><br>')
+    .replace(/(<br\s*\/?>){2,}(?=\s*<(?:p|div|h[1-6]|ul|ol))/gi, '<br>')
+    // Ensure proper spacing around block elements
+    .replace(/(<\/(?:p|div|h[1-6]|ul|ol|li|blockquote)>)(?!\s*<(?:\/|p|div|h[1-6]|ul|ol|li|blockquote))/gi, '$1\n')
+    .replace(/(<(?:p|div|h[1-6]|ul|ol|li|blockquote)[^>]*>)/gi, '\n$1')
+    // Clean up list formatting
+    .replace(/(<\/li>)(?!\s*<(?:li|\/[uo]l))/gi, '$1\n')
+    .replace(/(<li[^>]*>)/gi, '\n  $1')
+    // Fix table formatting
+    .replace(/(<\/tr>)/gi, '$1\n')
+    .replace(/(<tr[^>]*>)/gi, '\n$1')
+    .replace(/(<\/t[hd]>)/gi, '$1 ')
+    // Clean up extra whitespace but preserve intentional formatting
+    .replace(/\n\s*\n\s*\n/g, '\n\n')
+    .replace(/^\s+|\s+$/g, '')
+    // Ensure proper paragraph spacing
+    .replace(/(<\/p>)\s*(<p[^>]*>)/gi, '$1\n\n$2')
+    
+  return cleanedHtml
+}
 
 const Reports = () => {
   const navigate = useNavigate()

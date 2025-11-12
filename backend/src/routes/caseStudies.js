@@ -1,6 +1,8 @@
 import express from 'express'
 import CaseStudy from '../models/CaseStudy.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
+import path from 'path'
+import fs from 'fs'
 import { 
   caseStudyUpload, 
   handleImageUploadResponse, 
@@ -122,7 +124,60 @@ router.get('/by-slug/:slug', async (req, res) => {
   }
 })
 
-// Get single case study by slug or ID (with slug priority)
+// Get case study statistics (MUST be before /:identifier route)
+router.get('/stats/overview', authenticate, async (req, res) => {
+  try {
+    const totalCaseStudies = await CaseStudy.countDocuments()
+    const publishedCaseStudies = await CaseStudy.countDocuments({ status: 'published' })
+    const draftCaseStudies = await CaseStudy.countDocuments({ status: 'draft' })
+    const featuredCaseStudies = await CaseStudy.countDocuments({ featured: true })
+    
+    // Get case studies by author
+    const caseStudiesByAuthor = await CaseStudy.aggregate([
+      {
+        $group: {
+          _id: '$authorName',
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } },
+      { $limit: 10 }
+    ])
+    
+    res.json({
+      total: totalCaseStudies,
+      published: publishedCaseStudies,
+      draft: draftCaseStudies,
+      featured: featuredCaseStudies,
+      byAuthor: caseStudiesByAuthor
+    })
+  } catch (error) {
+    console.error('Error fetching case study statistics:', error)
+    res.status(500).json({ error: 'Failed to fetch statistics' })
+  }
+})
+
+// Utility route to populate slugs for existing case studies (MUST be before /:identifier route)
+router.post('/utils/populate-slugs', authenticate, requireRole('super_admin', 'admin'), async (req, res) => {
+  try {
+    const updatedCount = await CaseStudy.populateSlugs();
+    
+    res.json({
+      success: true,
+      message: `Successfully populated slugs for ${updatedCount} case studies`,
+      updatedCount
+    });
+  } catch (error) {
+    console.error('Error populating case study slugs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to populate case study slugs',
+      error: error.message
+    });
+  }
+});
+
+// Get single case study by slug or ID (with slug priority) - MUST be after specific routes
 router.get('/:identifier', async (req, res) => {
   try {
     const { identifier } = req.params
@@ -379,54 +434,26 @@ router.post('/:id/image', authenticate, requireRole('super_admin', 'admin', 'edi
 })
 
 
-// Get case study statistics
-router.get('/stats/overview', authenticate, async (req, res) => {
+// Test endpoint to debug slug functionality
+router.get('/test/debug-slugs', async (req, res) => {
   try {
-    const totalCaseStudies = await CaseStudy.countDocuments()
-    const publishedCaseStudies = await CaseStudy.countDocuments({ status: 'published' })
-    const draftCaseStudies = await CaseStudy.countDocuments({ status: 'draft' })
-    const featuredCaseStudies = await CaseStudy.countDocuments({ featured: true })
-    
-    // Get case studies by author
-    const caseStudiesByAuthor = await CaseStudy.aggregate([
-      {
-        $group: {
-          _id: '$authorName',
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { count: -1 } },
-      { $limit: 10 }
-    ])
-    
-    res.json({
-      total: totalCaseStudies,
-      published: publishedCaseStudies,
-      draft: draftCaseStudies,
-      featured: featuredCaseStudies,
-      byAuthor: caseStudiesByAuthor
-    })
-  } catch (error) {
-    console.error('Error fetching case study statistics:', error)
-    res.status(500).json({ error: 'Failed to fetch statistics' })
-  }
-})
-
-// Utility route to populate slugs for existing case studies
-router.post('/utils/populate-slugs', authenticate, requireRole('super_admin', 'admin'), async (req, res) => {
-  try {
-    const updatedCount = await CaseStudy.populateSlugs();
+    const caseStudies = await CaseStudy.find({}).limit(5).select('title slug url _id');
+    const totalCaseStudies = await CaseStudy.countDocuments();
     
     res.json({
       success: true,
-      message: `Successfully populated slugs for ${updatedCount} case studies`,
-      updatedCount
+      message: 'Case Study slug debug information',
+      totalCaseStudies,
+      sampleCaseStudies: caseStudies,
+      testInstructions: {
+        bySlug: '/api/case-studies/by-slug/{slug}',
+        byId: '/api/case-studies/{id}',
+        byIdentifier: '/api/case-studies/{slug-or-id}'
+      }
     });
   } catch (error) {
-    console.error('Error populating case study slugs:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to populate case study slugs',
       error: error.message
     });
   }
