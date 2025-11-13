@@ -10,6 +10,68 @@ import { authenticate, requireRole } from '../middleware/auth.js'
 
 const router = Router()
 
+// Helper function to sync all existing reports with categories
+async function syncReportsWithCategories() {
+  try {
+    console.log('🔄 Starting report-category synchronization...')
+    
+    // Get all reports with category/subcategory data
+    const reports = await Report.find({
+      $or: [
+        { category: { $exists: true, $ne: '' } },
+        { subCategory: { $exists: true, $ne: '' } }
+      ]
+    })
+    
+    console.log(`📊 Found ${reports.length} reports with category data`)
+    
+    let categoriesUpdated = 0
+    let subcategoriesUpdated = 0
+    
+    for (const report of reports) {
+      if (report.category && report.category.trim()) {
+        const category = await Category.findOne({ 
+          name: { $regex: new RegExp(`^${report.category.trim()}$`, 'i') }
+        })
+        
+        if (category) {
+          // Add report to category if not already present
+          if (!category.reports.includes(report._id)) {
+            category.reports.push(report._id)
+            categoriesUpdated++
+          }
+          
+          // Handle subcategory
+          if (report.subCategory && report.subCategory.trim()) {
+            const subcategory = category.subcategories.find(sub => 
+              sub.name.toLowerCase() === report.subCategory.trim().toLowerCase()
+            )
+            
+            if (subcategory && !subcategory.reports.includes(report._id)) {
+              subcategory.reports.push(report._id)
+              subcategoriesUpdated++
+            }
+          }
+          
+          // Update counts
+          category.reportCount = category.reports.length
+          category.subcategories.forEach(sub => {
+            sub.reportCount = sub.reports.length
+          })
+          
+          await category.save()
+        }
+      }
+    }
+    
+    console.log(`✅ Synchronization complete: ${categoriesUpdated} category updates, ${subcategoriesUpdated} subcategory updates`)
+    return { categoriesUpdated, subcategoriesUpdated }
+  } catch (error) {
+    console.error('❌ Error syncing reports with categories:', error)
+    throw error
+  }
+}
+
 // Helper function to ensure category exists, create if not
 async function ensureCategoryExists(categoryName) {
   if (!categoryName || typeof categoryName !== 'string' || categoryName.trim() === '') {
@@ -180,6 +242,26 @@ const generateUniqueSlug = async (title, existingSlug = null) => {
 // Middleware: Authentication required for all routes
 // router.use(authenticate)
 // router.use(requireRole('super_admin', 'admin', 'editor'))
+
+// POST /api/reports/sync-categories - Sync existing reports with categories
+router.post('/sync-categories', async (req, res, next) => {
+  try {
+    const result = await syncReportsWithCategories()
+    
+    res.json({
+      success: true,
+      message: 'Report-category synchronization completed successfully',
+      stats: result
+    })
+  } catch (error) {
+    console.error('Error in sync-categories endpoint:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to sync reports with categories',
+      message: error.message
+    })
+  }
+})
 
 // GET /api/reports - List reports with filtering support
 router.get('/', async (req, res, next) => {

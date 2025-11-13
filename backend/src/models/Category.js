@@ -27,6 +27,18 @@ const categorySchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  
+  // Store report references for this category
+  reports: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Report'
+  }],
+  
+  // Cache report count for performance
+  reportCount: {
+    type: Number,
+    default: 0
+  },
 
   subcategories: [{
     name: {
@@ -57,6 +69,18 @@ const categorySchema = new mongoose.Schema({
       type: Boolean,
       default: false,
       index: true
+    },
+    
+    // Store report references for this subcategory
+    reports: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Report'
+    }],
+    
+    // Cache report count for performance
+    reportCount: {
+      type: Number,
+      default: 0
     }
   }]
 }, {

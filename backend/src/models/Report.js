@@ -154,6 +154,20 @@ const reportSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  
+  // Category and subcategory fields for filtering and organization
+  category: {
+    type: String,
+    trim: true,
+    default: '',
+    index: true
+  },
+  subCategory: {
+    type: String,
+    trim: true,
+    default: '',
+    index: true
+  },
 
   // Pricing fields
   excelDatapackPrice: {
@@ -301,6 +315,77 @@ reportSchema.pre('save', function (next) {
   }
 
   next()
+})
+
+// Middleware to update category references when report is saved
+reportSchema.post('save', async function(doc) {
+  try {
+    const Category = mongoose.model('Category')
+    
+    // Update category references if category is specified
+    if (doc.category && doc.category.trim()) {
+      const category = await Category.findOne({ 
+        name: { $regex: new RegExp(`^${doc.category.trim()}$`, 'i') }
+      })
+      
+      if (category) {
+        // Add report to category if not already present
+        if (!category.reports.includes(doc._id)) {
+          category.reports.push(doc._id)
+          category.reportCount = category.reports.length
+          await category.save()
+        }
+        
+        // Update subcategory references if subcategory is specified
+        if (doc.subCategory && doc.subCategory.trim()) {
+          const subcategory = category.subcategories.find(sub => 
+            sub.name.toLowerCase() === doc.subCategory.trim().toLowerCase()
+          )
+          
+          if (subcategory && !subcategory.reports.includes(doc._id)) {
+            subcategory.reports.push(doc._id)
+            subcategory.reportCount = subcategory.reports.length
+            await category.save()
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error updating category references:', error)
+  }
+})
+
+// Middleware to remove category references when report is deleted
+reportSchema.post('findOneAndDelete', async function(doc) {
+  if (!doc) return
+  
+  try {
+    const Category = mongoose.model('Category')
+    
+    // Remove report from all categories and subcategories
+    const categories = await Category.find({
+      $or: [
+        { reports: doc._id },
+        { 'subcategories.reports': doc._id }
+      ]
+    })
+    
+    for (const category of categories) {
+      // Remove from category reports
+      category.reports = category.reports.filter(id => !id.equals(doc._id))
+      category.reportCount = category.reports.length
+      
+      // Remove from subcategory reports
+      category.subcategories.forEach(sub => {
+        sub.reports = sub.reports.filter(id => !id.equals(doc._id))
+        sub.reportCount = sub.reports.length
+      })
+      
+      await category.save()
+    }
+  } catch (error) {
+    console.error('Error removing category references:', error)
+  }
 })
 
 const Report = mongoose.model('Report', reportSchema)

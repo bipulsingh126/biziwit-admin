@@ -457,6 +457,31 @@ const Categories = () => {
     navigate(`/reports?category=${encodeURIComponent(categoryName)}&subCategory=${encodeURIComponent(subcategoryName)}`)
   }
 
+  // Sync reports with categories
+  const handleSyncReportsWithCategories = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      
+      const result = await api.syncReportsWithCategories()
+      
+      if (result.success) {
+        const { categoriesUpdated, subcategoriesUpdated } = result.stats
+        setSuccess(`Successfully synced reports: ${categoriesUpdated} categories and ${subcategoriesUpdated} subcategories updated`)
+        
+        // Refresh categories to show updated counts
+        loadCategories()
+      } else {
+        throw new Error(result.message || 'Sync failed')
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to sync reports with categories')
+    } finally {
+      setLoading(false)
+      setTimeout(() => setSuccess(''), 5000)
+    }
+  }
+
   const handleBulkTrendingUpdate = async (newTrendingStatus) => {
     if (selectedCategories.length === 0) {
       setError('Please select at least one category')
@@ -506,6 +531,15 @@ const Categories = () => {
           <p className="text-gray-600 mt-1">Manage report categories and their subcategories</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleSyncReportsWithCategories}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Sync existing reports with categories to update report counts"
+          >
+            <BarChart3 className="w-4 h-4" />
+            {loading ? 'Syncing...' : 'Sync Reports'}
+          </button>
           <button
             onClick={() => setShowTrendingModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"

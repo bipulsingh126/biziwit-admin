@@ -20,36 +20,15 @@ router.get('/', async (req, res, next) => {
       .sort({ sortOrder: 1, name: 1 })
       .lean()
     
-    // Get report counts for each category and subcategory
-    const categoriesWithCounts = await Promise.all(
-      categories.map(async (category) => {
-        const reportCount = await Report.countDocuments({ 
-          category: category.name,
-          status: { $ne: 'archived' }
-        })
-        
-        // Get subcategory counts
-        const subcategoriesWithCounts = await Promise.all(
-          category.subcategories.map(async (sub) => {
-            const subReportCount = await Report.countDocuments({
-              category: category.name,
-              subCategory: sub.name,
-              status: { $ne: 'archived' }
-            })
-            return {
-              ...sub,
-              reportCount: subReportCount
-            }
-          })
-        )
-        
-        return {
-          ...category,
-          reportCount,
-          subcategories: subcategoriesWithCounts
-        }
-      })
-    )
+    // Use cached report counts from the Category model for better performance
+    const categoriesWithCounts = categories.map(category => ({
+      ...category,
+      reportCount: category.reportCount || 0,
+      subcategories: category.subcategories.map(sub => ({
+        ...sub,
+        reportCount: sub.reportCount || 0
+      }))
+    }))
     
     res.json({
       success: true,

@@ -178,6 +178,12 @@ class ApiClient {
     })
   }
 
+  async syncReportsWithCategories() {
+    return this.request('/api/reports/sync-categories', {
+      method: 'POST'
+    })
+  }
+
   async exportReports(params = {}) {
     const query = new URLSearchParams(params).toString()
     const response = await this.request(`/api/reports/export${query ? `?${query}` : ''}`)
