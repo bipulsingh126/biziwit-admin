@@ -9,10 +9,10 @@ const router = Router()
 // router.use(authenticate)
 // router.use(requireRole('super_admin', 'admin', 'editor'))
 
-// GET /api/categories - List all categories with subcategories
+// GET /api/categories - List all categories with subcategories and reports
 router.get('/', async (req, res, next) => {
   try {
-    const { includeInactive = false } = req.query
+    const { includeInactive = false, includeReports = false } = req.query
     
     const query = includeInactive === 'true' ? {} : { isActive: true }
     
@@ -20,21 +20,68 @@ router.get('/', async (req, res, next) => {
       .sort({ sortOrder: 1, name: 1 })
       .lean()
     
-    // Use cached report counts from the Category model for better performance
-    const categoriesWithCounts = categories.map(category => ({
-      ...category,
-      reportCount: category.reportCount || 0,
-      subcategories: category.subcategories.map(sub => ({
-        ...sub,
-        reportCount: sub.reportCount || 0
+    if (includeReports === 'true') {
+      // Fetch all reports and group by category/subcategory
+      const categoriesWithReports = await Promise.all(
+        categories.map(async (category) => {
+          // Get all reports for this category
+          const categoryReports = await Report.find({ 
+            category: category.name,
+            status: { $ne: 'archived' }
+          })
+          .sort({ createdAt: -1 })
+          .lean()
+          
+          // Group reports by subcategory
+          const subcategoriesWithReports = await Promise.all(
+            category.subcategories.map(async (sub) => {
+              const subcategoryReports = await Report.find({
+                category: category.name,
+                subCategory: sub.name,
+                status: { $ne: 'archived' }
+              })
+              .sort({ createdAt: -1 })
+              .lean()
+              
+              return {
+                ...sub,
+                reportCount: subcategoryReports.length,
+                reports: subcategoryReports
+              }
+            })
+          )
+          
+          return {
+            ...category,
+            reportCount: categoryReports.length,
+            reports: categoryReports,
+            subcategories: subcategoriesWithReports
+          }
+        })
+      )
+      
+      res.json({
+        success: true,
+        data: categoriesWithReports,
+        total: categoriesWithReports.length
+      })
+    } else {
+      // Use cached report counts from the Category model for better performance
+      const categoriesWithCounts = categories.map(category => ({
+        ...category,
+        reportCount: category.reportCount || 0,
+        subcategories: category.subcategories.map(sub => ({
+          ...sub,
+          reportCount: sub.reportCount || 0
+        }))
       }))
-    }))
-    
-    res.json({
-      success: true,
-      data: categoriesWithCounts,
-      total: categoriesWithCounts.length
-    })
+      
+      res.json({
+        success: true,
+        data: categoriesWithCounts,
+        total: categoriesWithCounts.length
+      })
+    }
   } catch (error) {
     console.error('Error fetching categories:', error)
     next(error)
@@ -298,11 +345,117 @@ router.post('/subcategories/bulk-trending', async (req, res, next) => {
   }
 })
 
-// GET /api/categories/by-slug/:slug - Get category by slug
+// GET /api/categories/reports - Get all reports grouped by categories and subcategories
+router.get('/reports', async (req, res, next) => {
+  try {
+    const { 
+      includeInactive = false, 
+      status = 'published',
+      limit,
+      offset = 0 
+    } = req.query
+    
+    console.log('🔍 Fetching reports grouped by categories...')
+    
+    // Build report query
+    const reportQuery = { status: { $ne: 'archived' } }
+    if (status && status !== 'all') {
+      reportQuery.status = status
+    }
+    
+    // Get all categories
+    const categoryQuery = includeInactive === 'true' ? {} : { isActive: true }
+    const categories = await Category.find(categoryQuery)
+      .sort({ sortOrder: 1, name: 1 })
+      .lean()
+    
+    console.log(`📊 Found ${categories.length} categories`)
+    
+    // Fetch all reports grouped by category/subcategory
+    const categoriesWithReports = await Promise.all(
+      categories.map(async (category) => {
+        // Get all reports for this category (no pagination limits)
+        const categoryReports = await Report.find({ 
+          ...reportQuery,
+          category: category.name
+        })
+        .sort({ createdAt: -1 })
+        .lean()
+        
+        console.log(`📋 Category "${category.name}": ${categoryReports.length} reports`)
+        
+        // Group reports by subcategory
+        const subcategoriesWithReports = await Promise.all(
+          category.subcategories.map(async (sub) => {
+            let subcategoryReportsQuery = Report.find({
+              ...reportQuery,
+              category: category.name,
+              subCategory: sub.name
+            }).sort({ createdAt: -1 })
+            
+            // Apply pagination if specified
+            if (limit) {
+              subcategoryReportsQuery = subcategoryReportsQuery.limit(parseInt(limit))
+            }
+            if (offset) {
+              subcategoryReportsQuery = subcategoryReportsQuery.skip(parseInt(offset))
+            }
+            
+            const subcategoryReports = await subcategoryReportsQuery.lean()
+            
+            console.log(`  📄 Subcategory "${sub.name}": ${subcategoryReports.length} reports`)
+            
+            return {
+              ...sub,
+              reportCount: subcategoryReports.length,
+              reports: subcategoryReports
+            }
+          })
+        )
+        
+        return {
+          ...category,
+          reportCount: categoryReports.length,
+          reports: categoryReports,
+          subcategories: subcategoriesWithReports
+        }
+      })
+    )
+    
+    // Calculate total reports
+    const totalReports = categoriesWithReports.reduce((total, cat) => total + cat.reportCount, 0)
+    
+    console.log(`✅ Successfully fetched ${totalReports} reports across ${categories.length} categories`)
+    
+    res.json({
+      success: true,
+      data: categoriesWithReports,
+      total: categoriesWithReports.length,
+      totalReports,
+      filters: {
+        status,
+        includeInactive,
+        limit: limit ? parseInt(limit) : null,
+        offset: parseInt(offset)
+      }
+    })
+  } catch (error) {
+    console.error('Error fetching reports by categories:', error)
+    next(error)
+  }
+})
+
+// GET /api/categories/by-slug/:slug - Get category by slug with reports
 router.get('/by-slug/:slug', async (req, res, next) => {
   try {
     const { slug } = req.params
-    const { includeSubcategories = true } = req.query
+    const { 
+      includeSubcategories = true, 
+      includeReports = false,
+      limit,
+      offset = 0,
+      status = 'published'
+    } = req.query
     
     const category = await Category.findOne({ 
       slug: slug,
@@ -316,26 +469,80 @@ router.get('/by-slug/:slug', async (req, res, next) => {
       })
     }
     
-    // Get report count for the category
-    const reportCount = await Report.countDocuments({ 
+    console.log(`🔍 Fetching category "${category.name}" with slug "${slug}"`)
+    
+    // Build report query
+    const reportQuery = { 
       category: category.name,
       status: { $ne: 'archived' }
-    })
+    }
+    if (status && status !== 'all') {
+      reportQuery.status = status
+    }
     
-    let subcategoriesWithCounts = []
+    let categoryReports = []
+    let reportCount = 0
+    
+    if (includeReports === 'true') {
+      // Get all reports for this category
+      let categoryReportsQuery = Report.find(reportQuery).sort({ createdAt: -1 })
+      
+      if (limit) {
+        categoryReportsQuery = categoryReportsQuery.limit(parseInt(limit))
+      }
+      if (offset) {
+        categoryReportsQuery = categoryReportsQuery.skip(parseInt(offset))
+      }
+      
+      categoryReports = await categoryReportsQuery.lean()
+      reportCount = categoryReports.length
+      
+      console.log(`📋 Found ${reportCount} reports for category "${category.name}"`)
+    } else {
+      // Just get count
+      reportCount = await Report.countDocuments(reportQuery)
+    }
+    
+    let subcategoriesWithData = []
     
     if (includeSubcategories === 'true' && category.subcategories) {
-      // Get report counts for each subcategory
-      subcategoriesWithCounts = await Promise.all(
+      // Get report data for each subcategory
+      subcategoriesWithData = await Promise.all(
         category.subcategories.map(async (sub) => {
-          const subReportCount = await Report.countDocuments({
+          const subReportQuery = {
             category: category.name,
             subCategory: sub.name,
             status: { $ne: 'archived' }
-          })
+          }
+          if (status && status !== 'all') {
+            subReportQuery.status = status
+          }
+          
+          let subReports = []
+          let subReportCount = 0
+          
+          if (includeReports === 'true') {
+            let subReportsQuery = Report.find(subReportQuery).sort({ createdAt: -1 })
+            
+            if (limit) {
+              subReportsQuery = subReportsQuery.limit(parseInt(limit))
+            }
+            if (offset) {
+              subReportsQuery = subReportsQuery.skip(parseInt(offset))
+            }
+            
+            subReports = await subReportsQuery.lean()
+            subReportCount = subReports.length
+            
+            console.log(`  📄 Subcategory "${sub.name}": ${subReportCount} reports`)
+          } else {
+            subReportCount = await Report.countDocuments(subReportQuery)
+          }
+          
           return {
             ...sub,
-            reportCount: subReportCount
+            reportCount: subReportCount,
+            ...(includeReports === 'true' && { reports: subReports })
           }
         })
       )
@@ -344,8 +551,11 @@ router.get('/by-slug/:slug', async (req, res, next) => {
     const result = {
       ...category,
       reportCount,
-      subcategories: subcategoriesWithCounts
+      ...(includeReports === 'true' && { reports: categoryReports }),
+      subcategories: subcategoriesWithData
     }
+    
+    console.log(`✅ Successfully fetched category "${category.name}" with ${reportCount} reports`)
     
     res.json({
       success: true,
@@ -357,10 +567,16 @@ router.get('/by-slug/:slug', async (req, res, next) => {
   }
 })
 
-// GET /api/categories/:categorySlug/subcategories/:subcategorySlug - Get subcategory by slug
+// GET /api/categories/:categorySlug/subcategories/:subcategorySlug - Get subcategory by slug with reports
 router.get('/:categorySlug/subcategories/:subcategorySlug', async (req, res, next) => {
   try {
     const { categorySlug, subcategorySlug } = req.params
+    const { 
+      includeReports = false,
+      limit,
+      offset = 0,
+      status = 'published'
+    } = req.query
     
     const category = await Category.findOne({ 
       slug: categorySlug,
@@ -385,16 +601,45 @@ router.get('/:categorySlug/subcategories/:subcategorySlug', async (req, res, nex
       })
     }
     
-    // Get report count for this subcategory
-    const reportCount = await Report.countDocuments({
+    console.log(`🔍 Fetching subcategory "${subcategory.name}" in category "${category.name}"`)
+    
+    // Build report query
+    const reportQuery = {
       category: category.name,
       subCategory: subcategory.name,
       status: { $ne: 'archived' }
-    })
+    }
+    if (status && status !== 'all') {
+      reportQuery.status = status
+    }
+    
+    let subcategoryReports = []
+    let reportCount = 0
+    
+    if (includeReports === 'true') {
+      // Get all reports for this subcategory
+      let subcategoryReportsQuery = Report.find(reportQuery).sort({ createdAt: -1 })
+      
+      if (limit) {
+        subcategoryReportsQuery = subcategoryReportsQuery.limit(parseInt(limit))
+      }
+      if (offset) {
+        subcategoryReportsQuery = subcategoryReportsQuery.skip(parseInt(offset))
+      }
+      
+      subcategoryReports = await subcategoryReportsQuery.lean()
+      reportCount = subcategoryReports.length
+      
+      console.log(`📄 Found ${reportCount} reports for subcategory "${subcategory.name}"`)
+    } else {
+      // Just get count
+      reportCount = await Report.countDocuments(reportQuery)
+    }
     
     const result = {
       ...subcategory,
       reportCount,
+      ...(includeReports === 'true' && { reports: subcategoryReports }),
       category: {
         _id: category._id,
         name: category.name,
@@ -402,6 +647,8 @@ router.get('/:categorySlug/subcategories/:subcategorySlug', async (req, res, nex
         description: category.description
       }
     }
+    
+    console.log(`✅ Successfully fetched subcategory "${subcategory.name}" with ${reportCount} reports`)
     
     res.json({
       success: true,
