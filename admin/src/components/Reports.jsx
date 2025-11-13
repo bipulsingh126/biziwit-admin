@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { Search, Filter, Download, Upload, FileText, FileSpreadsheet, Plus, Eye, Edit, Trash2, MoreVertical, Share, X, Camera, Image, ExternalLink, CheckCircle, AlertCircle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
@@ -160,6 +160,8 @@ const sanitizeHtml = (html, options = {}) => {
 
 const Reports = () => {
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [searchTerm, setSearchTerm] = useState('')
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
@@ -241,6 +243,35 @@ const Reports = () => {
     setCurrentPage(1)
     loadReports()
   }, [filters])
+
+  // Handle URL parameters for category/subcategory filtering
+  useEffect(() => {
+    const category = searchParams.get('category')
+    const subCategory = searchParams.get('subCategory')
+    
+    if (category || subCategory) {
+      setFilters(prev => ({
+        ...prev,
+        category: category || '',
+        subCategory: subCategory || ''
+      }))
+      
+      // Show filter panel if filters are applied from URL
+      if (category || subCategory) {
+        setShowFilter(true)
+      }
+      
+      // Show success message indicating the filter
+      if (category && subCategory) {
+        setSuccess(`Showing reports for category "${category}" > "${subCategory}"`)
+      } else if (category) {
+        setSuccess(`Showing reports for category "${category}"`)
+      }
+      
+      // Auto-hide success message
+      setTimeout(() => setSuccess(''), 5000)
+    }
+  }, [searchParams])
 
   // Close export menu when clicking outside
   useEffect(() => {
@@ -1157,10 +1188,13 @@ const Reports = () => {
       })
       
       const startTime = Date.now()
-      const result = await api.importReports({
-        reports: processedReports,
-        duplicateHandling: duplicateHandling
-      })
+      
+      // Use the bulk upload endpoint with the original file
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+      formData.append('duplicateHandling', duplicateHandling)
+      
+      const result = await api.bulkUploadReports(formData)
       const processingTime = ((Date.now() - startTime) / 1000).toFixed(1)
       
       setImportProgress({ 
@@ -1186,6 +1220,14 @@ const Reports = () => {
         if (stats?.updated) successMessage += `${stats.updated} updated, `
         if (stats?.skipped) successMessage += `${stats.skipped} skipped, `
         if (stats?.duplicates) successMessage += `${stats.duplicates} duplicates handled`
+        
+        // Add category creation information
+        if (result.categories) {
+          const { created, subcategoriesCreated } = result.categories
+          if (created > 0 || subcategoriesCreated > 0) {
+            successMessage += `. Auto-created: ${created} categories, ${subcategoriesCreated} subcategories`
+          }
+        }
         
         setSuccess(successMessage)
       } else {
@@ -1228,6 +1270,62 @@ const Reports = () => {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
+  }
+
+
+  // Missing function: Parse uploaded file
+  const parseFile = async (file) => {
+    try {
+      if (file.type === 'text/csv') {
+        // Parse CSV
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            if (results.errors.length > 0) {
+              console.warn('CSV parsing warnings:', results.errors)
+            }
+            processParseResults(Object.keys(results.data[0] || {}), results.data)
+          },
+          error: (error) => {
+            console.error('CSV parsing error:', error)
+            setError('Failed to parse CSV file: ' + error.message)
+            setImportProgress(null)
+          }
+        })
+      } else {
+        // Parse Excel
+        const arrayBuffer = await file.arrayBuffer()
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+        const sheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[sheetName]
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+        
+        if (jsonData.length < 2) {
+          throw new Error('File must contain at least a header row and one data row')
+        }
+        
+        const headers = jsonData[0]
+        const rows = jsonData.slice(1).map(row => {
+          const obj = {}
+          headers.forEach((header, index) => {
+            obj[header] = row[index] || ''
+          })
+          return obj
+        }).filter(row => Object.values(row).some(val => val && val.toString().trim()))
+        
+        processParseResults(headers, rows)
+      }
+      
+      // Check for duplicates after parsing
+      if (file) {
+        await checkForDuplicates(file)
+      }
+    } catch (error) {
+      console.error('File parsing error:', error)
+      setError('Failed to parse file: ' + error.message)
+      setImportProgress(null)
+    }
   }
 
   const totalPages = Math.ceil(totalItems / itemsPerPage)
@@ -1273,7 +1371,32 @@ const Reports = () => {
       
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+          {/* Category Breadcrumb */}
+          {(filters.category || filters.subCategory) && (
+            <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+              <span>Filtered by:</span>
+              <div className="flex items-center gap-1">
+                {filters.category && (
+                  <>
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full font-medium">
+                      {filters.category}
+                    </span>
+                    {filters.subCategory && (
+                      <>
+                        <span className="text-gray-400">›</span>
+                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full font-medium">
+                          {filters.subCategory}
+                        </span>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
         
         {/* Controls Container */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -1506,6 +1629,8 @@ const Reports = () => {
               onClick={() => {
                 setFilters({ category: '', subCategory: '', status: '', author: '' })
                 setSubcategories([])
+                // Clear URL parameters
+                setSearchParams({})
               }}
               className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
             >
@@ -1542,6 +1667,8 @@ const Reports = () => {
                     setSearchTerm('')
                     setFilters({ category: '', subCategory: '', status: '', author: '' })
                     setSubcategories([])
+                    // Clear URL parameters
+                    setSearchParams({})
                   }}
                   className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                 >

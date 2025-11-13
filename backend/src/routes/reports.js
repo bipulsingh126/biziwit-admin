@@ -5,9 +5,120 @@ import fs from 'fs'
 import XLSX from 'xlsx'
 import slugify from 'slugify'
 import Report from '../models/Report.js'
+import Category from '../models/Category.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
 
 const router = Router()
+
+// Helper function to ensure category exists, create if not
+async function ensureCategoryExists(categoryName) {
+  if (!categoryName || typeof categoryName !== 'string' || categoryName.trim() === '') {
+    return null
+  }
+
+  const cleanCategoryName = categoryName.trim()
+  
+  try {
+    // Check if category already exists (case-insensitive)
+    let category = await Category.findOne({ 
+      name: { $regex: new RegExp(`^${cleanCategoryName}$`, 'i') }
+    })
+    
+    if (!category) {
+      // Create new category
+      const slug = cleanCategoryName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+      
+      // Ensure unique slug
+      let uniqueSlug = slug
+      let counter = 1
+      while (await Category.findOne({ slug: uniqueSlug })) {
+        uniqueSlug = `${slug}-${counter}`
+        counter++
+      }
+      
+      // Get the highest sort order
+      const lastCategory = await Category.findOne().sort({ sortOrder: -1 })
+      const sortOrder = lastCategory ? lastCategory.sortOrder + 1 : 0
+      
+      category = new Category({
+        name: cleanCategoryName,
+        slug: uniqueSlug || `category-${Date.now()}`,
+        description: `Auto-created category from Excel import: ${cleanCategoryName}`,
+        sortOrder,
+        subcategories: []
+      })
+      
+      await category.save()
+      console.log(`✅ Auto-created category: "${cleanCategoryName}" with slug: "${uniqueSlug}"`)
+      return { category, created: true }
+    }
+    
+    return { category, created: false }
+  } catch (error) {
+    console.error(`❌ Error ensuring category "${cleanCategoryName}":`, error.message)
+    return null
+  }
+}
+
+// Helper function to ensure subcategory exists under category, create if not
+async function ensureSubcategoryExists(categoryName, subcategoryName) {
+  if (!categoryName || !subcategoryName || 
+      typeof categoryName !== 'string' || typeof subcategoryName !== 'string' ||
+      categoryName.trim() === '' || subcategoryName.trim() === '') {
+    return null
+  }
+
+  const cleanCategoryName = categoryName.trim()
+  const cleanSubcategoryName = subcategoryName.trim()
+  
+  try {
+    // First ensure the parent category exists
+    let categoryResult = await ensureCategoryExists(cleanCategoryName)
+    
+    if (!categoryResult) {
+      console.error(`❌ Failed to create/find category "${cleanCategoryName}" for subcategory "${cleanSubcategoryName}"`)
+      return null
+    }
+    
+    let category = categoryResult.category
+    let categoryWasCreated = categoryResult.created
+    
+    // Check if subcategory already exists (case-insensitive)
+    const existingSubcategory = category.subcategories.find(sub => 
+      sub.name.toLowerCase() === cleanSubcategoryName.toLowerCase()
+    )
+    
+    if (!existingSubcategory) {
+      // Create new subcategory
+      const subSlug = cleanSubcategoryName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+      
+      const newSubcategory = {
+        name: cleanSubcategoryName,
+        slug: subSlug || `subcategory-${Date.now()}`,
+        description: `Auto-created subcategory from Excel import: ${cleanSubcategoryName}`,
+        sortOrder: category.subcategories.length,
+        isActive: true
+      }
+      
+      category.subcategories.push(newSubcategory)
+      await category.save()
+      
+      console.log(`✅ Auto-created subcategory: "${cleanSubcategoryName}" under category: "${cleanCategoryName}"`)
+      return { category, categoryCreated: categoryWasCreated, subcategoryCreated: true }
+    } else {
+      return { category, categoryCreated: categoryWasCreated, subcategoryCreated: false }
+    }
+  } catch (error) {
+    console.error(`❌ Error ensuring subcategory "${cleanSubcategoryName}" under "${cleanCategoryName}":`, error.message)
+    return null
+  }
+}
 
 // Storage configuration
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
@@ -69,6 +180,77 @@ const generateUniqueSlug = async (title, existingSlug = null) => {
 // Middleware: Authentication required for all routes
 // router.use(authenticate)
 // router.use(requireRole('super_admin', 'admin', 'editor'))
+
+// GET /api/reports - List reports with filtering support
+router.get('/', async (req, res, next) => {
+  try {
+    const { 
+      q = '', 
+      category = '', 
+      subCategory = '', 
+      status = '', 
+      author = '', 
+      limit = 10, 
+      offset = 0 
+    } = req.query
+
+    // Build query filter
+    const filter = {}
+    
+    // Text search across multiple fields
+    if (q && q.trim()) {
+      filter.$or = [
+        { title: { $regex: q.trim(), $options: 'i' } },
+        { summary: { $regex: q.trim(), $options: 'i' } },
+        { reportDescription: { $regex: q.trim(), $options: 'i' } },
+        { author: { $regex: q.trim(), $options: 'i' } },
+        { reportCode: { $regex: q.trim(), $options: 'i' } }
+      ]
+    }
+    
+    // Category filtering
+    if (category && category.trim()) {
+      filter.category = { $regex: new RegExp(`^${category.trim()}$`, 'i') }
+    }
+    
+    // Subcategory filtering
+    if (subCategory && subCategory.trim()) {
+      filter.subCategory = { $regex: new RegExp(`^${subCategory.trim()}$`, 'i') }
+    }
+    
+    // Status filtering
+    if (status && status.trim()) {
+      filter.status = status.trim()
+    }
+    
+    // Author filtering
+    if (author && author.trim()) {
+      filter.author = { $regex: author.trim(), $options: 'i' }
+    }
+
+    // Get total count for pagination
+    const total = await Report.countDocuments(filter)
+    
+    // Get reports with pagination and sorting
+    const reports = await Report.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset))
+      .lean()
+
+    res.json({
+      success: true,
+      items: reports,
+      total,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      hasMore: (parseInt(offset) + parseInt(limit)) < total
+    })
+  } catch (error) {
+    console.error('Error fetching reports:', error)
+    next(error)
+  }
+})
 
 // GET /api/reports/subcategories/:categoryName - Get subcategories for a specific category
 router.get('/subcategories/:categoryName', async (req, res, next) => {
@@ -1212,6 +1394,10 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
     let failedCount = 0;
     const errors = [];
     
+    // Category creation tracking
+    let categoriesCreated = 0;
+    let subcategoriesCreated = 0;
+    
     // Dynamic batch size based on data volume
     const batchSize = data.length > 500 ? 25 : data.length > 100 ? 50 : 100;
     const reportBatch = [];
@@ -1445,6 +1631,45 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         } catch (slugError) {
           console.error('Slug generation error:', slugError);
           throw new Error(`Failed to generate slug for title "${cleanTitle}": ${slugError.message}`);
+        }
+
+        // AUTO-CREATE CATEGORIES AND SUBCATEGORIES FROM EXCEL DATA
+        try {
+          // Ensure category exists (create if not found)
+          if (category && category.toString().trim() !== '') {
+            const categoryResult = await ensureCategoryExists(category.toString().trim());
+            if (categoryResult) {
+              if (categoryResult.created) {
+                categoriesCreated++;
+                console.log(`📂 NEW Category created: "${category.toString().trim()}" for report: "${cleanTitle}"`);
+              } else {
+                console.log(`📂 Category "${category.toString().trim()}" already exists for report: "${cleanTitle}"`);
+              }
+            }
+          }
+          
+          // Ensure subcategory exists under category (create if not found)
+          if (category && category.toString().trim() !== '' && 
+              subCategory && subCategory.toString().trim() !== '') {
+            const subcategoryResult = await ensureSubcategoryExists(
+              category.toString().trim(), 
+              subCategory.toString().trim()
+            );
+            if (subcategoryResult) {
+              if (subcategoryResult.categoryCreated) {
+                categoriesCreated++;
+              }
+              if (subcategoryResult.subcategoryCreated) {
+                subcategoriesCreated++;
+                console.log(`📁 NEW Subcategory created: "${subCategory.toString().trim()}" under category "${category.toString().trim()}" for report: "${cleanTitle}"`);
+              } else {
+                console.log(`📁 Subcategory "${subCategory.toString().trim()}" already exists under category "${category.toString().trim()}" for report: "${cleanTitle}"`);
+              }
+            }
+          }
+        } catch (categoryError) {
+          console.error(`⚠️ Category/Subcategory creation failed for report "${cleanTitle}":`, categoryError.message);
+          // Continue with report creation even if category creation fails
         }
 
         const reportData = {
@@ -1720,6 +1945,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
     const successRate = ((totalProcessed / data.length) * 100).toFixed(1);
     
     console.log(`📊 Final Results: ${insertedCount} new, ${updatedCount} updated, ${skippedCount} skipped, ${failedCount} failed`);
+    console.log(`🏷️ Categories: ${categoriesCreated} new categories, ${subcategoriesCreated} new subcategories created`);
     
     res.status(201).json({
       success: true,
@@ -1733,7 +1959,16 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         duplicates: skippedCount + updatedCount,
         successRate: parseFloat(successRate),
         processingTime: totalTime,
-        recordsPerSecond: parseFloat(rate.toFixed(1))
+        recordsPerSecond: parseFloat(rate.toFixed(1)),
+        categoriesCreated: categoriesCreated,
+        subcategoriesCreated: subcategoriesCreated
+      },
+      categories: {
+        created: categoriesCreated,
+        subcategoriesCreated: subcategoriesCreated,
+        message: categoriesCreated > 0 || subcategoriesCreated > 0 
+          ? `Auto-created ${categoriesCreated} categories and ${subcategoriesCreated} subcategories from Excel data`
+          : 'No new categories or subcategories were needed'
       },
       errors: errors.slice(0, 10), // Limit errors in response
       note: failedCount > 0 ? `${failedCount} records failed. Check logs for details.` : 'All records processed successfully'

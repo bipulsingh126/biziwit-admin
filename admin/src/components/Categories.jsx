@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, ChevronDown, ChevronRight, Search, Filter, TrendingUp, Image, Upload } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, Edit, Trash2, ChevronDown, ChevronRight, Search, Filter, TrendingUp, Image, Upload, BarChart3 } from 'lucide-react'
 import api from '../utils/api'
 
 const Categories = () => {
+  const navigate = useNavigate()
   const [categories, setCategories] = useState([])
   const [trendingIndustries, setTrendingIndustries] = useState([])
   const [trendingSubcategories, setTrendingSubcategories] = useState([])
@@ -52,6 +54,19 @@ const Categories = () => {
     loadCategories()
     loadTrendingIndustries()
     loadTrendingSubcategories()
+  }, [])
+
+  // Refresh data when user returns to this page (for Excel import category updates)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadCategories()
+        loadTrendingIndustries()
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [])
 
   const loadTrendingIndustries = async () => {
@@ -433,6 +448,15 @@ const Categories = () => {
     }
   }
 
+  // Navigation functions for viewing reports by category/subcategory
+  const navigateToReportsByCategory = (categoryName) => {
+    navigate(`/reports?category=${encodeURIComponent(categoryName)}`)
+  }
+
+  const navigateToReportsBySubcategory = (categoryName, subcategoryName) => {
+    navigate(`/reports?category=${encodeURIComponent(categoryName)}&subCategory=${encodeURIComponent(subcategoryName)}`)
+  }
+
   const handleBulkTrendingUpdate = async (newTrendingStatus) => {
     if (selectedCategories.length === 0) {
       setError('Please select at least one category')
@@ -627,7 +651,13 @@ const Categories = () => {
                             )}
                           </button>
                           <div>
-                            <div className="text-sm font-medium text-gray-900">{category.name}</div>
+                            <button
+                              onClick={() => navigateToReportsByCategory(category.name)}
+                              className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
+                              title={`View ${category.reportCount || 0} reports in this category`}
+                            >
+                              {category.name}
+                            </button>
                             {category.description && (
                               <div className="text-sm text-gray-500">{category.description}</div>
                             )}
@@ -638,7 +668,14 @@ const Categories = () => {
                         {category.subcategories?.length || 0} subcategories
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">
-                        {category.reportCount || 0} reports
+                        <button
+                          onClick={() => navigateToReportsByCategory(category.name)}
+                          className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
+                          title={`View ${category.reportCount || 0} reports in this category`}
+                        >
+                          <BarChart3 className="w-4 h-4" />
+                          {category.reportCount || 0} reports
+                        </button>
                       </td>
                       <td className="px-6 py-4 text-sm font-medium">
                         <div className="flex items-center gap-2">
@@ -676,7 +713,13 @@ const Categories = () => {
                         <td className="px-6 py-3 pl-16">
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="text-sm text-gray-700">└ {subcategory.name}</span>
+                              <button
+                                onClick={() => navigateToReportsBySubcategory(category.name, subcategory.name)}
+                                className="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
+                                title={`View ${subcategory.reportCount || 0} reports in this subcategory`}
+                              >
+                                └ {subcategory.name}
+                              </button>
                               {subcategory.isTopTrending && (
                                 <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full font-medium">
                                   ⭐ Trending
@@ -692,7 +735,14 @@ const Categories = () => {
                           Subcategory
                         </td>
                         <td className="px-6 py-3 text-sm text-gray-500">
-                          {subcategory.reportCount || 0} reports
+                          <button
+                            onClick={() => navigateToReportsBySubcategory(category.name, subcategory.name)}
+                            className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
+                            title={`View ${subcategory.reportCount || 0} reports in this subcategory`}
+                          >
+                            <BarChart3 className="w-3 h-3" />
+                            {subcategory.reportCount || 0} reports
+                          </button>
                         </td>
                         <td className="px-6 py-3 text-sm font-medium">
                           <button
