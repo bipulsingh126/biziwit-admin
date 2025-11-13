@@ -182,7 +182,7 @@ const ReportCreate = () => {
         segmentationContent: report.segment || report.segmentationContent || '',
         // SEO fields
         titleTag: report.titleTag || '',
-        url: report.url || '',
+        slug: report.slug || report.url || '', // Prioritize slug field, fallback to url for legacy compatibility
         metaDescription: report.metaDescription || '',
         keywords: report.keywords || '',
         // Legacy category fields
@@ -294,7 +294,6 @@ const ReportCreate = () => {
 
       const submitData = {
         title: (formData.title || '').trim(),
-        slug: (formData.slug || '').trim() || generateSlug((formData.title || '').trim()) || `report-${Date.now()}`,
         subTitle: (formData.subTitle || '').trim(),
         summary: (formData.summary || '').trim(),
         content: formData.content || '',
@@ -305,7 +304,8 @@ const ReportCreate = () => {
         segmentationContent: formData.segment || formData.segmentationContent || '',
         // SEO fields
         titleTag: (formData.titleTag || '').trim(),
-        url: (formData.url || '').trim(),
+        slug: (formData.slug || '').trim() || generateSlug((formData.title || '').trim()) || `report-${Date.now()}`, // Use slug field for URL slug
+        url: (formData.slug || '').trim(), // Keep for legacy compatibility
         metaDescription: (formData.metaDescription || '').trim(),
         keywords: (formData.keywords || '').trim(),
         // Legacy category fields

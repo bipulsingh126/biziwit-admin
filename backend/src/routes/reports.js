@@ -313,10 +313,9 @@ router.get('/', async (req, res, next) => {
     // Get total count for pagination
     const total = await Report.countDocuments(filter)
     
-    // Get reports with pagination and sorting
+    // Get all reports without pagination limits
     const reports = await Report.find(filter)
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
       .skip(parseInt(offset))
       .lean()
 
@@ -324,9 +323,9 @@ router.get('/', async (req, res, next) => {
       success: true,
       items: reports,
       total,
-      limit: parseInt(limit),
+      limit: reports.length, // Return actual number of items fetched
       offset: parseInt(offset),
-      hasMore: (parseInt(offset) + parseInt(limit)) < total
+      hasMore: false // No pagination, so no more items
     })
   } catch (error) {
     console.error('Error fetching reports:', error)
@@ -565,15 +564,14 @@ router.get('/', async (req, res, next) => {
         sortOption = { createdAt: -1 }
     }
 
-    // Execute query with pagination
-    const limitNum = Math.min(parseInt(limit) || 50, 200)
+    // Execute query without pagination limits (fetch all data)
     const offsetNum = parseInt(offset) || 0
-
+    
+    // Remove limit to fetch all data
     const [items, total] = await Promise.all([
       Report.find(findCondition, projection)
         .sort(sortOption)
         .skip(offsetNum)
-        .limit(limitNum)
         .lean(),
       Report.countDocuments(findCondition)
     ])
@@ -581,9 +579,9 @@ router.get('/', async (req, res, next) => {
     res.json({
       items,
       total,
-      limit: limitNum,
+      limit: items.length, // Return actual number of items fetched
       offset: offsetNum,
-      hasMore: offsetNum + limitNum < total
+      hasMore: false // No pagination, so no more items
     })
   } catch (error) {
     console.error('Error fetching reports:', error)
@@ -1152,7 +1150,7 @@ router.get('/export', async (req, res, next) => {
         'Enterprise License Price': report.enterpriseLicensePrice || '',
         // SEO Fields
         'Title Tag': report.titleTag || '',
-        'URL Slug': report.url || '',
+        'URL Slug': report.slug || report.url || '',
         'Meta Description': report.metaDescription || '',
         'Keywords': report.keywords || ''
       }))
@@ -1281,7 +1279,7 @@ router.get('/export', async (req, res, next) => {
         `"${report.publishDate ? new Date(report.publishDate).toLocaleDateString() : ''}"`,
         `"${report.lastUpdated ? new Date(report.lastUpdated).toLocaleDateString() : new Date(report.updatedAt).toLocaleDateString()}"`,
         `"${(report.titleTag || '').replace(/"/g, '""')}"`,
-        `"${(report.url || '').replace(/"/g, '""')}"`,
+        `"${(report.slug || report.url || '').replace(/"/g, '""')}"`,
         `"${(report.metaDescription || '').replace(/"/g, '""')}"`,
         `"${(report.keywords || '').replace(/"/g, '""')}"`
       ])
@@ -1668,6 +1666,12 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         cleanDescription = (reportDescription !== null && reportDescription !== undefined && reportDescription !== '') ? String(reportDescription).replace(cleanTextRegex, ' ').trim() : '';
         cleanCompanies = (companies !== null && companies !== undefined && companies !== '') ? String(companies).replace(cleanTextRegex, ' ').trim() : '';
         
+        // Clean SEO fields
+        const cleanTitleTag = titleTag ? titleTag.toString().trim() : '';
+        const cleanUrlSlug = urlSlug ? urlSlug.toString().trim() : '';
+        const cleanMetaDescription = metaDescription ? metaDescription.toString().trim() : '';
+        const cleanKeywords = keywords ? keywords.toString().trim() : '';
+        
         // CRITICAL DEBUG: Log SEGMENTATION and REGION data extraction for first 3 rows
         if (i < 3) {
           console.log(`🔍 Row ${i + 1} BULK UPLOAD Debug:`, {
@@ -1697,15 +1701,23 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
               'Excel Report Categories Column': row['Report Categories'],
               'Raw category extracted': category,
               'Raw subCategory extracted': subCategory
+            },
+            'SEO Data': {
+              'Excel Title Tag Column': row['Title Tag'],
+              'Excel URL Slug Column': row['URL Slug'],
+              'Excel Meta Description Column': row['Meta Description'],
+              'Excel Keywords Column': row['Keywords'],
+              'Raw titleTag extracted': titleTag,
+              'Raw urlSlug extracted': urlSlug,
+              'Raw metaDescription extracted': metaDescription,
+              'Raw keywords extracted': keywords,
+              'cleanTitleTag after processing': cleanTitleTag,
+              'cleanUrlSlug after processing': cleanUrlSlug,
+              'cleanMetaDescription after processing': cleanMetaDescription,
+              'cleanKeywords after processing': cleanKeywords
             }
           });
         }
-        
-        // Clean SEO fields
-        const cleanTitleTag = titleTag ? titleTag.toString().trim() : '';
-        const cleanUrlSlug = urlSlug ? urlSlug.toString().trim() : '';
-        const cleanMetaDescription = metaDescription ? metaDescription.toString().trim() : '';
-        const cleanKeywords = keywords ? keywords.toString().trim() : '';
 
         // Enhanced validation with better error messages
         if (!cleanTitle || cleanTitle.length < 3) {
@@ -1801,7 +1813,8 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           
           // SEO fields from Excel import
           titleTag: (cleanTitleTag && cleanTitleTag !== '') ? cleanTitleTag : null,
-          url: (cleanUrlSlug && cleanUrlSlug !== '') ? cleanUrlSlug : null,
+          url: (cleanUrlSlug && cleanUrlSlug !== '') ? cleanUrlSlug : null, // Keep for legacy compatibility
+          slug: (cleanUrlSlug && cleanUrlSlug !== '') ? cleanUrlSlug : null, // Frontend expects this field
           metaDescription: (cleanMetaDescription && cleanMetaDescription !== '') ? cleanMetaDescription : null,
           keywords: (cleanKeywords && cleanKeywords !== '') ? cleanKeywords : null,
           
@@ -1942,7 +1955,14 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
                         'segment length': savedReport.segment ? savedReport.segment.length : 0,
                         'segment is empty?': !savedReport.segment || savedReport.segment === '',
                         'companies field in DB': savedReport.companies,
-                        'reportDescription field in DB': savedReport.reportDescription
+                        'reportDescription field in DB': savedReport.reportDescription,
+                        'SEO FIELDS in DB': {
+                          'titleTag': savedReport.titleTag,
+                          'slug': savedReport.slug,
+                          'url': savedReport.url,
+                          'metaDescription': savedReport.metaDescription,
+                          'keywords': savedReport.keywords
+                        }
                       });
                     }
                   } catch (verifyError) {
