@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { Search, Filter, Download, Upload, FileText, FileSpreadsheet, Plus, Eye, Edit, Trash2, MoreVertical, Share, X, Camera, Image, ExternalLink, CheckCircle, AlertCircle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react'
+import { Search, Filter, Download, Upload, FileText, Table, Plus, Eye, Edit, Trash2, MoreVertical, Share, X, Camera, Image, ExternalLink, CheckCircle, AlertCircle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
 // Removed sanitize-html import (not browser compatible)
@@ -1733,7 +1733,7 @@ const Reports = () => {
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div className="flex items-center gap-3">
-                <FileSpreadsheet className="w-6 h-6 text-blue-600" />
+                <Table className="w-6 h-6 text-blue-600" />
                 <h2 className="text-xl font-semibold text-gray-900">Bulk Import Reports</h2>
               </div>
               <button

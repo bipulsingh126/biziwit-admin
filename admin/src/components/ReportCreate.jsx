@@ -261,11 +261,11 @@ const ReportCreate = () => {
 
   const validateForm = () => {
     const errors = {}
-    if (!formData.title.trim()) errors.title = 'Title is required'
+    if (!(formData.title || '').trim()) errors.title = 'Title is required'
     if (!formData.category) errors.category = 'Report Category is required'
     if (!formData.subCategory) errors.subCategory = 'Report Sub Category is required'
     if (!formData.region) errors.region = 'Region is required'
-    if (!formData.author.trim()) errors.author = 'Author Name is required'
+    if (!(formData.author || '').trim()) errors.author = 'Author Name is required'
     setValidationErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -283,21 +283,31 @@ const ReportCreate = () => {
         return
       }
       
+      // Generate slug from title if not provided
+      const generateSlug = (title) => {
+        if (!title) return ''
+        return title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+      }
+
       const submitData = {
-        title: formData.title.trim(),
-        subTitle: formData.subTitle.trim(),
-        summary: formData.summary.trim(),
-        content: formData.content,
-        tableOfContents: formData.tableOfContents,
+        title: (formData.title || '').trim(),
+        slug: (formData.slug || '').trim() || generateSlug((formData.title || '').trim()) || `report-${Date.now()}`,
+        subTitle: (formData.subTitle || '').trim(),
+        summary: (formData.summary || '').trim(),
+        content: formData.content || '',
+        tableOfContents: formData.tableOfContents || '',
         // Backend-compatible fields
-        reportDescription: formData.reportDescription || formData.content,
-        segment: formData.segment || formData.segmentationContent,
-        segmentationContent: formData.segment || formData.segmentationContent,
+        reportDescription: formData.reportDescription || formData.content || '',
+        segment: formData.segment || formData.segmentationContent || '',
+        segmentationContent: formData.segment || formData.segmentationContent || '',
         // SEO fields
-        titleTag: formData.titleTag.trim(),
-        url: formData.url.trim(),
-        metaDescription: formData.metaDescription.trim(),
-        keywords: formData.keywords.trim(),
+        titleTag: (formData.titleTag || '').trim(),
+        url: (formData.url || '').trim(),
+        metaDescription: (formData.metaDescription || '').trim(),
+        keywords: (formData.keywords || '').trim(),
         // Legacy category fields
         category: formData.category,
         subCategory: formData.subCategory,
@@ -305,23 +315,25 @@ const ReportCreate = () => {
         region: formData.region,
         subRegions: formData.subRegions,
         // Report details
-        author: formData.author.trim(),
+        author: (formData.author || '').trim(),
         publishDate: formData.publishDate,
-        reportCode: formData.reportCode.trim(),
+        reportCode: (formData.reportCode || '').trim(),
         numberOfPages: formData.numberOfPages ? parseInt(formData.numberOfPages) : 1,
         // Pricing fields
-        excelDatapackPrice: formData.excelDatapackPrice.trim(),
-        singleUserPrice: formData.singleUserPrice.trim(),
-        enterprisePrice: formData.enterprisePrice.trim(),
-        internetHandlingCharges: formData.internetHandlingCharges.trim(),
+        excelDatapackPrice: (formData.excelDatapackPrice || '').trim(),
+        singleUserPrice: (formData.singleUserPrice || '').trim(),
+        enterprisePrice: (formData.enterprisePrice || '').trim(),
+        internetHandlingCharges: (formData.internetHandlingCharges || '').trim(),
         // Legacy license fields
-        excelDataPackLicense: formData.excelDataPackLicense.trim(),
-        singleUserLicense: formData.singleUserLicense.trim(),
-        enterpriseLicensePrice: formData.enterpriseLicensePrice.trim(),
+        excelDataPackLicense: (formData.excelDataPackLicense || '').trim(),
+        singleUserLicense: (formData.singleUserLicense || '').trim(),
+        enterpriseLicensePrice: (formData.enterpriseLicensePrice || '').trim(),
         // Status and checkboxes
         status: finalStatus,
         trendingReportForHomePage: formData.trendingReportForHomePage
       }
+      
+      console.log('Submitting report data:', JSON.stringify(submitData, null, 2))
       
       let savedReport
       if (isEdit) {
