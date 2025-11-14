@@ -423,9 +423,9 @@ const Reports = () => {
   }
 
   const handleEdit = (report) => {
-    // Use slug for URL-friendly navigation, fallback to ID if slug not available
-    const identifier = report.slug || report._id
-    navigate(`/reports/${identifier}/edit`)
+    // Always use ID for edit navigation to ensure compatibility
+    // The backend route /api/reports/:id handles both slug and ID lookup
+    navigate(`/reports/${report._id}/edit`)
   }
 
   const handleDelete = async (id) => {
@@ -470,9 +470,9 @@ const Reports = () => {
   }
 
   const handleView = (report) => {
-    // Use slug for URL-friendly navigation, fallback to ID if slug not available
-    const identifier = report.slug || report._id
-    navigate(`/reports/${identifier}/edit`)
+    // Always use ID for view navigation to ensure compatibility
+    // The backend route /api/reports/:id handles both slug and ID lookup
+    navigate(`/reports/${report._id}/edit`)
   }
 
   const handleCoverImageUpload = async (reportId, file) => {
@@ -1867,97 +1867,6 @@ const Reports = () => {
                     </button>
                   </div>
 
-                  {/* Data Preview Section */}
-                  {showPreview && parsedData.length > 0 && (
-                    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <h3 className="font-medium text-blue-900 mb-4">
-                        Data Preview ({parsedData.length} rows total, showing first 5)
-                      </h3>
-                      
-                      {/* Column Mapping */}
-                      <div className="mb-4">
-                        <h4 className="text-sm font-medium text-blue-800 mb-2">Column Mapping:</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                          {columns.map((col, index) => (
-                            <div key={index} className="flex items-center gap-2">
-                              <span className="font-medium text-blue-700">{col}</span>
-                              <span className="text-blue-600">→</span>
-                              <select
-                                value={columnMapping[col] || ''}
-                                onChange={(e) => setColumnMapping(prev => ({
-                                  ...prev,
-                                  [col]: e.target.value
-                                }))}
-                                className="text-xs px-2 py-1 border border-blue-300 rounded bg-white"
-                              >
-                                <option value="">Skip</option>
-                                <option value="title">Title</option>
-                                <option value="subTitle">Sub Title</option>
-                                <option value="reportDescription">Report Overview</option>
-                                <option value="tableOfContents">Table of Contents</option>
-                                <option value="category">Category</option>
-                                <option value="subCategory">Sub Category</option>
-                                <option value="segmentCompanies">Segment / Companies</option>
-                                <option value="segment">Segmentation (Legacy)</option>
-                                <option value="companies">Companies (Legacy)</option>
-                                <option value="author">Author</option>
-                                <option value="reportCode">Report Code</option>
-                                <option value="numberOfPages">Pages</option>
-                                <option value="reportDate">Date</option>
-                                <option value="region">Region</option>
-                                <option value="price">Price</option>
-                                <option value="titleTag">Title Tag</option>
-                                <option value="url">URL Slug</option>
-                                <option value="metaDescription">Meta Description</option>
-                                <option value="keywords">Keywords</option>
-                              </select>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      {/* Data Preview Table */}
-                      <div className="overflow-x-auto max-h-64 border border-blue-300 rounded">
-                        <table className="min-w-full text-xs">
-                          <thead className="bg-blue-100">
-                            <tr>
-                              {columns.map((col, index) => (
-                                <th key={index} className="px-2 py-1 text-left font-medium text-blue-800 border-r border-blue-300">
-                                  {col}
-                                  {columnMapping[col] && (
-                                    <div className="text-blue-600 font-normal">→ {columnMapping[col]}</div>
-                                  )}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white">
-                            {previewData.map((row, rowIndex) => (
-                              <tr key={rowIndex} className="border-b border-blue-200">
-                                {columns.map((col, colIndex) => (
-                                  <td key={colIndex} className="px-2 py-1 border-r border-blue-200 max-w-32 truncate" title={row[col]}>
-                                    {row[col] || '-'}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      
-                      {/* Format Preview */}
-                      {previewData.length > 0 && (
-                        <div className="mt-4 p-3 bg-white border border-blue-300 rounded">
-                          <h4 className="text-sm font-medium text-blue-800 mb-2">Formatting Preview:</h4>
-                          <div className="text-xs text-blue-700">
-                            <div><strong>Rich Text Fields:</strong> Report Overview, Segment / Companies will be converted to HTML</div>
-                            <div><strong>Example:</strong> Bullet points (•) → &lt;ul&gt;&lt;li&gt;...&lt;/li&gt;&lt;/ul&gt;</div>
-                            <div><strong>Headings:</strong> ALL CAPS or Title Case → &lt;h3&gt;...&lt;/h3&gt;</div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                   {/* File Upload Area */}
                   <div

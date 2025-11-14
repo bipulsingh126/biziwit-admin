@@ -143,6 +143,72 @@ function getContainerStyle(contentType) {
   }
 }
 
+// Helper function to format report overview content consistently
+function formatReportOverview(rawText) {
+  if (!rawText || typeof rawText !== 'string' || rawText.trim() === '') {
+    return ''
+  }
+
+  let text = rawText.trim()
+  
+  // Clean up common Excel formatting issues
+  text = text.replace(/\r\n/g, '\n')
+  text = text.replace(/\r/g, '\n')
+  text = text.replace(/\t/g, ' ')
+  text = text.replace(/\s+/g, ' ')
+  text = text.replace(/\n\s*\n/g, '\n\n')
+  
+  // Remove any existing HTML tags to ensure clean formatting
+  text = text.replace(/<\/?[^>]+(>|$)/g, '')
+  
+  // Split into sentences and format properly
+  const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim())
+  
+  if (sentences.length === 0) return ''
+  
+  let paragraphs = []
+  let currentParagraph = []
+  
+  sentences.forEach((sentence, index) => {
+    const trimmedSentence = sentence.trim()
+    if (!trimmedSentence) return
+    
+    // Ensure sentence starts with capital letter and ends with punctuation
+    let formattedSentence = trimmedSentence.charAt(0).toUpperCase() + trimmedSentence.slice(1)
+    if (!/[.!?]$/.test(formattedSentence)) {
+      formattedSentence += '.'
+    }
+    
+    currentParagraph.push(formattedSentence)
+    
+    // Create new paragraph every 3-4 sentences or at natural breaks
+    if (currentParagraph.length >= 3 && (
+      formattedSentence.includes(':') || 
+      formattedSentence.toLowerCase().includes('however') ||
+      formattedSentence.toLowerCase().includes('furthermore') ||
+      formattedSentence.toLowerCase().includes('moreover') ||
+      formattedSentence.toLowerCase().includes('additionally') ||
+      index === sentences.length - 1
+    )) {
+      paragraphs.push(currentParagraph.join(' '))
+      currentParagraph = []
+    } else if (currentParagraph.length >= 4) {
+      paragraphs.push(currentParagraph.join(' '))
+      currentParagraph = []
+    }
+  })
+  
+  // Add any remaining sentences as final paragraph
+  if (currentParagraph.length > 0) {
+    paragraphs.push(currentParagraph.join(' '))
+  }
+  
+  // Convert to HTML with consistent professional styling
+  return paragraphs.map(paragraph => 
+    `<p style="margin: 15px 0; line-height: 1.8; color: #374151; text-align: justify; font-size: 14px;">${paragraph}</p>`
+  ).join('')
+}
+
 // Helper function to sync all existing reports with categories
 async function syncReportsWithCategories() {
   try {
@@ -788,7 +854,12 @@ router.post('/', async (req, res, next) => {
 
     allowedFields.forEach(field => {
       if (otherFields[field] !== undefined) {
-        reportData[field] = otherFields[field]
+        // Apply consistent formatting to reportDescription
+        if (field === 'reportDescription' && otherFields[field]) {
+          reportData[field] = formatReportOverview(otherFields[field])
+        } else {
+          reportData[field] = otherFields[field]
+        }
       }
     })
 
@@ -865,23 +936,27 @@ router.get('/by-slug/:slug', async (req, res, next) => {
   }
 })
 
-// GET /api/reports/:id - Get single report (legacy support)
+// GET /api/reports/:id - Get single report
 router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params
 
-    // Try to find by slug first, then by ID for backward compatibility
-    let report = await Report.findOne({ slug: id }).lean()
-    
-    if (!report && id.match(/^[0-9a-fA-F]{24}$/)) {
-      // If it looks like a MongoDB ObjectId, try finding by ID
+    let report = null
+
+    // First try to find by MongoDB ObjectId if it matches the pattern
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
       report = await Report.findById(id).lean()
+    }
+    
+    // If not found by ID, try to find by slug
+    if (!report) {
+      report = await Report.findOne({ slug: id }).lean()
     }
 
     if (!report) {
       return res.status(404).json({
-        error: 'Not Found',
-        message: 'Report not found'
+        success: false,
+        error: 'Report not found'
       })
     }
 
@@ -891,13 +966,6 @@ router.get('/:id', async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error fetching report:', error)
-
-    if (error.name === 'CastError') {
-      return res.status(400).json({
-        error: 'Invalid ID',
-        message: 'Invalid report ID format'
-      })
-    }
 
     next(error)
   }
@@ -916,6 +984,11 @@ router.patch('/by-slug/:slug', async (req, res, next) => {
     delete updateData.__v
 
     // Let the model handle slug generation automatically when title changes
+
+    // Apply consistent formatting to reportDescription if being updated
+    if (updateData.reportDescription) {
+      updateData.reportDescription = formatReportOverview(updateData.reportDescription)
+    }
 
     // Update lastUpdated
     updateData.lastUpdated = new Date()
@@ -987,6 +1060,11 @@ router.patch('/:id', async (req, res, next) => {
     }
 
     // Let the model handle slug generation automatically when title changes
+
+    // Apply consistent formatting to reportDescription if being updated
+    if (updateData.reportDescription) {
+      updateData.reportDescription = formatReportOverview(updateData.reportDescription)
+    }
 
     // Update lastUpdated
     updateData.lastUpdated = new Date()
@@ -1800,9 +1878,9 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         cleanTitle = (title !== null && title !== undefined && title !== '') ? String(title).replace(cleanTextRegex, ' ').trim() : '';
         cleanSubTitle = (subTitle !== null && subTitle !== undefined && subTitle !== '') ? String(subTitle).replace(cleanTextRegex, ' ').trim() : '';
         
-        // Apply standardized HTML formatting to REPORT OVERVIEW
+        // Format REPORT OVERVIEW data with consistent database-level formatting
         cleanDescription = (reportDescription !== null && reportDescription !== undefined && reportDescription !== '') 
-          ? formatImportedContent(String(reportDescription), 'reportOverview') 
+          ? formatReportOverview(String(reportDescription)) 
           : '';
         
         // Apply standardized HTML formatting to SEGMENT/COMPANIES field

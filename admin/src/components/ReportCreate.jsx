@@ -173,12 +173,15 @@ const ReportCreate = () => {
       const report = response.data || response
       
       // Debug: Log what we're receiving from the backend
-      console.log('🔍 FRONTEND DEBUG - Loading report data:', {
+      console.log('🔍 LOADING REPORT - Raw data from API:', {
         'report.segmentCompanies': report.segmentCompanies,
         'report.segment': report.segment,
         'report.segmentationContent': report.segmentationContent,
         'report.companies': report.companies,
-        'Final segmentCompanies value': report.segmentCompanies || report.segment || report.segmentationContent || ''
+        'report.slug': report.slug,
+        'report.url': report.url,
+        'Final segmentCompanies value': report.segmentCompanies || report.segment || report.segmentationContent || '',
+        'Final slug value': report.slug || report.url || ''
       });
 
       setFormData({
@@ -192,6 +195,7 @@ const ReportCreate = () => {
         segmentCompanies: report.segmentCompanies || report.segment || report.segmentationContent || '',
         // Legacy fields for backward compatibility
         segment: report.segment || '',
+        companies: report.companies || '',
         segmentationContent: report.segment || report.segmentationContent || '',
         // SEO fields
         titleTag: report.titleTag || '',
@@ -324,6 +328,7 @@ const ReportCreate = () => {
         segmentCompanies: formData.segmentCompanies || formData.segment || formData.segmentationContent || '',
         // Legacy fields for backward compatibility
         segment: formData.segment || formData.segmentationContent || '',
+        companies: formData.companies || '',
         segmentationContent: formData.segment || formData.segmentationContent || '',
         // SEO fields
         titleTag: (formData.titleTag || '').trim(),
