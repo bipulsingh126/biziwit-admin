@@ -1803,6 +1803,11 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         cleanSegment = formatImportedContent(segment);
         cleanCompanies = formatImportedContent(companies);
         cleanSegmentCompanies = formatImportedContent(segmentCompanies);
+
+        // Ensure slug is handled correctly
+        let cleanSlug = (urlSlug !== null && urlSlug !== undefined && urlSlug !== '') 
+          ? String(urlSlug).trim() 
+          : '';
         
         // FALLBACK LOGIC: If SEGMENT / COMPANIES is empty, combine separate fields or use REPORT OVERVIEW
         if (!cleanSegmentCompanies || cleanSegmentCompanies === '' || cleanSegmentCompanies === '<div style="margin: 20px 0; padding: 15px; border-radius: 8px; background-color: #ffffff; border-left: 4px solid #10b981; background-color: #f0fdf4;"></div>') {
@@ -1877,7 +1882,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
               'Excel Meta Description Column': row['Meta Description'],
               'Excel Keywords Column': row['Keywords'],
               'Raw titleTag extracted': titleTag,
-              'Raw urlSlug extracted': urlSlug,
+              'Raw urlSlug extracted': cleanSlug,
               'Raw metaDescription extracted': metaDescription,
               'Raw keywords extracted': keywords,
               'cleanTitleTag after processing': cleanTitleTag,
@@ -1905,12 +1910,16 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         }
 
 
-        let slug;
-        try {
-          slug = await generateUniqueSlug(cleanTitle);
-        } catch (slugError) {
-          console.error('Slug generation error:', slugError);
-          throw new Error(`Failed to generate slug for title "${cleanTitle}": ${slugError.message}`);
+        // Slug handling: Prioritize Excel slug, then generate from title, then fallback.
+        let slug = cleanUrlSlug;
+        if (!slug) {
+          try {
+            slug = await generateUniqueSlug(cleanTitle);
+          } catch (slugError) {
+            console.error('Slug generation error:', slugError);
+            // Fallback to a timestamped slug if generation fails
+            slug = `report-${Date.now()}`;
+          }
         }
 
         // AUTO-CREATE CATEGORIES AND SUBCATEGORIES FROM EXCEL DATA
@@ -1977,7 +1986,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           reportCategories: (category?.toString().trim() && category.toString().trim() !== '') ? category.toString().trim() : '',
           
           // NEW: Combined segment/companies field
-          segmentCompanies: cleanSegmentCompanies || '',
+          segmentCompanies: cleanSegmentCompanies,
           
           // Legacy fields for backward compatibility
           segment: cleanSegment || '',
@@ -1988,7 +1997,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           // SEO fields from Excel import
           titleTag: (cleanTitleTag && cleanTitleTag !== '') ? cleanTitleTag : null,
           url: (cleanUrlSlug && cleanUrlSlug !== '') ? cleanUrlSlug : null, // Keep for legacy compatibility
-          slug: (cleanUrlSlug && cleanUrlSlug !== '') ? cleanUrlSlug : slug, // Use generated slug if URL Slug is empty
+          slug: slug, // Use the definitive slug determined above
           metaDescription: (cleanMetaDescription && cleanMetaDescription !== '') ? cleanMetaDescription : null,
           keywords: (cleanKeywords && cleanKeywords !== '') ? cleanKeywords : null,
           
