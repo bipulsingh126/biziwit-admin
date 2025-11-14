@@ -21,7 +21,9 @@ import {
   FileText,
   BarChart3,
   Target,
-  Layout
+  Layout,
+  BookOpen,
+  Users
 } from 'lucide-react'
 
 const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) => {
@@ -39,8 +41,13 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
     if (editorRef.current && value !== editorRef.current.innerHTML) {
       const newValue = value || ''
       
+      // Check if content is already properly formatted (contains styled divs from backend)
+      if (newValue && newValue.includes('style="margin: 20px 0; padding: 15px;')) {
+        // Content is already formatted by backend, use as-is
+        editorRef.current.innerHTML = newValue
+      }
       // If content doesn't have HTML tags, convert it to proper HTML format
-      if (newValue && !newValue.includes('<') && newValue.length > 100) {
+      else if (newValue && !newValue.includes('<') && newValue.length > 100) {
         const formattedHTML = convertPlainTextToHTML(newValue)
         editorRef.current.innerHTML = formattedHTML
       } 
@@ -464,71 +471,119 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
 
   const insertTableOfContents = () => {
     const tocHTML = `
-      <div style="margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9;">
-        <h2 style="margin-top: 0; color: #333; border-bottom: 2px solid #333; padding-bottom: 10px;">Table of Contents</h2>
+      <div style="margin: 20px 0; padding: 15px; border-radius: 8px; background-color: #ffffff; border: 1px solid #e5e7eb; background-color: #f9fafb;">
+        <h3 style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">Table of Contents</h3>
         
         <div style="margin: 15px 0;">
-          <h3 style="margin: 10px 0 5px 0; color: #444;">Chapter 1. Global 3D Animation Software Market Report Scope & Methodology</h3>
+          <h3 style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">Chapter 1. Global Market Report Scope & Methodology</h3>
           <div style="margin-left: 20px;">
-            <p style="margin: 5px 0;"><strong>1.1. Research Objective</strong></p>
-            <p style="margin: 5px 0;"><strong>1.2. Research Methodology</strong></p>
+            <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;"><strong>1.1. Research Objective</strong></p>
+            <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;"><strong>1.2. Research Methodology</strong></p>
             <div style="margin-left: 20px;">
-              <p style="margin: 3px 0;">1.2.1. Forecast Model</p>
-              <p style="margin: 3px 0;">1.2.2. Desk Research</p>
-              <p style="margin: 3px 0;">1.2.3. Top-Down and Bottom-Up Approach</p>
+              <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;">1.2.1. Forecast Model</p>
+              <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;">1.2.2. Desk Research</p>
+              <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;">1.2.3. Top-Down and Bottom-Up Approach</p>
             </div>
-            <p style="margin: 5px 0;"><strong>1.3. Research Attributes</strong></p>
-            <p style="margin: 5px 0;"><strong>1.4. Scope of the Study</strong></p>
+            <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;"><strong>1.3. Research Attributes</strong></p>
+            <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;"><strong>1.4. Scope of the Study</strong></p>
             <div style="margin-left: 20px;">
-              <p style="margin: 3px 0;">1.4.1. Market Definition</p>
-              <p style="margin: 3px 0;">1.4.2. Market Segmentation</p>
-            </div>
-            <p style="margin: 5px 0;"><strong>1.5. Research Assumption</strong></p>
-            <div style="margin-left: 20px;">
-              <p style="margin: 3px 0;">1.5.1. Inclusion & Exclusion</p>
-              <p style="margin: 3px 0;">1.5.2. Limitations</p>
-              <p style="margin: 3px 0;">1.5.3. Years Considered for the Study</p>
+              <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;">1.4.1. Market Definition</p>
+              <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;">1.4.2. Market Segmentation</p>
             </div>
           </div>
         </div>
 
         <div style="margin: 15px 0;">
-          <h3 style="margin: 10px 0 5px 0; color: #444;">Chapter 2. Executive Summary</h3>
+          <h3 style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">Chapter 2. Executive Summary</h3>
           <div style="margin-left: 20px;">
-            <p style="margin: 5px 0;"><strong>2.1. CEO/CXO Standpoint</strong></p>
-            <p style="margin: 5px 0;"><strong>2.2. Strategic Insights</strong></p>
+            <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;"><strong>2.1. CEO/CXO Standpoint</strong></p>
+            <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;"><strong>2.2. Strategic Insights</strong></p>
           </div>
         </div>
 
         <div style="margin: 15px 0;">
-          <h3 style="margin: 10px 0 5px 0; color: #444;">Chapter 3. Market Overview</h3>
+          <h3 style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">Chapter 3. Market Overview</h3>
           <div style="margin-left: 20px;">
-            <p style="margin: 5px 0;"><strong>3.1. Market Definition</strong></p>
-            <p style="margin: 5px 0;"><strong>3.2. Market Dynamics</strong></p>
-            <p style="margin: 5px 0;"><strong>3.3. Market Trends</strong></p>
+            <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;"><strong>3.1. Market Definition</strong></p>
+            <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;"><strong>3.2. Market Dynamics</strong></p>
+            <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;"><strong>3.3. Market Trends</strong></p>
           </div>
         </div>
 
         <div style="margin: 15px 0;">
-          <h3 style="margin: 10px 0 5px 0; color: #444;">Chapter 4. Market Analysis</h3>
+          <h3 style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">Chapter 4. Market Analysis</h3>
           <div style="margin-left: 20px;">
-            <p style="margin: 5px 0;"><strong>4.1. Market Size & Forecast</strong></p>
-            <p style="margin: 5px 0;"><strong>4.2. Competitive Landscape</strong></p>
-            <p style="margin: 5px 0;"><strong>4.3. Regional Analysis</strong></p>
+            <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;"><strong>4.1. Market Size & Forecast</strong></p>
+            <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;"><strong>4.2. Competitive Landscape</strong></p>
+            <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;"><strong>4.3. Regional Analysis</strong></p>
           </div>
         </div>
 
         <div style="margin: 15px 0;">
-          <h3 style="margin: 10px 0 5px 0; color: #444;">Chapter 5. Company Profiles</h3>
+          <h3 style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">Chapter 5. Company Profiles</h3>
           <div style="margin-left: 20px;">
-            <p style="margin: 5px 0;"><strong>5.1. Key Players Overview</strong></p>
-            <p style="margin: 5px 0;"><strong>5.2. Financial Analysis</strong></p>
-            <p style="margin: 5px 0;"><strong>5.3. Strategic Initiatives</strong></p>
+            <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;"><strong>5.1. Key Players Overview</strong></p>
+            <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;"><strong>5.2. Financial Analysis</strong></p>
+            <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;"><strong>5.3. Strategic Initiatives</strong></p>
           </div>
         </div>
       </div>
     `
     executeCommand('insertHTML', tocHTML)
+  }
+
+  // Insert standardized content templates that match backend formatting
+  const insertStandardizedReportOverview = () => {
+    const overviewHTML = `
+      <div style="margin: 20px 0; padding: 15px; border-radius: 8px; background-color: #ffffff; border-left: 4px solid #3b82f6; background-color: #f8fafc;">
+        <h3 style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">Report Overview</h3>
+        <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;">This comprehensive market research report provides detailed analysis of the industry landscape, market dynamics, and growth opportunities.</p>
+        
+        <h3 style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">Key Highlights</h3>
+        <ul style="margin: 10px 0; padding-left: 20px; color: #4b5563;">
+          <li style="margin: 5px 0; line-height: 1.6;">Market size and growth projections</li>
+          <li style="margin: 5px 0; line-height: 1.6;">Competitive landscape analysis</li>
+          <li style="margin: 5px 0; line-height: 1.6;">Regional market insights</li>
+          <li style="margin: 5px 0; line-height: 1.6;">Technology trends and innovations</li>
+        </ul>
+        
+        <h3 style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">Market Scope</h3>
+        <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;">The report covers comprehensive analysis across multiple segments, regions, and application areas to provide stakeholders with actionable insights for strategic decision-making.</p>
+      </div>
+    `
+    executeCommand('insertHTML', overviewHTML)
+  }
+
+  const insertStandardizedSegmentCompanies = () => {
+    const segmentHTML = `
+      <div style="margin: 20px 0; padding: 15px; border-radius: 8px; background-color: #ffffff; border-left: 4px solid #10b981; background-color: #f0fdf4;">
+        <h3 style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">Market Segmentation</h3>
+        <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;">The market is segmented based on various factors to provide detailed insights into different market dynamics.</p>
+        
+        <h3 style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">By Product Type</h3>
+        <ul style="margin: 10px 0; padding-left: 20px; color: #4b5563;">
+          <li style="margin: 5px 0; line-height: 1.6;">Product Category A</li>
+          <li style="margin: 5px 0; line-height: 1.6;">Product Category B</li>
+          <li style="margin: 5px 0; line-height: 1.6;">Product Category C</li>
+        </ul>
+        
+        <h3 style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">By Application</h3>
+        <ul style="margin: 10px 0; padding-left: 20px; color: #4b5563;">
+          <li style="margin: 5px 0; line-height: 1.6;">Application Area 1</li>
+          <li style="margin: 5px 0; line-height: 1.6;">Application Area 2</li>
+          <li style="margin: 5px 0; line-height: 1.6;">Application Area 3</li>
+        </ul>
+        
+        <h3 style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">Key Companies</h3>
+        <p style="margin: 10px 0; line-height: 1.6; color: #4b5563;">Major players in the market include leading companies that drive innovation and market growth through strategic initiatives and technological advancements.</p>
+        <ul style="margin: 10px 0; padding-left: 20px; color: #4b5563;">
+          <li style="margin: 5px 0; line-height: 1.6;">Company A - Market leader with innovative solutions</li>
+          <li style="margin: 5px 0; line-height: 1.6;">Company B - Strong regional presence</li>
+          <li style="margin: 5px 0; line-height: 1.6;">Company C - Emerging player with disruptive technology</li>
+        </ul>
+      </div>
+    `
+    executeCommand('insertHTML', segmentHTML)
   }
 
   // Color palettes
@@ -671,7 +726,10 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
       items: [
         { icon: FileText, action: insertReportTemplate, title: 'Insert Report Template' },
         { icon: Target, action: insertSegmentTemplate, title: 'Insert Segment Analysis' },
-        { icon: BarChart3, action: insertProfessionalTable, title: 'Insert Professional Table' }
+        { icon: BarChart3, action: insertProfessionalTable, title: 'Insert Professional Table' },
+        { icon: BookOpen, action: insertStandardizedReportOverview, title: 'Insert Standardized Report Overview' },
+        { icon: Users, action: insertStandardizedSegmentCompanies, title: 'Insert Standardized Segment/Companies' },
+        { icon: Layout, action: insertTableOfContents, title: 'Insert Table of Contents' }
       ]
     },
     {

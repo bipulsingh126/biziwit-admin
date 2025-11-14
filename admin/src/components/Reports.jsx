@@ -311,6 +311,8 @@ const Reports = () => {
           console.log('🔍 FRONTEND DEBUG - First report from API:', result.items[0]);
           console.log('🔍 Available fields:', Object.keys(result.items[0]));
           console.log('🔍 CRITICAL FIELDS CHECK:', {
+            'slug': result.items[0].slug,
+            '_id': result.items[0]._id,
             'reportDescription': result.items[0].reportDescription,
             'segment': result.items[0].segment,
             'companies': result.items[0].companies,
@@ -323,6 +325,7 @@ const Reports = () => {
         // Transform API data to match our UI structure
         const transformedReports = result.items?.map(report => ({
           _id: report._id,
+          slug: report.slug || report._id, // Include slug for URL-friendly navigation
           title: report.title,
           subTitle: report.subTitle && report.subTitle.trim() ? report.subTitle : 'N/A',
           summary: report.summary && report.summary.trim() ? report.summary : 'N/A',
@@ -357,6 +360,8 @@ const Reports = () => {
         if (transformedReports.length > 0) {
           console.log('🔍 TRANSFORMED DATA - First report:', transformedReports[0]);
           console.log('🔍 TRANSFORMED CRITICAL FIELDS:', {
+            'slug': transformedReports[0].slug,
+            '_id': transformedReports[0]._id,
             'reportDescription': transformedReports[0].reportDescription,
             'segment': transformedReports[0].segment,
             'companies': transformedReports[0].companies,
@@ -417,9 +422,10 @@ const Reports = () => {
     }
   }
 
-  const handleEdit = (reportId) => {
-    // Navigate to edit page
-    navigate(`/reports/${reportId}/edit`)
+  const handleEdit = (report) => {
+    // Use slug for URL-friendly navigation, fallback to ID if slug not available
+    const identifier = report.slug || report._id
+    navigate(`/reports/${identifier}/edit`)
   }
 
   const handleDelete = async (id) => {
@@ -463,9 +469,10 @@ const Reports = () => {
     }
   }
 
-  const handleView = (reportId) => {
-    // Navigate to edit page in view mode (same as edit for now)
-    navigate(`/reports/${reportId}/edit`)
+  const handleView = (report) => {
+    // Use slug for URL-friendly navigation, fallback to ID if slug not available
+    const identifier = report.slug || report._id
+    navigate(`/reports/${identifier}/edit`)
   }
 
   const handleCoverImageUpload = async (reportId, file) => {
@@ -2326,7 +2333,7 @@ const Reports = () => {
                   <td className="px-6 py-4 text-sm font-medium">
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleEdit(report._id)}
+                        onClick={() => handleEdit(report)}
                         className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
                         title="Edit"
                       >
@@ -2340,7 +2347,7 @@ const Reports = () => {
                         <Trash2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleView(report._id)}
+                        onClick={() => handleView(report)}
                         className="text-gray-600 hover:text-gray-900 p-1 rounded hover:bg-gray-50"
                         title="View"
                       >

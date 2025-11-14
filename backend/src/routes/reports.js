@@ -10,6 +10,139 @@ import { authenticate, requireRole } from '../middleware/auth.js'
 
 const router = Router()
 
+// Helper function to format imported Excel data into consistent HTML
+function formatImportedContent(rawText, contentType = 'general') {
+  if (!rawText || typeof rawText !== 'string' || rawText.trim() === '') {
+    return ''
+  }
+
+  let text = rawText.trim()
+  
+  // Clean up common Excel formatting issues
+  text = text.replace(/\r\n/g, '\n')
+  text = text.replace(/\r/g, '\n')
+  text = text.replace(/\t/g, ' ')
+  text = text.replace(/\s+/g, ' ')
+  text = text.replace(/\n\s*\n/g, '\n\n')
+  
+  // Split into paragraphs
+  const paragraphs = text.split(/\n\s*\n/).filter(para => para.trim())
+  
+  let formattedHtml = []
+  
+  paragraphs.forEach((paragraph, index) => {
+    const lines = paragraph.split(/\n/).filter(line => line.trim())
+    let currentSection = []
+    
+    lines.forEach((line, lineIndex) => {
+      const trimmedLine = line.trim()
+      
+      if (!trimmedLine) return
+      
+      // Detect headings based on content type and patterns
+      const isHeading = detectHeading(trimmedLine, contentType)
+      
+      if (isHeading) {
+        // Close any open section
+        if (currentSection.length > 0) {
+          formattedHtml.push(...currentSection)
+          currentSection = []
+        }
+        
+        // Add heading with appropriate level
+        const headingLevel = getHeadingLevel(trimmedLine, contentType)
+        formattedHtml.push(`<h${headingLevel} style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">${trimmedLine.replace(/:$/, '')}</h${headingLevel}>`)
+      } else if (trimmedLine.match(/^[•·▪▫◦‣⁃-]\s/) || trimmedLine.match(/^\d+\.\s/)) {
+        // Handle bullet points and numbered lists
+        if (currentSection.length === 0 || !currentSection[currentSection.length - 1].includes('<ul>') && !currentSection[currentSection.length - 1].includes('<ol>')) {
+          const listType = trimmedLine.match(/^\d+\.\s/) ? 'ol' : 'ul'
+          currentSection.push(`<${listType} style="margin: 10px 0; padding-left: 20px; color: #4b5563;">`)
+        }
+        
+        const content = trimmedLine.replace(/^[•·▪▫◦‣⁃-]\s*/, '').replace(/^\d+\.\s*/, '')
+        currentSection.push(`<li style="margin: 5px 0; line-height: 1.6;">${content}</li>`)
+      } else {
+        // Close any open list
+        if (currentSection.length > 0 && (currentSection[currentSection.length - 1].includes('<ul>') || currentSection[currentSection.length - 1].includes('<ol>'))) {
+          const listType = currentSection[currentSection.length - 1].includes('<ul>') ? 'ul' : 'ol'
+          currentSection.push(`</${listType}>`)
+        }
+        
+        // Regular paragraph
+        currentSection.push(`<p style="margin: 10px 0; line-height: 1.6; color: #4b5563;">${trimmedLine}</p>`)
+      }
+    })
+    
+    // Close any remaining lists
+    if (currentSection.length > 0) {
+      const lastElement = currentSection[currentSection.length - 1]
+      if (lastElement.includes('<li>') && !lastElement.includes('</ul>') && !lastElement.includes('</ol>')) {
+        const listType = currentSection.find(el => el.includes('<ul>')) ? 'ul' : 'ol'
+        currentSection.push(`</${listType}>`)
+      }
+      formattedHtml.push(...currentSection)
+    }
+  })
+  
+  // Wrap in a container div with consistent styling
+  const containerStyle = getContainerStyle(contentType)
+  return `<div style="${containerStyle}">${formattedHtml.join('\n')}</div>`
+}
+
+// Helper function to detect if a line should be a heading
+function detectHeading(line, contentType) {
+  // Common heading patterns
+  const headingPatterns = [
+    /^(chapter|section|part)\s+\d+/i,
+    /^\d+\.\d*\s+[A-Z]/,
+    /^[A-Z][^.!?]*:$/,
+    /^(executive summary|key findings|market analysis|recommendations|conclusion|introduction|overview|methodology)/i,
+    /^(table of contents|toc)$/i
+  ]
+  
+  // Content-specific patterns
+  if (contentType === 'tableOfContents') {
+    return line.match(/^(chapter|section|part)\s+\d+/i) || 
+           line.match(/^\d+\.\d*\s+[A-Z]/) ||
+           line.length < 80 && line.includes('.')
+  }
+  
+  if (contentType === 'segment') {
+    return line.match(/^(market segment|target demographics|market size|key characteristics|opportunities|challenges)/i)
+  }
+  
+  // General heading detection
+  return headingPatterns.some(pattern => pattern.test(line)) ||
+         (line.length < 100 && line.endsWith(':')) ||
+         (line.length < 60 && line === line.toUpperCase() && line.split(' ').length <= 8)
+}
+
+// Helper function to determine heading level
+function getHeadingLevel(line, contentType) {
+  if (line.match(/^chapter\s+\d+/i) || line.match(/^\d+\.\s+[A-Z]/)) return 2
+  if (line.match(/^\d+\.\d+\s+[A-Z]/)) return 3
+  if (line.match(/^\d+\.\d+\.\d+\s+[A-Z]/)) return 4
+  return 3 // Default to h3
+}
+
+// Helper function to get container styling based on content type
+function getContainerStyle(contentType) {
+  const baseStyle = 'margin: 20px 0; padding: 15px; border-radius: 8px; background-color: #ffffff;'
+  
+  switch (contentType) {
+    case 'reportOverview':
+      return `${baseStyle} border-left: 4px solid #3b82f6; background-color: #f8fafc;`
+    case 'tableOfContents':
+      return `${baseStyle} border: 1px solid #e5e7eb; background-color: #f9fafb;`
+    case 'segment':
+      return `${baseStyle} border-left: 4px solid #10b981; background-color: #f0fdf4;`
+    case 'companies':
+      return `${baseStyle} border-left: 4px solid #f59e0b; background-color: #fffbeb;`
+    default:
+      return baseStyle
+  }
+}
+
 // Helper function to sync all existing reports with categories
 async function syncReportsWithCategories() {
   try {
@@ -1666,28 +1799,41 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         // Enhanced cleaning and validation with better type handling
         cleanTitle = (title !== null && title !== undefined && title !== '') ? String(title).replace(cleanTextRegex, ' ').trim() : '';
         cleanSubTitle = (subTitle !== null && subTitle !== undefined && subTitle !== '') ? String(subTitle).replace(cleanTextRegex, ' ').trim() : '';
-        cleanDescription = (reportDescription !== null && reportDescription !== undefined && reportDescription !== '') ? String(reportDescription).replace(cleanTextRegex, ' ').trim() : '';
         
-        // Clean the combined segment/companies field
-        let cleanSegmentCompanies = (segmentCompanies !== null && segmentCompanies !== undefined && segmentCompanies !== '') ? String(segmentCompanies).replace(cleanTextRegex, ' ').trim() : '';
+        // Apply standardized HTML formatting to REPORT OVERVIEW
+        cleanDescription = (reportDescription !== null && reportDescription !== undefined && reportDescription !== '') 
+          ? formatImportedContent(String(reportDescription), 'reportOverview') 
+          : '';
         
-        // Legacy: Clean separate fields for backward compatibility
-        cleanSegment = (segment !== null && segment !== undefined && segment !== '') ? String(segment).replace(cleanTextRegex, ' ').trim() : '';
-        cleanCompanies = (companies !== null && companies !== undefined && companies !== '') ? String(companies).replace(cleanTextRegex, ' ').trim() : '';
+        // Apply standardized HTML formatting to SEGMENT/COMPANIES field
+        let cleanSegmentCompanies = (segmentCompanies !== null && segmentCompanies !== undefined && segmentCompanies !== '') 
+          ? formatImportedContent(String(segmentCompanies), 'segment') 
+          : '';
+        
+        // Legacy: Apply formatting to separate fields for backward compatibility
+        cleanSegment = (segment !== null && segment !== undefined && segment !== '') 
+          ? formatImportedContent(String(segment), 'segment') 
+          : '';
+        cleanCompanies = (companies !== null && companies !== undefined && companies !== '') 
+          ? formatImportedContent(String(companies), 'companies') 
+          : '';
         
         // FALLBACK LOGIC: If SEGMENT / COMPANIES is empty, combine separate fields or use REPORT OVERVIEW
-        if (!cleanSegmentCompanies || cleanSegmentCompanies === '') {
+        if (!cleanSegmentCompanies || cleanSegmentCompanies === '' || cleanSegmentCompanies === '<div style="margin: 20px 0; padding: 15px; border-radius: 8px; background-color: #ffffff; border-left: 4px solid #10b981; background-color: #f0fdf4;"></div>') {
           if (cleanSegment || cleanCompanies) {
-            // Combine separate segment and companies data
+            // Combine separate segment and companies data with proper formatting
             const combinedParts = [];
             if (cleanSegment) combinedParts.push(cleanSegment);
-            if (cleanCompanies) combinedParts.push('Companies: ' + cleanCompanies);
-            cleanSegmentCompanies = combinedParts.join('\n\n');
-            console.log(`✅ FALLBACK: Combined separate fields into segmentCompanies: "${cleanSegmentCompanies.substring(0, 100)}..."`);
+            if (cleanCompanies) {
+              combinedParts.push(`<h3 style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">Companies</h3>${cleanCompanies}`);
+            }
+            cleanSegmentCompanies = `<div style="margin: 20px 0; padding: 15px; border-radius: 8px; background-color: #ffffff; border-left: 4px solid #10b981; background-color: #f0fdf4;">${combinedParts.join('')}</div>`;
+            console.log(`✅ FALLBACK: Combined separate fields into segmentCompanies with formatting`);
           } else if (cleanDescription && cleanDescription.length > 100) {
-            // Use REPORT OVERVIEW as fallback if it contains substantial content
-            cleanSegmentCompanies = cleanDescription;
-            console.log(`✅ FALLBACK: Using REPORT OVERVIEW as segmentCompanies: "${cleanSegmentCompanies.substring(0, 100)}..."`);
+            // Use REPORT OVERVIEW as fallback if it contains substantial content, but reformat for segment context
+            const rawDescription = (reportDescription !== null && reportDescription !== undefined && reportDescription !== '') ? String(reportDescription) : '';
+            cleanSegmentCompanies = formatImportedContent(rawDescription, 'segment');
+            console.log(`✅ FALLBACK: Using REPORT OVERVIEW as segmentCompanies with segment formatting`);
           }
         }
         
@@ -1827,7 +1973,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           summary: summary?.toString().trim() || '',  // Keep existing summary field
           reportDescription: cleanDescription,  // Maps from 'Report Discription' Excel column
           content: content?.toString() || '',
-          tableOfContents: tableOfContents?.toString() || '',
+          tableOfContents: tableOfContents?.toString() ? formatImportedContent(tableOfContents.toString(), 'tableOfContents') : '',
           category: category?.toString().trim() || '',
           subCategory: subCategory?.toString().trim() || '',
           region: region?.toString().trim() || '',
