@@ -18,18 +18,31 @@ export const getEnvironmentConfig = () => {
     }
   }
   
+  // Server deployment (check for common server hostnames)
+  if (hostname.includes('api.bizwitresearch.com') || 
+      hostname.includes('biziwit.com') || 
+      hostname.includes('herokuapp.com') || 
+      hostname.includes('vercel.app') || 
+      hostname.includes('netlify.app')) {
+    return {
+      apiBase: `${protocol}//${hostname.replace('admin.', 'api.')}`,
+      environment: 'production',
+      allowMixedContent: false
+    }
+  }
+  
   // Local development
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return {
-      apiBase: import.meta.env.VITE_API_BASE || '',
+      apiBase: import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000',
       environment: 'development',
       allowMixedContent: true
     }
   }
   
-  // Fallback
+  // Fallback for any other deployment
   return {
-    apiBase: import.meta.env.VITE_API_BASE || 'http://localhost:4000',
+    apiBase: import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_BASE_URL || `${protocol}//${hostname}:4000`,
     environment: isDevelopment ? 'development' : 'production',
     allowMixedContent: isDevelopment
   }
@@ -43,13 +56,17 @@ export const getApiBaseUrl = () => {
   const config = getEnvironmentConfig()
   
   // Priority: Environment variable > Config > Default
-  const apiBase = import.meta.env.VITE_API_BASE_URL || config.apiBase
+  const apiBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_BASE || config.apiBase
   
   console.log('🌐 API Base URL Resolution:', {
+    hostname: window.location.hostname,
     configApiBase: config.apiBase,
     envApiBase: import.meta.env.VITE_API_BASE_URL,
+    envApiBase2: import.meta.env.VITE_API_BASE,
     finalApiBase: apiBase,
-    environment: config.environment
+    environment: config.environment,
+    mode: import.meta.env.MODE,
+    allEnvVars: import.meta.env
   })
   
   return apiBase

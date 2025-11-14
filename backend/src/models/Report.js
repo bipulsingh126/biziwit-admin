@@ -57,16 +57,18 @@ const reportSchema = new mongoose.Schema({
     default: ''
   },
 
-  // Categories
+  // Categories (consolidated definition)
   category: {
     type: String,
     trim: true,
-    default: ''
+    default: '',
+    index: true
   },
   subCategory: {
     type: String,
     trim: true,
-    default: ''
+    default: '',
+    index: true
   },
 
   // Domain and Region fields
@@ -161,19 +163,6 @@ const reportSchema = new mongoose.Schema({
     default: ''
   },
   
-  // Category and subcategory fields for filtering and organization
-  category: {
-    type: String,
-    trim: true,
-    default: '',
-    index: true
-  },
-  subCategory: {
-    type: String,
-    trim: true,
-    default: '',
-    index: true
-  },
 
   // Pricing fields
   excelDatapackPrice: {
@@ -220,10 +209,6 @@ const reportSchema = new mongoose.Schema({
 
   // SEO basic fields
   metaTitle: {
-    type: String,
-    trim: true
-  },
-  metaDescription: {
     type: String,
     trim: true
   },
@@ -289,9 +274,8 @@ reportSchema.index({
   content: 'text'
 })
 
-// Basic indexes
+// Basic indexes (category and subCategory indexes are defined in schema with index: true)
 reportSchema.index({ status: 1 })
-reportSchema.index({ category: 1 })
 reportSchema.index({ domain: 1 })
 reportSchema.index({ region: 1 })
 reportSchema.index({ subRegions: 1 })

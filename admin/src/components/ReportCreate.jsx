@@ -186,14 +186,17 @@ const ReportCreate = () => {
 
       // Additional debug for slug field issue
       console.log('🔍 SLUG FIELD DEBUG:', {
-        'Environment': process.env.NODE_ENV || 'development',
+        'Environment': import.meta.env.MODE || 'development',
+        'Hostname': window.location.hostname,
         'API Response Keys': Object.keys(report),
         'Slug exists in response': 'slug' in report,
         'Slug value': report.slug,
         'Slug type': typeof report.slug,
         'URL value': report.url,
         'URL type': typeof report.url,
-        'Will use slug': report.slug || report.url || 'EMPTY'
+        'Will use slug': report.slug || report.url || 'EMPTY',
+        'Is Server Environment': !window.location.hostname.includes('localhost'),
+        'Full report object': report
       });
 
       setFormData({
@@ -211,7 +214,7 @@ const ReportCreate = () => {
         segmentationContent: report.segment || report.segmentationContent || '',
         // SEO fields
         titleTag: report.titleTag || '',
-        slug: report.slug || report.url || '', // Prioritize slug field, fallback to url for legacy compatibility
+        slug: report.slug || report.url || report.titleTag || '', // Prioritize slug field, fallback to url or titleTag for legacy compatibility
         metaDescription: report.metaDescription || '',
         keywords: report.keywords || '',
         // Legacy category fields

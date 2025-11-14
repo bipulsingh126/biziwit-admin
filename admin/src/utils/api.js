@@ -38,6 +38,16 @@ class ApiClient {
       config.body = JSON.stringify(config.body);
     }
 
+    // Debug logging for API requests
+    console.log('🌐 API Request Debug:', {
+      endpoint,
+      fullUrl: url,
+      apiBase: API_BASE,
+      method: config.method || 'GET',
+      hasAuth: !!this.token,
+      headers: config.headers
+    });
+
     try {
       const response = await fetch(url, config)
       
@@ -63,7 +73,27 @@ class ApiClient {
 
       const contentType = response.headers.get('content-type')
       if (contentType?.includes('application/json')) {
-        return response.json()
+        const jsonResponse = await response.json()
+        
+        // Debug logging for API responses (only for report endpoints)
+        if (endpoint.includes('/reports/')) {
+          console.log('🔍 API Response Debug:', {
+            endpoint,
+            fullUrl: url,
+            status: response.status,
+            contentType,
+            responseKeys: Object.keys(jsonResponse),
+            hasData: !!jsonResponse.data,
+            dataKeys: jsonResponse.data ? Object.keys(jsonResponse.data) : null,
+            slugInResponse: jsonResponse.data ? ('slug' in jsonResponse.data) : false,
+            slugValue: jsonResponse.data?.slug,
+            urlValue: jsonResponse.data?.url,
+            environment: window.location.hostname,
+            isServerEnv: !window.location.hostname.includes('localhost')
+          });
+        }
+        
+        return jsonResponse
       }
       return response
     } catch (error) {
