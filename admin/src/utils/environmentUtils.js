@@ -5,48 +5,25 @@
  * @returns {Object} - Environment configuration
  */
 export const getEnvironmentConfig = () => {
-  const hostname = window.location.hostname
-  const protocol = window.location.protocol
-  const isDevelopment = import.meta.env.MODE === 'development'
-  
-  // Production admin panel
-  if (hostname === 'admin.bizwitresearch.com') {
+  const hostname = window.location.hostname;
+  const protocol = window.location.protocol;
+  const isProduction = import.meta.env.VITE_APP_ENV === 'production';
+
+  if (isProduction) {
     return {
-      apiBase: 'https://api.bizwitresearch.com',
+      apiBase: import.meta.env.VITE_API_BASE || 'https://api.bizwitresearch.com',
       environment: 'production',
-      allowMixedContent: false
-    }
+      allowMixedContent: false,
+    };
   }
-  
-  // Server deployment (check for common server hostnames)
-  if (hostname.includes('api.bizwitresearch.com') || 
-      hostname.includes('biziwit.com') || 
-      hostname.includes('herokuapp.com') || 
-      hostname.includes('vercel.app') || 
-      hostname.includes('netlify.app')) {
-    return {
-      apiBase: `${protocol}//${hostname.replace('admin.', 'api.')}`,
-      environment: 'production',
-      allowMixedContent: false
-    }
-  }
-  
+
   // Local development
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return {
-      apiBase: import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000',
-      environment: 'development',
-      allowMixedContent: true
-    }
-  }
-  
-  // Fallback for any other deployment
   return {
-    apiBase: import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_BASE_URL || `${protocol}//${hostname}:4000`,
-    environment: isDevelopment ? 'development' : 'production',
-    allowMixedContent: isDevelopment
-  }
-}
+    apiBase: import.meta.env.VITE_API_BASE || 'http://localhost:4000',
+    environment: 'development',
+    allowMixedContent: true,
+  };
+};
 
 /**
  * Get the appropriate API base URL for the current environment

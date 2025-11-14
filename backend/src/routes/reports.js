@@ -13,80 +13,54 @@ const router = Router()
 // Helper function to format imported Excel data into consistent HTML
 function formatImportedContent(rawText, contentType = 'general') {
   if (!rawText || typeof rawText !== 'string' || rawText.trim() === '') {
-    return ''
+    return '';
   }
 
-  let text = rawText.trim()
-  
-  // Clean up common Excel formatting issues
-  text = text.replace(/\r\n/g, '\n')
-  text = text.replace(/\r/g, '\n')
-  text = text.replace(/\t/g, ' ')
-  text = text.replace(/\s+/g, ' ')
-  text = text.replace(/\n\s*\n/g, '\n\n')
-  
-  // Split into paragraphs
-  const paragraphs = text.split(/\n\s*\n/).filter(para => para.trim())
-  
-  let formattedHtml = []
-  
-  paragraphs.forEach((paragraph, index) => {
-    const lines = paragraph.split(/\n/).filter(line => line.trim())
-    let currentSection = []
-    
-    lines.forEach((line, lineIndex) => {
-      const trimmedLine = line.trim()
-      
-      if (!trimmedLine) return
-      
-      // Detect headings based on content type and patterns
-      const isHeading = detectHeading(trimmedLine, contentType)
-      
-      if (isHeading) {
-        // Close any open section
-        if (currentSection.length > 0) {
-          formattedHtml.push(...currentSection)
-          currentSection = []
-        }
-        
-        // Add heading with appropriate level
-        const headingLevel = getHeadingLevel(trimmedLine, contentType)
-        formattedHtml.push(`<h${headingLevel} style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">${trimmedLine.replace(/:$/, '')}</h${headingLevel}>`)
-      } else if (trimmedLine.match(/^[•·▪▫◦‣⁃-]\s/) || trimmedLine.match(/^\d+\.\s/)) {
-        // Handle bullet points and numbered lists
-        if (currentSection.length === 0 || !currentSection[currentSection.length - 1].includes('<ul>') && !currentSection[currentSection.length - 1].includes('<ol>')) {
-          const listType = trimmedLine.match(/^\d+\.\s/) ? 'ol' : 'ul'
-          currentSection.push(`<${listType} style="margin: 10px 0; padding-left: 20px; color: #4b5563;">`)
-        }
-        
-        const content = trimmedLine.replace(/^[•·▪▫◦‣⁃-]\s*/, '').replace(/^\d+\.\s*/, '')
-        currentSection.push(`<li style="margin: 5px 0; line-height: 1.6;">${content}</li>`)
-      } else {
-        // Close any open list
-        if (currentSection.length > 0 && (currentSection[currentSection.length - 1].includes('<ul>') || currentSection[currentSection.length - 1].includes('<ol>'))) {
-          const listType = currentSection[currentSection.length - 1].includes('<ul>') ? 'ul' : 'ol'
-          currentSection.push(`</${listType}>`)
-        }
-        
-        // Regular paragraph
-        currentSection.push(`<p style="margin: 10px 0; line-height: 1.6; color: #4b5563;">${trimmedLine}</p>`)
+  let text = rawText.trim();
+
+  // General cleanup
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  text = text.replace(/\t/g, '    '); // Preserve tabs as spaces
+  text = text.replace(/\n\s*\n/g, '\n\n');
+
+  const lines = text.split('\n').filter(line => line.trim());
+  let html = '';
+  let inList = false;
+
+  lines.forEach(line => {
+    if (line.match(/^\s*[-*•]/)) { // Bullet points
+      if (!inList) {
+        html += '<ul>\n';
+        inList = true;
       }
-    })
-    
-    // Close any remaining lists
-    if (currentSection.length > 0) {
-      const lastElement = currentSection[currentSection.length - 1]
-      if (lastElement.includes('<li>') && !lastElement.includes('</ul>') && !lastElement.includes('</ol>')) {
-        const listType = currentSection.find(el => el.includes('<ul>')) ? 'ul' : 'ol'
-        currentSection.push(`</${listType}>`)
+      html += `<li>${line.replace(/^\s*[-*•]/, '').trim()}</li>\n`;
+    } else { // Regular paragraph
+      if (inList) {
+        html += '</ul>\n';
+        inList = false;
       }
-      formattedHtml.push(...currentSection)
+      html += `<p>${line.trim()}</p>\n`;
     }
-  })
-  
-  // Wrap in a container div with consistent styling
-  const containerStyle = getContainerStyle(contentType)
-  return `<div style="${containerStyle}">${formattedHtml.join('\n')}</div>`
+  });
+
+  if (inList) {
+    html += '</ul>\n';
+  }
+
+  return html;
+}
+
+function formatReportOverview(rawText) {
+  if (!rawText || typeof rawText !== 'string' || rawText.trim() === '') {
+    return '';
+  }
+
+  let text = rawText.trim();
+
+  // Split into paragraphs
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+
+  return paragraphs.map(p => `<p>${p.trim()}</p>`).join('\n');
 }
 
 // Helper function to detect if a line should be a heading
@@ -144,70 +118,6 @@ function getContainerStyle(contentType) {
 }
 
 // Helper function to format report overview content consistently
-function formatReportOverview(rawText) {
-  if (!rawText || typeof rawText !== 'string' || rawText.trim() === '') {
-    return ''
-  }
-
-  let text = rawText.trim()
-  
-  // Clean up common Excel formatting issues
-  text = text.replace(/\r\n/g, '\n')
-  text = text.replace(/\r/g, '\n')
-  text = text.replace(/\t/g, ' ')
-  text = text.replace(/\s+/g, ' ')
-  text = text.replace(/\n\s*\n/g, '\n\n')
-  
-  // Remove any existing HTML tags to ensure clean formatting
-  text = text.replace(/<\/?[^>]+(>|$)/g, '')
-  
-  // Split into sentences and format properly
-  const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim())
-  
-  if (sentences.length === 0) return ''
-  
-  let paragraphs = []
-  let currentParagraph = []
-  
-  sentences.forEach((sentence, index) => {
-    const trimmedSentence = sentence.trim()
-    if (!trimmedSentence) return
-    
-    // Ensure sentence starts with capital letter and ends with punctuation
-    let formattedSentence = trimmedSentence.charAt(0).toUpperCase() + trimmedSentence.slice(1)
-    if (!/[.!?]$/.test(formattedSentence)) {
-      formattedSentence += '.'
-    }
-    
-    currentParagraph.push(formattedSentence)
-    
-    // Create new paragraph every 3-4 sentences or at natural breaks
-    if (currentParagraph.length >= 3 && (
-      formattedSentence.includes(':') || 
-      formattedSentence.toLowerCase().includes('however') ||
-      formattedSentence.toLowerCase().includes('furthermore') ||
-      formattedSentence.toLowerCase().includes('moreover') ||
-      formattedSentence.toLowerCase().includes('additionally') ||
-      index === sentences.length - 1
-    )) {
-      paragraphs.push(currentParagraph.join(' '))
-      currentParagraph = []
-    } else if (currentParagraph.length >= 4) {
-      paragraphs.push(currentParagraph.join(' '))
-      currentParagraph = []
-    }
-  })
-  
-  // Add any remaining sentences as final paragraph
-  if (currentParagraph.length > 0) {
-    paragraphs.push(currentParagraph.join(' '))
-  }
-  
-  // Convert to HTML with consistent professional styling
-  return paragraphs.map(paragraph => 
-    `<p style="margin: 15px 0; line-height: 1.8; color: #374151; text-align: justify; font-size: 14px;">${paragraph}</p>`
-  ).join('')
-}
 
 // Helper function to sync all existing reports with categories
 async function syncReportsWithCategories() {
@@ -399,7 +309,7 @@ const storage = multer.diskStorage({
 })
 
 const upload = multer({
-  storage,
+  storage: storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|pdf|xlsx|xls|docx|doc/
@@ -1889,22 +1799,10 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         cleanSubTitle = (subTitle !== null && subTitle !== undefined && subTitle !== '') ? String(subTitle).replace(cleanTextRegex, ' ').trim() : '';
         
         // Format REPORT OVERVIEW data with consistent database-level formatting
-        cleanDescription = (reportDescription !== null && reportDescription !== undefined && reportDescription !== '') 
-          ? formatReportOverview(String(reportDescription)) 
-          : '';
-        
-        // Apply standardized HTML formatting to SEGMENT/COMPANIES field
-        let cleanSegmentCompanies = (segmentCompanies !== null && segmentCompanies !== undefined && segmentCompanies !== '') 
-          ? formatImportedContent(String(segmentCompanies), 'segment') 
-          : '';
-        
-        // Legacy: Apply formatting to separate fields for backward compatibility
-        cleanSegment = (segment !== null && segment !== undefined && segment !== '') 
-          ? formatImportedContent(String(segment), 'segment') 
-          : '';
-        cleanCompanies = (companies !== null && companies !== undefined && companies !== '') 
-          ? formatImportedContent(String(companies), 'companies') 
-          : '';
+        cleanDescription = formatReportOverview(reportDescription);
+        cleanSegment = formatImportedContent(segment);
+        cleanCompanies = formatImportedContent(companies);
+        cleanSegmentCompanies = formatImportedContent(segmentCompanies);
         
         // FALLBACK LOGIC: If SEGMENT / COMPANIES is empty, combine separate fields or use REPORT OVERVIEW
         if (!cleanSegmentCompanies || cleanSegmentCompanies === '' || cleanSegmentCompanies === '<div style="margin: 20px 0; padding: 15px; border-radius: 8px; background-color: #ffffff; border-left: 4px solid #10b981; background-color: #f0fdf4;"></div>') {
@@ -2090,7 +1988,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           // SEO fields from Excel import
           titleTag: (cleanTitleTag && cleanTitleTag !== '') ? cleanTitleTag : null,
           url: (cleanUrlSlug && cleanUrlSlug !== '') ? cleanUrlSlug : null, // Keep for legacy compatibility
-          slug: (cleanUrlSlug && cleanUrlSlug !== '') ? cleanUrlSlug : null, // Frontend expects this field
+          slug: (cleanUrlSlug && cleanUrlSlug !== '') ? cleanUrlSlug : slug, // Use generated slug if URL Slug is empty
           metaDescription: (cleanMetaDescription && cleanMetaDescription !== '') ? cleanMetaDescription : null,
           keywords: (cleanKeywords && cleanKeywords !== '') ? cleanKeywords : null,
           

@@ -2,7 +2,14 @@
 import { getApiBaseUrl } from './environmentUtils.js'
 
 // Get environment-aware API base URL
-const API_BASE = getApiBaseUrl()
+const API_BASE = getApiBaseUrl();
+
+export const getApiEndpoint = (path) => {
+  if (path.startsWith('http')) {
+    return path;
+  }
+  return `${API_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
+};
 
 class ApiClient {
   constructor() {

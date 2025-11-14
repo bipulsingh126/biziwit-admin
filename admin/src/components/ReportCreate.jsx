@@ -244,11 +244,13 @@ const ReportCreate = () => {
         coverImage: report.coverImage?.url || ''
       })
       
-      // Debug: Log formData after setting to verify segmentCompanies is populated
+      // Debug: Log formData after setting to verify all fields are populated
       setTimeout(() => {
         console.log('🔍 FRONTEND DEBUG - FormData after setting:', {
           'formData.segmentCompanies': (report.segmentCompanies || report.segment || report.segmentationContent || ''),
-          'Length': (report.segmentCompanies || report.segment || report.segmentationContent || '').length
+          'formData.slug': report.slug || report.url || report.titleTag || '',
+          'slug Length': (report.slug || report.url || report.titleTag || '').length,
+          'segmentCompanies Length': (report.segmentCompanies || report.segment || report.segmentationContent || '').length
         });
       }, 100);
       
@@ -278,6 +280,16 @@ const ReportCreate = () => {
       
       // Auto-generate slug from title if title is being changed and slug is empty
       if (field === 'title' && value && !prev.slug) {
+        newData.slug = value
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .trim('-')
+      }
+      
+      // Format slug input to be URL-friendly
+      if (field === 'slug' && value) {
         newData.slug = value
           .toLowerCase()
           .replace(/[^a-z0-9\s-]/g, '')
@@ -376,6 +388,13 @@ const ReportCreate = () => {
         trendingReportForHomePage: formData.trendingReportForHomePage
       }
       
+      console.log('🔍 SLUG DEBUG - Submitting report data:', {
+        'formData.slug': formData.slug,
+        'submitData.slug': submitData.slug,
+        'submitData.url': submitData.url,
+        'generated slug': generateSlug((formData.title || '').trim()),
+        'final slug value': submitData.slug
+      })
       console.log('Submitting report data:', JSON.stringify(submitData, null, 2))
       
       let savedReport
@@ -384,6 +403,13 @@ const ReportCreate = () => {
       } else {
         savedReport = await api.createReport(submitData)
       }
+      
+      console.log('🔍 SLUG DEBUG - Saved report response:', {
+        'savedReport.data.slug': savedReport.data?.slug,
+        'savedReport.data.url': savedReport.data?.url,
+        'savedReport keys': Object.keys(savedReport),
+        'savedReport.data keys': savedReport.data ? Object.keys(savedReport.data) : null
+      })
       
       // Get the report ID for cover image upload
       const reportId = isEdit ? id : (savedReport.data?.id || savedReport.id)
@@ -637,7 +663,7 @@ const ReportCreate = () => {
                   </label>
                   <input
                     type="text"
-                    value={formData.slug}
+                    value={formData.slug || ''}
                     onChange={(e) => handleInputChange('slug', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Enter URL slug (e.g., my-report-title)"
@@ -646,6 +672,11 @@ const ReportCreate = () => {
                   <p className="mt-1 text-xs text-gray-500">
                     URL-friendly version of the title (lowercase, hyphens instead of spaces)
                   </p>
+                  {formData.slug && (
+                    <p className="mt-1 text-xs text-blue-600">
+                      Preview URL: /reports/{formData.slug}
+                    </p>
+                  )}
                 </div>
 
                 {/* Meta Description */}
