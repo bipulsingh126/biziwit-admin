@@ -668,8 +668,7 @@ const Reports = () => {
         'CATEGORIES': 'ICT and Media',
         'Category': 'ICT and Media',
         'Sub Category': 'Software and Services',
-        'segment': 'Enterprise Software Companies',
-        'COMPANIES': 'Microsoft, Apple, Google, Amazon',
+        'SEGMENT / COMPANIES': 'Enterprise Software Companies: Microsoft, Apple, Google, Amazon, IBM, Oracle, Salesforce',
         'Region': 'Global',
         'Author Name': 'John Doe',
         'Report Code': 'RPT001',
@@ -895,6 +894,11 @@ const Reports = () => {
     'Sub Category': 'subCategory',
     'SUB CATEGORY': 'subCategory',
     'Subcategory': 'subCategory',
+    'SEGMENT / COMPANIES': 'segmentCompanies',
+    'Segment / Companies': 'segmentCompanies',
+    'SEGMENT/COMPANIES': 'segmentCompanies',
+    'Segment/Companies': 'segmentCompanies',
+    // Legacy mappings for backward compatibility
     'Segmentation': 'segment',
     'SEGMENTATION': 'segment',
     'Market Segmentation': 'segment',
@@ -1886,8 +1890,9 @@ const Reports = () => {
                                 <option value="tableOfContents">Table of Contents</option>
                                 <option value="category">Category</option>
                                 <option value="subCategory">Sub Category</option>
-                                <option value="segment">Segmentation</option>
-                                <option value="companies">Companies</option>
+                                <option value="segmentCompanies">Segment / Companies</option>
+                                <option value="segment">Segmentation (Legacy)</option>
+                                <option value="companies">Companies (Legacy)</option>
                                 <option value="author">Author</option>
                                 <option value="reportCode">Report Code</option>
                                 <option value="numberOfPages">Pages</option>
@@ -1938,7 +1943,7 @@ const Reports = () => {
                         <div className="mt-4 p-3 bg-white border border-blue-300 rounded">
                           <h4 className="text-sm font-medium text-blue-800 mb-2">Formatting Preview:</h4>
                           <div className="text-xs text-blue-700">
-                            <div><strong>Rich Text Fields:</strong> Report Overview, Segmentation, Companies will be converted to HTML</div>
+                            <div><strong>Rich Text Fields:</strong> Report Overview, Segment / Companies will be converted to HTML</div>
                             <div><strong>Example:</strong> Bullet points (•) → &lt;ul&gt;&lt;li&gt;...&lt;/li&gt;&lt;/ul&gt;</div>
                             <div><strong>Headings:</strong> ALL CAPS or Title Case → &lt;h3&gt;...&lt;/h3&gt;</div>
                           </div>
@@ -2208,6 +2213,9 @@ const Reports = () => {
                   Report Category
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Segment / Companies
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -2282,6 +2290,11 @@ const Reports = () => {
                   <td className="px-4 py-4 text-sm text-gray-900 max-w-xs">
                     <div className="truncate" title={report.category || 'No Category'}>
                       {report.category || 'No Category'}
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 text-sm text-gray-900 max-w-xs">
+                    <div className="truncate" title={report.segmentCompanies || report.segment || 'No Data'}>
+                      {report.segmentCompanies || report.segment || 'No Data'}
                     </div>
                   </td>
                   <td className="px-4 py-4">

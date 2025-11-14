@@ -19,6 +19,8 @@ const ReportCreate = () => {
     segmentationContent: '',
     // Backend-compatible fields
     reportDescription: '',
+    segmentCompanies: '',
+    // Legacy fields for backward compatibility
     segment: '',
     companies: '',
     // SEO fields
@@ -170,6 +172,15 @@ const ReportCreate = () => {
       const response = await api.getReport(id)
       const report = response.data || response
       
+      // Debug: Log what we're receiving from the backend
+      console.log('🔍 FRONTEND DEBUG - Loading report data:', {
+        'report.segmentCompanies': report.segmentCompanies,
+        'report.segment': report.segment,
+        'report.segmentationContent': report.segmentationContent,
+        'report.companies': report.companies,
+        'Final segmentCompanies value': report.segmentCompanies || report.segment || report.segmentationContent || ''
+      });
+
       setFormData({
         title: report.title || '',
         subTitle: report.subTitle || '',
@@ -178,6 +189,8 @@ const ReportCreate = () => {
         tableOfContents: report.tableOfContents || '',
         // Backend-compatible fields
         reportDescription: report.reportDescription || report.content || '',
+        segmentCompanies: report.segmentCompanies || report.segment || report.segmentationContent || '',
+        // Legacy fields for backward compatibility
         segment: report.segment || '',
         segmentationContent: report.segment || report.segmentationContent || '',
         // SEO fields
@@ -211,6 +224,14 @@ const ReportCreate = () => {
         // Cover image field
         coverImage: report.coverImage?.url || ''
       })
+      
+      // Debug: Log formData after setting to verify segmentCompanies is populated
+      setTimeout(() => {
+        console.log('🔍 FRONTEND DEBUG - FormData after setting:', {
+          'formData.segmentCompanies': (report.segmentCompanies || report.segment || report.segmentationContent || ''),
+          'Length': (report.segmentCompanies || report.segment || report.segmentationContent || '').length
+        });
+      }, 100);
       
       // Set existing cover image preview if available
       if (report.coverImage?.url) {
@@ -300,6 +321,8 @@ const ReportCreate = () => {
         tableOfContents: formData.tableOfContents || '',
         // Backend-compatible fields
         reportDescription: formData.reportDescription || formData.content || '',
+        segmentCompanies: formData.segmentCompanies || formData.segment || formData.segmentationContent || '',
+        // Legacy fields for backward compatibility
         segment: formData.segment || formData.segmentationContent || '',
         segmentationContent: formData.segment || formData.segmentationContent || '',
         // SEO fields
@@ -1020,14 +1043,24 @@ const ReportCreate = () => {
             )}
 
             {activeTab === 'segmentation' && (
-              <div>
+              <div className="bg-white border border-gray-200 rounded-lg p-6">
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center">
+                    <Target className="w-5 h-5 text-blue-600 mr-2" />
+                    Segment / Companies
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    This data is imported from Excel <span className="font-mono bg-gray-100 px-2 py-1 rounded">SEGMENT / COMPANIES</span> column and can be edited here.
+                  </p>
+                </div>
                 <RichTextEditor
-                  value={formData.segment || formData.segmentationContent}
+                  value={formData.segmentCompanies || formData.segment || formData.segmentationContent}
                   onChange={(value) => {
-                    handleInputChange('segment', value)
+                    handleInputChange('segmentCompanies', value)
+                    handleInputChange('segment', value) // Keep backward compatibility
                     handleInputChange('segmentationContent', value) // Keep backward compatibility
                   }}
-                  placeholder="Describe market segments here..."
+                  placeholder="Market segmentation and companies data from Excel import will appear here..."
                   disabled={saving}
                 />
               </div>

@@ -92,6 +92,12 @@ const reportSchema = new mongoose.Schema({
   },
 
   // Segmentation and Companies fields
+  segmentCompanies: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  // Legacy fields for backward compatibility
   segment: {
     type: String,
     trim: true,

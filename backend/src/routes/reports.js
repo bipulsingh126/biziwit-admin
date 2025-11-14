@@ -1124,7 +1124,7 @@ router.get('/export', async (req, res, next) => {
         'Table of Contents': report.tableOfContents || '',
         'Category': report.category || report.domain || report.industry || '',
         'Sub Category': report.subCategory || report.subdomain || report.reportType || '',
-        'SEGMENTATION': report.segment || '',
+        'SEGMENT / COMPANIES': report.segmentCompanies || report.segment || '',
         'Region': report.region || '',
         'Sub Regions': report.subRegions || '',
         'Author Name': report.author || '',
@@ -1255,7 +1255,7 @@ router.get('/export', async (req, res, next) => {
       res.send(excelBuffer)
     } else {
       // CSV format
-      const csvHeaders = ['Report Title', 'Title Meta Tag', 'REPORT OVERVIEW', 'Table of Contents', 'Category', 'Sub Category', 'SEGMENTATION', 'Region', 'Sub Regions', 'Author Name', 'Report Code', 'Number of Page', 'Price', 'Excel Datapack Prices', 'Single User Prices', 'Enterprise License Prices', 'Internet Handling Charges', 'Currency', 'Status', 'Publish Date', 'Last Updated', 'Title Tag', 'URL Slug', 'Meta Description', 'Keywords']
+      const csvHeaders = ['Report Title', 'Title Meta Tag', 'REPORT OVERVIEW', 'Table of Contents', 'Category', 'Sub Category', 'SEGMENT / COMPANIES', 'Region', 'Sub Regions', 'Author Name', 'Report Code', 'Number of Page', 'Price', 'Excel Datapack Prices', 'Single User Prices', 'Enterprise License Prices', 'Internet Handling Charges', 'Currency', 'Status', 'Publish Date', 'Last Updated', 'Title Tag', 'URL Slug', 'Meta Description', 'Keywords']
       const csvRows = reports.map(report => [
         `"${(report.title || '').replace(/"/g, '""')}"`,
         `"${(report.subTitle || '').replace(/"/g, '""')}"`,
@@ -1263,7 +1263,7 @@ router.get('/export', async (req, res, next) => {
         `"${(report.tableOfContents || '').replace(/"/g, '""')}"`,
         `"${(report.category || report.domain || report.industry || '').replace(/"/g, '""')}"`,
         `"${(report.subCategory || report.subdomain || report.reportType || '').replace(/"/g, '""')}"`,
-        `"${(report.segment || '').replace(/"/g, '""')}"`,
+        `"${(report.segmentCompanies || report.segment || '').replace(/"/g, '""')}"`,
         `"${(report.region || '').replace(/"/g, '""')}"`,
         `"${(report.subRegions || '').replace(/"/g, '""')}"`,
         `"${report.author || ''}"`,
@@ -1527,6 +1527,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
       let cleanSegment = '';
       let cleanDescription = '';
       let cleanCompanies = '';
+      let cleanSegmentCompanies = '';
       let category = '';
       let subCategory = '';
       let reportCode = '';
@@ -1598,22 +1599,25 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           });
         }
         
-        // Try multiple variations for segment - ENHANCED for SEGMENTATION
+        // Try multiple variations for combined segment/companies field
+        const segmentCompanies = row['SEGMENT / COMPANIES'] || 
+                                row['Segment / Companies'] || 
+                                row['SEGMENT/COMPANIES'] || 
+                                row['Segment/Companies'] || 
+                                row['SEGMENTATION'] || 
+                                row['Segmentation'] || 
+                                row['Segment'] || 
+                                row['segment'] || 
+                                row['SEGMENT'] || '';
+        
+        // Legacy: Try multiple variations for separate segment field (for backward compatibility)
         const segment = row['SEGMENTATION'] || 
                        row['Segmentation'] || 
                        row['Segment'] || 
                        row['segment'] || 
-                       row['SEGMENT'] || 
-                       row['Market Segmentation'] ||
-                       row['Market Segment'] || 
-                       row['segmentation'] || 
-                       row['MARKET SEGMENTATION'] ||
-                       row['Segments'] ||
-                       row['segments'] ||
-                       row['SEGMENTS'] ||
-                       row['Market Segments'] || '';
+                       row['SEGMENT'] || '';
         
-        // Try multiple variations for companies
+        // Legacy: Try multiple variations for separate companies field (for backward compatibility)
         const companies = row['Companies'] || 
                          row['companies'] || 
                          row['COMPANIES'] || 
@@ -1662,9 +1666,39 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         // Enhanced cleaning and validation with better type handling
         cleanTitle = (title !== null && title !== undefined && title !== '') ? String(title).replace(cleanTextRegex, ' ').trim() : '';
         cleanSubTitle = (subTitle !== null && subTitle !== undefined && subTitle !== '') ? String(subTitle).replace(cleanTextRegex, ' ').trim() : '';
-        cleanSegment = (segment !== null && segment !== undefined && segment !== '') ? String(segment).replace(cleanTextRegex, ' ').trim() : '';
         cleanDescription = (reportDescription !== null && reportDescription !== undefined && reportDescription !== '') ? String(reportDescription).replace(cleanTextRegex, ' ').trim() : '';
+        
+        // Clean the combined segment/companies field
+        let cleanSegmentCompanies = (segmentCompanies !== null && segmentCompanies !== undefined && segmentCompanies !== '') ? String(segmentCompanies).replace(cleanTextRegex, ' ').trim() : '';
+        
+        // Legacy: Clean separate fields for backward compatibility
+        cleanSegment = (segment !== null && segment !== undefined && segment !== '') ? String(segment).replace(cleanTextRegex, ' ').trim() : '';
         cleanCompanies = (companies !== null && companies !== undefined && companies !== '') ? String(companies).replace(cleanTextRegex, ' ').trim() : '';
+        
+        // FALLBACK LOGIC: If SEGMENT / COMPANIES is empty, combine separate fields or use REPORT OVERVIEW
+        if (!cleanSegmentCompanies || cleanSegmentCompanies === '') {
+          if (cleanSegment || cleanCompanies) {
+            // Combine separate segment and companies data
+            const combinedParts = [];
+            if (cleanSegment) combinedParts.push(cleanSegment);
+            if (cleanCompanies) combinedParts.push('Companies: ' + cleanCompanies);
+            cleanSegmentCompanies = combinedParts.join('\n\n');
+            console.log(`✅ FALLBACK: Combined separate fields into segmentCompanies: "${cleanSegmentCompanies.substring(0, 100)}..."`);
+          } else if (cleanDescription && cleanDescription.length > 100) {
+            // Use REPORT OVERVIEW as fallback if it contains substantial content
+            cleanSegmentCompanies = cleanDescription;
+            console.log(`✅ FALLBACK: Using REPORT OVERVIEW as segmentCompanies: "${cleanSegmentCompanies.substring(0, 100)}..."`);
+          }
+        }
+        
+        // FINAL CHECK: Ensure we have some data in segmentCompanies
+        if (i < 3) {
+          console.log(`🎯 FINAL segmentCompanies CHECK for Row ${i + 1}:`, {
+            'cleanSegmentCompanies length': cleanSegmentCompanies ? cleanSegmentCompanies.length : 0,
+            'cleanSegmentCompanies preview': cleanSegmentCompanies ? cleanSegmentCompanies.substring(0, 150) + '...' : 'EMPTY',
+            'Will be saved as': cleanSegmentCompanies || 'EMPTY STRING'
+          });
+        }
         
         // Clean SEO fields
         const cleanTitleTag = titleTag ? titleTag.toString().trim() : '';
@@ -1676,23 +1710,26 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         if (i < 3) {
           console.log(`🔍 Row ${i + 1} BULK UPLOAD Debug:`, {
             'Available Excel Columns': Object.keys(row),
-            'SEGMENTATION Data': {
+            'SEGMENT/COMPANIES Data (NEW)': {
+              'Excel SEGMENT / COMPANIES Column': row['SEGMENT / COMPANIES'],
+              'Excel SEGMENT/COMPANIES Column': row['SEGMENT/COMPANIES'],
+              'Raw segmentCompanies extracted': segmentCompanies,
+              'cleanSegmentCompanies after processing': cleanSegmentCompanies
+            },
+            'Legacy SEGMENTATION Data': {
               'Excel SEGMENTATION Column': row['SEGMENTATION'],
-              'Excel Segmentation Column': row['Segmentation'], 
-              'Excel SEGMENT Column': row['SEGMENT'],
               'Raw segment extracted': segment,
               'cleanSegment after processing': cleanSegment
             },
-            'REGION Data': {
-              'Excel Region Column': row['Region'],
-              'Excel region Column': row['region'],
-              'Raw region extracted': region,
-              'Raw subRegions extracted': subRegions
-            },
-            'COMPANIES Data': {
+            'Legacy COMPANIES Data': {
               'Excel COMPANIES Column': row['COMPANIES'],
               'Raw companies extracted': companies,
               'cleanCompanies after processing': cleanCompanies
+            },
+            'REGION Data': {
+              'Excel Region Column': row['Region'],
+              'Raw region extracted': region,
+              'Raw subRegions extracted': subRegions
             },
             'CATEGORY Data': {
               'Excel Categories Column': row['Categories'],
@@ -1806,6 +1843,11 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           // Excel import field mapping for frontend compatibility - USE EMPTY STRINGS NOT NULL
           reportDate: reportDate ? (isNaN(Date.parse(reportDate)) ? new Date() : new Date(reportDate)) : new Date(),
           reportCategories: (category?.toString().trim() && category.toString().trim() !== '') ? category.toString().trim() : '',
+          
+          // NEW: Combined segment/companies field
+          segmentCompanies: cleanSegmentCompanies || '',
+          
+          // Legacy fields for backward compatibility
           segment: cleanSegment || '',
           segmentationContent: cleanSegment || '', // Also save to legacy field for compatibility
           companies: (cleanCompanies && cleanCompanies !== '') ? cleanCompanies : '',
@@ -1849,27 +1891,33 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           console.log('🔍 COMPLETE EXCEL IMPORT DEBUG - About to save report data:', {
             title: reportData.title,
             'CRITICAL FIELDS TO SAVE': {
+              'segmentCompanies (NEW)': reportData.segmentCompanies,
               'reportDescription': reportData.reportDescription,
-              'segment': reportData.segment,
-              'companies': reportData.companies,
+              'segment (Legacy)': reportData.segment,
+              'companies (Legacy)': reportData.companies,
               'reportCategories': reportData.reportCategories
             },
             'Excel Raw Values': {
+              'SEGMENT / COMPANIES (NEW)': row['SEGMENT / COMPANIES'],
               'REPORT OVERVIEW': row['REPORT OVERVIEW'],
-              'SEGMENTATION': row['SEGMENTATION'],
-              'COMPANIES': row['COMPANIES'],
+              'SEGMENTATION (Legacy)': row['SEGMENTATION'],
+              'COMPANIES (Legacy)': row['COMPANIES'],
               'CATEGORIES': row['CATEGORIES']
             },
             'Cleaned Values': {
+              'cleanSegmentCompanies (NEW)': cleanSegmentCompanies,
               'cleanDescription': cleanDescription,
-              'cleanSegment': cleanSegment,
-              'cleanCompanies': cleanCompanies,
+              'cleanSegment (Legacy)': cleanSegment,
+              'cleanCompanies (Legacy)': cleanCompanies,
               'category': category
             },
             'FINAL VALIDATION': {
-              'segment field will be saved as': reportData.segment,
-              'segment is empty?': !reportData.segment || reportData.segment === '',
-              'segment length': reportData.segment ? reportData.segment.length : 0
+              'segmentCompanies field will be saved as': reportData.segmentCompanies,
+              'segmentCompanies is empty?': !reportData.segmentCompanies || reportData.segmentCompanies === '',
+              'segmentCompanies length': reportData.segmentCompanies ? reportData.segmentCompanies.length : 0,
+              'segment (Legacy) field will be saved as': reportData.segment,
+              'segment (Legacy) is empty?': !reportData.segment || reportData.segment === '',
+              'segment (Legacy) length': reportData.segment ? reportData.segment.length : 0
             }
           });
         }
