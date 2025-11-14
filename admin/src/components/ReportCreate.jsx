@@ -209,9 +209,9 @@ const ReportCreate = () => {
         reportDescription: report.reportDescription || report.content || '',
         segmentCompanies: report.segmentCompanies || report.segment || report.segmentationContent || '',
         // Legacy fields for backward compatibility
-        segment: report.segment || '',
+        segment: report.segment || report.segmentCompanies || '', // Ensure segment field gets data from segmentCompanies
         companies: report.companies || '',
-        segmentationContent: report.segment || report.segmentationContent || '',
+        segmentationContent: report.segment || report.segmentationContent || report.segmentCompanies || '', // Also update segmentationContent
         // SEO fields
         titleTag: report.titleTag || '',
         slug: report.slug || report.url || report.titleTag || '', // Prioritize slug field, fallback to url or titleTag for legacy compatibility
@@ -1105,12 +1105,8 @@ const ReportCreate = () => {
                   </p>
                 </div>
                 <RichTextEditor
-                  value={formData.segmentCompanies || formData.segment || formData.segmentationContent}
-                  onChange={(value) => {
-                    handleInputChange('segmentCompanies', value)
-                    handleInputChange('segment', value) // Keep backward compatibility
-                    handleInputChange('segmentationContent', value) // Keep backward compatibility
-                  }}
+                  value={formData.segmentCompanies}
+                  onChange={(value) => handleInputChange('segmentCompanies', value)}
                   placeholder="Market segmentation and companies data from Excel import will appear here..."
                   disabled={saving}
                 />

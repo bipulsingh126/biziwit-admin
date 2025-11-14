@@ -1986,11 +1986,8 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           reportCategories: (category?.toString().trim() && category.toString().trim() !== '') ? category.toString().trim() : '',
           
           // NEW: Combined segment/companies field
-          segmentCompanies: cleanSegmentCompanies,
-          
-          // Legacy fields for backward compatibility
-          segment: cleanSegment || '',
-          segmentationContent: cleanSegment || '', // Also save to legacy field for compatibility
+          segmentCompanies: [cleanSegment, cleanCompanies].filter(Boolean).join('\n\n'),
+          segment: (cleanSegment && cleanSegment !== '') ? cleanSegment : '',
           companies: (cleanCompanies && cleanCompanies !== '') ? cleanCompanies : '',
           reportDescription: (cleanDescription && cleanDescription !== '') ? cleanDescription : '',
           

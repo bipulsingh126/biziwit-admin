@@ -333,7 +333,8 @@ const Reports = () => {
           reportDescription: (report.reportDescription && report.reportDescription.trim() !== '') ? report.reportDescription : 
                            (report.description && report.description.trim() !== '') ? report.description : 
                            (report.summary && report.summary.trim() !== '') ? report.summary : 'N/A',
-          segment: (report.segment && report.segment.trim() !== '') ? report.segment : 'N/A',
+          segment: (report.segmentCompanies && report.segmentCompanies.trim() !== '') ? report.segmentCompanies :
+                   (report.segment && report.segment.trim() !== '') ? report.segment : 'N/A',
           companies: (report.companies && report.companies.trim() !== '') ? report.companies : 'N/A',
           reportCategories: (report.reportCategories && report.reportCategories.trim() !== '') ? report.reportCategories : 
                            (report.category && report.category.trim() !== '') ? report.category : 'N/A',
