@@ -201,6 +201,7 @@ const Reports = () => {
   const [columns, setColumns] = useState([])
   const [columnMapping, setColumnMapping] = useState({})
   const [showPreview, setShowPreview] = useState(false)
+  const [isMigrating, setIsMigrating] = useState(false)
   const searchTimeoutRef = useRef(null)
 
 
@@ -717,6 +718,31 @@ const Reports = () => {
 
   const handleImport = () => {
     setShowImportModal(true)
+  }
+
+  const handleMigrateSlugs = async () => {
+    if (!window.confirm('This will generate slugs for all reports that are missing them. Continue?')) {
+      return
+    }
+
+    try {
+      setIsMigrating(true)
+      setError('')
+      
+      const result = await api.migrateReportSlugs()
+      
+      if (result.success) {
+        setSuccess(`Slug migration completed: ${result.stats.updated} reports updated, ${result.stats.errors} errors`)
+        loadReports() // Refresh the list
+      } else {
+        throw new Error(result.message || 'Migration failed')
+      }
+    } catch (error) {
+      console.error('Migration error:', error)
+      setError(`Failed to migrate slugs: ${error.message}`)
+    } finally {
+      setIsMigrating(false)
+    }
   }
 
   const handleDrag = (e) => {

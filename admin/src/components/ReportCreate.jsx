@@ -184,6 +184,18 @@ const ReportCreate = () => {
         'Final slug value': report.slug || report.url || ''
       });
 
+      // Additional debug for slug field issue
+      console.log('🔍 SLUG FIELD DEBUG:', {
+        'Environment': process.env.NODE_ENV || 'development',
+        'API Response Keys': Object.keys(report),
+        'Slug exists in response': 'slug' in report,
+        'Slug value': report.slug,
+        'Slug type': typeof report.slug,
+        'URL value': report.url,
+        'URL type': typeof report.url,
+        'Will use slug': report.slug || report.url || 'EMPTY'
+      });
+
       setFormData({
         title: report.title || '',
         subTitle: report.subTitle || '',

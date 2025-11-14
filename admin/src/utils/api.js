@@ -184,6 +184,12 @@ class ApiClient {
     })
   }
 
+  async migrateReportSlugs() {
+    return this.request('/api/reports/migrate-slugs', {
+      method: 'POST'
+    })
+  }
+
   async exportReports(params = {}) {
     const query = new URLSearchParams(params).toString()
     const response = await this.request(`/api/reports/export${query ? `?${query}` : ''}`)

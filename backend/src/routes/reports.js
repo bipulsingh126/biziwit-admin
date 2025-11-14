@@ -960,6 +960,16 @@ router.get('/:id', async (req, res, next) => {
       })
     }
 
+    // Debug logging for slug field issue
+    console.log('🔍 GET Report Debug:', {
+      reportId: report._id,
+      title: report.title,
+      slug: report.slug,
+      url: report.url,
+      hasSlug: !!report.slug,
+      slugType: typeof report.slug
+    })
+
     res.json({
       success: true,
       data: report
@@ -3370,6 +3380,96 @@ router.post('/import', authenticate, requireRole('super_admin', 'admin', 'editor
     res.status(500).json({
       success: false,
       error: 'Import failed',
+      message: error.message
+    })
+  }
+})
+
+// Utility function to generate slug from title
+function generateSlug(title) {
+  if (!title) return ''
+  return slugify(title, {
+    lower: true,
+    strict: true,
+    remove: /[*+~.()'"!:@]/g
+  })
+}
+
+// Migration endpoint to populate missing slugs
+router.post('/migrate-slugs', authenticate, requireRole('super_admin'), async (req, res) => {
+  try {
+    console.log('🔄 Starting slug migration...')
+    
+    // Find reports without slugs or with empty slugs
+    const reportsWithoutSlugs = await Report.find({
+      $or: [
+        { slug: { $exists: false } },
+        { slug: '' },
+        { slug: null }
+      ]
+    })
+
+    console.log(`📊 Found ${reportsWithoutSlugs.length} reports without slugs`)
+
+    let updated = 0
+    let errors = 0
+    const errorDetails = []
+
+    for (const report of reportsWithoutSlugs) {
+      try {
+        const newSlug = generateSlug(report.title)
+        
+        if (newSlug) {
+          // Check if slug already exists
+          const existingReport = await Report.findOne({ slug: newSlug, _id: { $ne: report._id } })
+          
+          let finalSlug = newSlug
+          if (existingReport) {
+            // Add timestamp to make it unique
+            finalSlug = `${newSlug}-${Date.now()}`
+          }
+
+          await Report.findByIdAndUpdate(report._id, { slug: finalSlug })
+          console.log(`✅ Updated report "${report.title}" with slug: ${finalSlug}`)
+          updated++
+        } else {
+          console.log(`⚠️ Could not generate slug for report: ${report.title}`)
+          errorDetails.push({
+            id: report._id,
+            title: report.title,
+            error: 'Could not generate slug from title'
+          })
+          errors++
+        }
+      } catch (error) {
+        console.error(`❌ Error updating report ${report._id}:`, error.message)
+        errorDetails.push({
+          id: report._id,
+          title: report.title,
+          error: error.message
+        })
+        errors++
+      }
+    }
+
+    console.log('✅ Slug migration completed:', { updated, errors })
+
+    res.json({
+      success: true,
+      message: `Slug migration completed: ${updated} updated, ${errors} errors`,
+      stats: { 
+        total: reportsWithoutSlugs.length,
+        updated, 
+        errors 
+      },
+      errorDetails: errorDetails.slice(0, 10)
+    })
+
+  } catch (error) {
+    console.error('❌ Slug migration error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Slug migration failed',
       message: error.message
     })
   }
