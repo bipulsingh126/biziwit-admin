@@ -15,7 +15,8 @@ const sanitizeHtml = (html, options = {}) => {
     'img': ['src', 'alt', 'title'],
     'table': ['border', 'cellpadding', 'cellspacing'],
     'td': ['colspan', 'rowspan'],
-    'th': ['colspan', 'rowspan']
+    'th': ['colspan', 'rowspan'],
+    '*': ['style', 'class'] // Allow style and class on all elements
   }
   
   // If input is empty or null, return empty string
@@ -107,10 +108,12 @@ const sanitizeHtml = (html, options = {}) => {
       } else {
         // Clean attributes for allowed tags
         const allowedAttrs = allowedAttributes[tagName] || []
+        const globalAttrs = allowedAttributes['*'] || []
+        const allAllowedAttrs = [...allowedAttrs, ...globalAttrs]
         const attrs = Array.from(el.attributes)
         
         attrs.forEach(attr => {
-          if (!allowedAttrs.includes(attr.name)) {
+          if (!allAllowedAttrs.includes(attr.name)) {
             el.removeAttribute(attr.name)
           } else {
             // Sanitize attribute values
@@ -119,6 +122,28 @@ const sanitizeHtml = (html, options = {}) => {
               if (!/^(https?:|mailto:|tel:|#)/.test(attr.value)) {
                 el.removeAttribute(attr.name)
               }
+            }
+            // Sanitize style attribute to prevent XSS
+            if (attr.name === 'style' && attr.value) {
+              // Only allow safe CSS properties
+              const safeStyles = attr.value
+                .split(';')
+                .filter(style => {
+                  const prop = style.split(':')[0].trim().toLowerCase()
+                  // Whitelist safe CSS properties
+                      const safeCSSProps = [
+                    'margin', 'margin-left', 'margin-right', 'margin-top', 'margin-bottom',
+                    'padding', 'padding-left', 'padding-right', 'padding-top', 'padding-bottom',
+                    'color', 'background-color',
+                    'font-family', 'font-weight', 'font-size', 'font-style',
+                    'line-height', 'text-align', 'text-decoration',
+                    'list-style-type', 'border', 'border-left', 'border-radius', 'border-collapse',
+                    'width', 'height'
+                  ];
+                  return safeCSSProps.some(safe => prop.startsWith(safe))
+                })
+                .join(';')
+              el.setAttribute('style', safeStyles)
             }
           }
         })
@@ -768,136 +793,232 @@ const Reports = () => {
 
   // Convert Excel text to HTML with proper formatting preservation
   const convertToHTML = (text) => {
-    if (!text || typeof text !== 'string') return ''
-    
-    let html = text.trim()
-    
-    // Clean up Excel formatting
-    html = html.replace(/\t/g, ' ') // Replace tabs with spaces
-    html = html.replace(/\r/g, '') // Remove carriage returns
-    
-    // Handle different bullet point styles from Excel
-    html = html.replace(/^[•·▪▫◦‣⁃]\s*/gm, '• ')
-    html = html.replace(/^[-*]\s*/gm, '• ')
-    html = html.replace(/^\u2022\s*/gm, '• ') // Unicode bullet
-    html = html.replace(/^\s*•\s*/gm, '• ') // Clean up bullet spacing
-    
-    // Handle numbered lists from Excel
-    html = html.replace(/^(\d+)[\.\)]\s*/gm, '$1. ')
-    
-    // Split into paragraphs by double line breaks first
-    let paragraphs = html.split(/\n\s*\n/).filter(para => para.trim())
-    
-    // If no double line breaks, treat as single content block
-    if (paragraphs.length === 1) {
-      paragraphs = [html]
-    }
-    
-    let allFormattedLines = []
-    
-    paragraphs.forEach((paragraph, paraIndex) => {
-      const lines = paragraph.split(/\n/).filter(line => line.trim())
-      let formattedLines = []
-      let inList = false
-      let inNumberedList = false
-      
-      lines.forEach((line, index) => {
-        const trimmedLine = line.trim()
-        
-        if (!trimmedLine) return
-        
-        // Handle numbered lists (1. 2. 3.)
-        if (trimmedLine.match(/^\d+\.\s/)) {
-          if (inList && !inNumberedList) {
-            formattedLines.push('</ul>')
-            inList = false
-          }
-          if (!inNumberedList) {
-            formattedLines.push('<ol>')
-            inNumberedList = true
-          }
-          const content = trimmedLine.replace(/^\d+\.\s*/, '')
-          formattedLines.push(`<li>${content}</li>`)
-        }
-        // Handle bullet points
-        else if (trimmedLine.startsWith('•') || trimmedLine.match(/^[-*]\s/)) {
-          if (inNumberedList) {
-            formattedLines.push('</ol>')
-            inNumberedList = false
-          }
-          if (!inList) {
-            formattedLines.push('<ul>')
-            inList = true
-          }
-          const content = trimmedLine.replace(/^[•\-*]\s*/, '')
-          formattedLines.push(`<li>${content}</li>`)
-        } else {
-          // Close any open lists
-          if (inList) {
-            formattedLines.push('</ul>')
-            inList = false
-          }
-          if (inNumberedList) {
-            formattedLines.push('</ol>')
-            inNumberedList = false
-          }
-          
-          // Check if it looks like a heading
-          const isHeading = (
-            trimmedLine.length < 100 && 
-            (
-              trimmedLine === trimmedLine.toUpperCase() || // ALL CAPS
-              trimmedLine.endsWith(':') || // Ends with colon
-              (trimmedLine.split(' ').length <= 8 && // Short title
-               trimmedLine.split(' ').every(word => word.length > 0 && word[0] === word[0].toUpperCase())) // Title Case
-            )
-          )
-          
-          if (isHeading) {
-            formattedLines.push(`<h3>${trimmedLine.replace(/:$/, '')}</h3>`)
-          } else {
-            // For long content, combine multiple lines into paragraphs
-            const isLongContent = trimmedLine.length > 50
-            if (isLongContent || formattedLines.length === 0 || formattedLines[formattedLines.length - 1].startsWith('<')) {
-              formattedLines.push(`<p>${trimmedLine}</p>`)
-            } else {
-              // Combine with previous paragraph
-              const lastIndex = formattedLines.length - 1
-              if (formattedLines[lastIndex].startsWith('<p>')) {
-                formattedLines[lastIndex] = formattedLines[lastIndex].replace('</p>', ` ${trimmedLine}</p>`)
-              } else {
-                formattedLines.push(`<p>${trimmedLine}</p>`)
-              }
-            }
-          }
-        }
-      })
-      
-      // Close any remaining open lists
+    if (!text || typeof text !== "string") return "";
+
+    let html = text.trim();
+
+    // Normalize line breaks and tabs
+    html = html.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    html = html.replace(/\t/g, "    ");
+
+    // Split into paragraphs by double line breaks
+    const paragraphs = html.split(/\n\s*\n/).filter(p => p.trim());
+
+    if (paragraphs.length === 0) paragraphs.push(html);
+
+    let finalHTML = [];
+    let inList = false;
+    let listType = ''; // 'ul' or 'ol'
+
+    const closeList = () => {
       if (inList) {
-        formattedLines.push('</ul>')
+        finalHTML.push(`</${listType}>`);
+        inList = false;
+        listType = '';
       }
-      if (inNumberedList) {
-        formattedLines.push('</ol>')
-      }
+    };
+
+    paragraphs.forEach(para => {
+      const lines = para.split("\n").filter(l => l.trim());
+
+      lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+
+        const numberedMatch = trimmed.match(/^[\s]*(\d+)[\.\)\-–]\s+(.+)$/);
+        const bulletMatch = trimmed.match(/^[\s]*[-*•·▪▫◦‣⁃]\s+(.+)$/);
+
+        if (numberedMatch) {
+          if (listType !== 'ol') {
+            closeList();
+            finalHTML.push('<ol style="margin: 12px 0; padding-left: 24px; list-style-type: decimal;">');
+            inList = true;
+            listType = 'ol';
+          }
+          finalHTML.push(`<li style="margin: 6px 0; color: #374151; line-height: 1.5;">${numberedMatch[2]}</li>`);
+        } else if (bulletMatch) {
+          if (listType !== 'ul') {
+            closeList();
+            finalHTML.push('<ul style="margin: 12px 0; padding-left: 24px; list-style-type: disc;">');
+            inList = true;
+            listType = 'ul';
+          }
+          finalHTML.push(`<li style="margin: 6px 0; color: #374151; line-height: 1.5;">${bulletMatch[1]}</li>`);
+        } else {
+          closeList();
+          // Improved heading detection
+          const isAllCaps = trimmed.length > 5 && trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed) && trimmed.split(' ').length < 10;
+          const isTitleCase = /^[A-Z][a-z]+(\s[A-Z][a-z]+){1,5}$/.test(trimmed);
+          const endsWithColon = trimmed.endsWith(':');
+
+          if (isAllCaps || (isTitleCase && trimmed.length < 80) || (endsWithColon && trimmed.length < 100)) {
+            finalHTML.push(`<h3 style="margin: 18px 0 10px 0; font-weight: 700; color: #1f2937;">${trimmed.replace(/:$/, '')}</h3>`);
+          } else {
+            finalHTML.push(`<p style="margin: 8px 0; line-height: 1.6; color: #374151; text-align: left;">${trimmed}</p>`);
+          }
+        }
+      });
+    });
+
+    closeList();
+    return finalHTML.join("\n");
+  };
+
+  // Sanitize HTML to ensure safety
+  const sanitizeHtml = (html, options) => {
+    const result = sanitizeHtml(html, {
+      allowedTags: [
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "ul",
+        "ol",
+        "li",
+        "strong",
+        "em",
+        "br",
+        "div",
+        "span"
+      ],
+      allowedAttributes: {
+        "*": ["class", "style"]
+      },
+    });
+
+    return result;
+  };
+
+  //   let html = text.trim()
+    
+  //   // Clean up Excel formatting
+  //   html = html.replace(/\t/g, ' ') // Replace tabs with spaces
+  //   html = html.replace(/\r/g, '') // Remove carriage returns
+    
+  //   // Handle different bullet point styles from Excel
+  //   html = html.replace(/^[•·▪▫◦‣⁃]\s*/gm, '• ')
+  //   html = html.replace(/^[-*]\s*/gm, '• ')
+  //   html = html.replace(/^\u2022\s*/gm, '• ') // Unicode bullet
+  //   html = html.replace(/^\s*•\s*/gm, '• ') // Clean up bullet spacing
+    
+  //   // Handle numbered lists from Excel
+  //   html = html.replace(/^(\d+)[\.\)]\s*/gm, '$1. ')
+    
+  //   // Split into paragraphs by double line breaks first
+  //   let paragraphs = html.split(/\n\s*\n/).filter(para => para.trim())
+    
+  //   // If no double line breaks, treat as single content block
+  //   if (paragraphs.length === 1) {
+  //     paragraphs = [html]
+  //   }
+    
+  //   let allFormattedLines = []
+    
+  //   paragraphs.forEach((paragraph, paraIndex) => {
+  //     const lines = paragraph.split(/\n/).filter(line => line.trim())
+  //     let formattedLines = []
+  //     let inList = false
+  //     let inNumberedList = false
       
-      allFormattedLines.push(...formattedLines)
-    })
+  //     lines.forEach((line, index) => {
+  //       const trimmedLine = line.trim()
+        
+  //       if (!trimmedLine) return
+        
+  //       // Handle numbered lists (1. 2. 3.)
+  //       if (trimmedLine.match(/^\d+\.\s/)) {
+  //         if (inList && !inNumberedList) {
+  //           formattedLines.push('</ul>')
+  //           inList = false
+  //         }
+  //         if (!inNumberedList) {
+  //           formattedLines.push('<ol>')
+  //           inNumberedList = true
+  //         }
+  //         const content = trimmedLine.replace(/^\d+\.\s*/, '')
+  //         formattedLines.push(`<li>${content}</li>`)
+  //       }
+  //       // Handle bullet points
+  //       else if (trimmedLine.startsWith('•') || trimmedLine.match(/^[-*]\s/)) {
+  //         if (inNumberedList) {
+  //           formattedLines.push('</ol>')
+  //           inNumberedList = false
+  //         }
+  //         if (!inList) {
+  //           formattedLines.push('<ul>')
+  //           inList = true
+  //         }
+  //         const content = trimmedLine.replace(/^[•\-*]\s*/, '')
+  //         formattedLines.push(`<li>${content}</li>`)
+  //       } else {
+  //         // Close any open lists
+  //         if (inList) {
+  //           formattedLines.push('</ul>')
+  //           inList = false
+  //         }
+  //         if (inNumberedList) {
+  //           formattedLines.push('</ol>')
+  //           inNumberedList = false
+  //         }
+          
+  //         // Check if it looks like a heading
+  //         const isHeading = (
+  //           trimmedLine.length < 100 && 
+  //           (
+  //             trimmedLine === trimmedLine.toUpperCase() || // ALL CAPS
+  //             trimmedLine.endsWith(':') || // Ends with colon
+  //             (trimmedLine.split(' ').length <= 8 && // Short title
+  //              trimmedLine.split(' ').every(word => word.length > 0 && word[0] === word[0].toUpperCase())) // Title Case
+  //           )
+  //         )
+          
+  //         if (isHeading) {
+  //           formattedLines.push(`<h3>${trimmedLine.replace(/:$/, '')}</h3>`)
+  //         } else {
+  //           // For long content, combine multiple lines into paragraphs
+  //           const isLongContent = trimmedLine.length > 50
+  //           if (isLongContent || formattedLines.length === 0 || formattedLines[formattedLines.length - 1].startsWith('<')) {
+  //             formattedLines.push(`<p>${trimmedLine}</p>`)
+  //           } else {
+  //             // Combine with previous paragraph
+  //             const lastIndex = formattedLines.length - 1
+  //             if (formattedLines[lastIndex].startsWith('<p>')) {
+  //               formattedLines[lastIndex] = formattedLines[lastIndex].replace('</p>', ` ${trimmedLine}</p>`)
+  //             } else {
+  //               formattedLines.push(`<p>${trimmedLine}</p>`)
+  //             }
+  //           }
+  //         }
+  //       }
+  //     })
+      
+  //     // Close any remaining open lists
+  //     if (inList) {
+  //       formattedLines.push('</ul>')
+  //     }
+  //     if (inNumberedList) {
+  //       formattedLines.push('</ol>')
+  //     }
+      
+  //     allFormattedLines.push(...formattedLines)
+  //   })
     
-    // Sanitize HTML to ensure safety
-    const result = sanitizeHtml(allFormattedLines.join('\n'), {
-      allowedTags: ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'strong', 'em', 'br', 'div'],
-      allowedAttributes: {}
-    })
+  //   // Sanitize HTML to ensure safety
+  //   const result = sanitizeHtml(allFormattedLines.join('\n'), {
+  //     allowedTags: ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'strong', 'em', 'br', 'div'],
+  //     allowedAttributes: {}
+  //   })
     
-    console.log('🔄 Converting Excel text to HTML:', {
-      original: text.substring(0, 100) + '...',
-      converted: result.substring(0, 200) + '...',
-      hasHTML: result.includes('<')
-    })
+  //   console.log('🔄 Converting Excel text to HTML:', {
+  //     original: text.substring(0, 100) + '...',
+  //     converted: result.substring(0, 200) + '...',
+  //     hasHTML: result.includes('<')
+  //   })
     
-    return result
-  }
+  //   return result
+  // }
 
   // Column mapping for Excel to database fields
   const fieldMappings = {

@@ -173,15 +173,13 @@ const ReportCreate = () => {
       const report = response.data || response
       
       // Debug: Log what we're receiving from the backend
-      console.log('🔍 LOADING REPORT - Raw data from API:', {
-        'report.segmentCompanies': report.segmentCompanies,
-        'report.segment': report.segment,
-        'report.segmentationContent': report.segmentationContent,
-        'report.companies': report.companies,
-        'report.slug': report.slug,
-        'report.url': report.url,
-        'Final segmentCompanies value': report.segmentCompanies || report.segment || report.segmentationContent || '',
-        'Final slug value': report.slug || report.url || ''
+      console.log('🔍 LOADING CONTENT FIELDS:', {
+        'reportDescription': report.reportDescription?.substring(0, 100),
+        'tableOfContents': report.tableOfContents?.substring(0, 100),
+        'segmentCompanies': report.segmentCompanies?.substring(0, 100),
+        'reportDescription length': report.reportDescription?.length,
+        'tableOfContents length': report.tableOfContents?.length,
+        'segmentCompanies length': report.segmentCompanies?.length
       });
 
       // Additional debug for slug field issue
@@ -274,33 +272,61 @@ const ReportCreate = () => {
     }
   }
 
+  // const handleInputChange = (field, value) => {
+  //   setFormData(prev => {
+  //     const newData = { ...prev, [field]: value }
+      
+  //     // Auto-generate slug from title if title is being changed and slug is empty
+  //     if (field === 'title' && value && !prev.slug) {
+  //       newData.slug = value
+  //         .toLowerCase()
+  //         .replace(/[^a-z0-9\s-]/g, '')
+  //         .replace(/\s+/g, '-')
+  //         .replace(/-+/g, '-')
+  //         .trim('-')
+  //     }
+      
+  //     // Format slug input to be URL-friendly
+  //     if (field === 'slug' && value) {
+  //       newData.slug = value
+  //         .toLowerCase()
+  //         .replace(/[^a-z0-9\s-]/g, '')
+  //         .replace(/\s+/g, '-')
+  //         .replace(/-+/g, '-')
+  //         .trim('-')
+  //     }
+      
+  //     return newData
+  //   })
   const handleInputChange = (field, value) => {
     setFormData(prev => {
-      const newData = { ...prev, [field]: value }
-      
-      // Auto-generate slug from title if title is being changed and slug is empty
-      if (field === 'title' && value && !prev.slug) {
+      let newData = { ...prev, [field]: value };
+
+      //  Auto-generate slug from title when slug is empty
+      if (field === "title" && value && !prev.slug) {
         newData.slug = value
           .toLowerCase()
-          .replace(/[^a-z0-9\s-]/g, '')
-          .replace(/\s+/g, '-')
-          .replace(/-+/g, '-')
-          .trim('-')
+          .replace(/[^a-z0-9\s-]/g, "")
+          .replace(/\s+/g, "-")
+          .replace(/-+/g, "-")
+          .replace(/^-+|-+$/g, ""); // correct way to trim hyphens
       }
-      
-      // Format slug input to be URL-friendly
-      if (field === 'slug' && value) {
+
+      //  Clean & format slug field when user types it manually
+      if (field === "slug" && value !== undefined) {
         newData.slug = value
           .toLowerCase()
-          .replace(/[^a-z0-9\s-]/g, '')
-          .replace(/\s+/g, '-')
-          .replace(/-+/g, '-')
-          .trim('-')
+          .replace(/[^a-z0-9\s-]/g, "")
+          .replace(/\s+/g, "-")
+          .replace(/-+/g, "-")
+          .replace(/^-+|-+$/g, "");
       }
-      
-      return newData
-    })
-    
+      // Don't auto-convert text fields - let RichTextEditor handle formatting
+      // Only preserve the value as-is
+      return newData;
+    });
+
+    // Clear validation errors when user starts typing
     if (validationErrors[field]) {
       setValidationErrors(prev => {
         const newErrors = { ...prev }
@@ -310,6 +336,79 @@ const ReportCreate = () => {
     }
     if (error) setError('')
   }
+
+  const formatImportedText = (text) => {
+    if (!text) return "";
+
+    let str = text
+      .replace(/\t/g, " ")
+      .replace(/\r/g, "")
+      .trim();
+
+    // Normalize Excel bullets
+    str = str.replace(/^[•·▪▫◦‣⁃*-]\s*/gm, "• ");
+
+    // Normalize numbering
+    str = str.replace(/^(\d+)[\.\)\-–]\s*/gm, "$1. ");
+
+    const lines = str.split("\n").filter(l => l.trim());
+    let output = [];
+    let inList = false;
+    let inNumberList = false;
+
+    const closeLists = () => {
+      if (inList) output.push("</ul>");
+      if (inNumberList) output.push("</ol>");
+      inList = false;
+      inNumberList = false;
+    };
+
+    lines.forEach(line => {
+      const t = line.trim();
+
+      // ------- NUMBERED LIST -------
+      if (/^\d+\.\s/.test(t)) {
+        if (inList) closeLists();
+        if (!inNumberList) {
+          output.push('<ol class="formatted-list">');
+          inNumberList = true;
+        }
+        return output.push(`<li>${t.replace(/^\d+\.\s*/, "")}</li>`);
+      }
+
+      // ------- BULLET LIST -------
+      if (t.startsWith("• ")) {
+        if (inNumberList) closeLists();
+        if (!inList) {
+          output.push('<ul class="formatted-list">');
+          inList = true;
+        }
+        return output.push(`<li>${t.replace(/^•\s*/, "")}</li>`);
+      }
+
+      // ------- HEADINGS DETECTION -------
+      const isHeading =
+        t.length < 80 &&
+        (
+          t === t.toUpperCase() ||
+          t.endsWith(":") ||
+          /^[A-Z][a-z]*(\s[A-Z][a-z]*)*$/.test(t)
+        );
+
+      closeLists();
+
+      if (isHeading) {
+        output.push(
+          `<h3 class="formatted-heading">${t.replace(/:$/, "")}</h3>`
+        );
+      } else {
+        output.push(`<p class="formatted-paragraph">${t}</p>`);
+      }
+    });
+
+    closeLists();
+    return output.join("\n");
+  };
 
   const validateForm = () => {
     const errors = {}

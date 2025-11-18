@@ -10,7 +10,7 @@ import { authenticate, requireRole } from '../middleware/auth.js'
 
 const router = Router()
 
-// Helper function to format imported Excel data into consistent HTML
+// Enhanced helper function to format imported Excel data with better formatting preservation
 function formatImportedContent(rawText, contentType = 'general') {
   if (!rawText || typeof rawText !== 'string' || rawText.trim() === '') {
     return '';
@@ -18,36 +18,101 @@ function formatImportedContent(rawText, contentType = 'general') {
 
   let text = rawText.trim();
 
-  // General cleanup
+  // General cleanup - preserve line breaks and structure
   text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   text = text.replace(/\t/g, '    '); // Preserve tabs as spaces
-  text = text.replace(/\n\s*\n/g, '\n\n');
-
-  const lines = text.split('\n').filter(line => line.trim());
+  
+  // Split by double line breaks to preserve paragraph structure
+  const paragraphs = text.split(/\n\s*\n/);
   let html = '';
-  let inList = false;
 
-  lines.forEach(line => {
-    if (line.match(/^\s*[-*•]/)) { // Bullet points
-      if (!inList) {
-        html += '<ul>\n';
-        inList = true;
+  paragraphs.forEach(paragraph => {
+    if (!paragraph.trim()) return;
+    
+    const lines = paragraph.split('\n').filter(line => line.trim());
+    let paragraphHtml = '';
+    let inList = false;
+    let listType = null; // 'bullet' or 'numbered'
+    let listHtml = '';
+
+    lines.forEach(line => {
+      const trimmedLine = line.trim();
+      
+      // Detect bullet points with various bullet styles
+      const bulletMatch = trimmedLine.match(/^[\s]*[-*•·▪▫◦‣⁃]\s+(.+)$/);
+      if (bulletMatch) {
+        if (!inList || listType !== 'bullet') {
+          if (listHtml) paragraphHtml += listHtml;
+          listHtml = '<ul style="margin: 12px 0; padding-left: 24px; list-style-type: disc;">\n';
+          inList = true;
+          listType = 'bullet';
+        }
+        const itemText = escapeHtmlText(bulletMatch[1]);
+        listHtml += `  <li style="margin: 6px 0; color: #374151; line-height: 1.5;">${itemText}</li>\n`;
+        return;
       }
-      html += `<li>${line.replace(/^\s*[-*•]/, '').trim()}</li>\n`;
-    } else { // Regular paragraph
+
+      // Detect numbered lists
+      const numberedMatch = trimmedLine.match(/^[\s]*(\d+)[\.\)\-–]\s+(.+)$/);
+      if (numberedMatch) {
+        if (!inList || listType !== 'numbered') {
+          if (listHtml) paragraphHtml += listHtml;
+          listHtml = '<ol style="margin: 12px 0; padding-left: 24px; list-style-type: decimal;">\n';
+          inList = true;
+          listType = 'numbered';
+        }
+        const itemText = escapeHtmlText(numberedMatch[2]);
+        listHtml += `  <li style="margin: 6px 0; color: #374151; line-height: 1.5;">${itemText}</li>\n`;
+        return;
+      }
+
+      // Close list if we encounter non-list content
       if (inList) {
-        html += '</ul>\n';
+        listHtml += listType === 'bullet' ? '</ul>\n' : '</ol>\n';
+        paragraphHtml += listHtml;
+        listHtml = '';
         inList = false;
+        listType = null;
       }
-      html += `<p>${line.trim()}</p>\n`;
+
+      // Detect headings - lines that are all caps, end with colon, or are short and title-cased
+      const isHeading = detectHeading(trimmedLine, contentType);
+      if (isHeading) {
+        const level = getHeadingLevel(trimmedLine, contentType);
+        const headingText = escapeHtmlText(trimmedLine.replace(/:$/, '')); // Remove trailing colon
+        paragraphHtml += `<h${level} style="margin: 16px 0 10px 0; font-weight: 700; color: #1f2937; font-size: ${1.5 - (level * 0.15)}em; line-height: 1.4;">${headingText}</h${level}>\n`;
+      } else {
+        // Regular paragraph
+        const paraText = escapeHtmlText(trimmedLine);
+        paragraphHtml += `<p style="margin: 8px 0; line-height: 1.6; color: #374151; text-align: left;">${paraText}</p>\n`;
+      }
+    });
+
+    // Close any open list
+    if (inList) {
+      listHtml += listType === 'bullet' ? '</ul>\n' : '</ol>\n';
+      paragraphHtml += listHtml;
+    }
+
+    if (paragraphHtml) {
+      html += paragraphHtml;
     }
   });
 
-  if (inList) {
-    html += '</ul>\n';
-  }
-
   return html;
+}
+
+// Helper function to escape HTML special characters
+function escapeHtmlText(text) {
+  if (!text) return '';
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, char => map[char]);
 }
 
 function formatReportOverview(rawText) {
@@ -57,38 +122,119 @@ function formatReportOverview(rawText) {
 
   let text = rawText.trim();
 
-  // Split into paragraphs
+  // Normalize line breaks
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  text = text.replace(/\t/g, '    ');
+
+  // Split by double line breaks to preserve paragraph structure
   const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
 
-  return paragraphs.map(p => `<p>${p.trim()}</p>`).join('\n');
+  let html = '';
+  let inList = false;
+  let listType = null;
+  let listHtml = '';
+  
+  paragraphs.forEach((para) => {
+    const lines = para.split('\n').filter(line => line.trim());
+    
+    lines.forEach(line => {
+      const trimmedLine = line.trim();
+      
+      // Detect bullet points in overview
+      const bulletMatch = trimmedLine.match(/^[\s]*[-*•·▪▫◦‣⁃]\s+(.+)$/);
+      if (bulletMatch) {
+        if (!inList || listType !== 'bullet') {
+          if (listHtml) html += listHtml;
+          listHtml = '<ul style="margin: 12px 0; padding-left: 24px; list-style-type: disc;">\n';
+          inList = true;
+          listType = 'bullet';
+        }
+        const itemText = escapeHtmlText(bulletMatch[1]);
+        listHtml += `  <li style="margin: 6px 0; color: #374151; line-height: 1.5;">${itemText}</li>\n`;
+        return;
+      }
+
+      // Detect numbered lists in overview
+      const numberedMatch = trimmedLine.match(/^[\s]*(\d+)[\.\)\-–]\s+(.+)$/);
+      if (numberedMatch) {
+        if (!inList || listType !== 'numbered') {
+          if (listHtml) html += listHtml;
+          listHtml = '<ol style="margin: 12px 0; padding-left: 24px; list-style-type: decimal;">\n';
+          inList = true;
+          listType = 'numbered';
+        }
+        const itemText = escapeHtmlText(numberedMatch[2]);
+        listHtml += `  <li style="margin: 6px 0; color: #374151; line-height: 1.5;">${itemText}</li>\n`;
+        return;
+      }
+
+      // Close list if we encounter non-list content
+      if (inList) {
+        listHtml += listType === 'bullet' ? '</ul>\n' : '</ol>\n';
+        html += listHtml;
+        listHtml = '';
+        inList = false;
+        listType = null;
+      }
+
+      // Detect headings in overview
+      const isHeading = detectHeading(trimmedLine, 'reportOverview');
+      if (isHeading) {
+        const headingText = escapeHtmlText(trimmedLine.replace(/:$/, ''));
+        html += `<h3 style="margin: 14px 0 8px 0; font-weight: 700; color: #1f2937; font-size: 1.15em; line-height: 1.4;">${headingText}</h3>\n`;
+      } else {
+        // Regular paragraph
+        const paraText = escapeHtmlText(trimmedLine);
+        html += `<p style="margin: 8px 0; line-height: 1.6; color: #374151; text-align: left;">${paraText}</p>\n`;
+      }
+    });
+  });
+
+  // Close any remaining list
+  if (inList) {
+    listHtml += listType === 'bullet' ? '</ul>\n' : '</ol>\n';
+    html += listHtml;
+  }
+
+  return html;
 }
 
 // Helper function to detect if a line should be a heading
 function detectHeading(line, contentType) {
+  if (!line || line.trim().length === 0) return false;
+  
   // Common heading patterns
   const headingPatterns = [
     /^(chapter|section|part)\s+\d+/i,
     /^\d+\.\d*\s+[A-Z]/,
     /^[A-Z][^.!?]*:$/,
-    /^(executive summary|key findings|market analysis|recommendations|conclusion|introduction|overview|methodology)/i,
-    /^(table of contents|toc)$/i
+    /^(executive summary|key findings|market analysis|recommendations|conclusion|introduction|overview|methodology|market overview|market size|growth drivers|challenges|opportunities|competitive landscape|future outlook|key takeaways)/i,
+    /^(table of contents|toc)$/i,
+    /^(market segment|target demographics|key characteristics|regional analysis|industry analysis|company profiles)$/i
   ]
   
   // Content-specific patterns
   if (contentType === 'tableOfContents') {
     return line.match(/^(chapter|section|part)\s+\d+/i) || 
            line.match(/^\d+\.\d*\s+[A-Z]/) ||
-           line.length < 80 && line.includes('.')
+           (line.length < 80 && line.includes('.'))
   }
   
   if (contentType === 'segment') {
-    return line.match(/^(market segment|target demographics|market size|key characteristics|opportunities|challenges)/i)
+    return line.match(/^(market segment|target demographics|market size|key characteristics|opportunities|challenges|regional|industry)/i)
+  }
+
+  if (contentType === 'reportOverview') {
+    return line.match(/^(overview|summary|introduction|key findings|market analysis|recommendations|conclusion|executive summary)/i) ||
+           (line.length < 100 && line.endsWith(':')) ||
+           (line.length < 60 && line === line.toUpperCase() && line.split(' ').length <= 8)
   }
   
   // General heading detection
   return headingPatterns.some(pattern => pattern.test(line)) ||
-         (line.length < 100 && line.endsWith(':')) ||
-         (line.length < 60 && line === line.toUpperCase() && line.split(' ').length <= 8)
+         (line.length < 100 && line.endsWith(':') && line.split(' ').length <= 10) ||
+         (line.length < 60 && line === line.toUpperCase() && line.split(' ').length <= 8) ||
+         (line.length < 80 && /^[A-Z][a-z]+(\s[A-Z][a-z]+)*$/.test(line) && line.split(' ').length <= 6)
 }
 
 // Helper function to determine heading level

@@ -26,6 +26,19 @@ import {
   Users
 } from 'lucide-react'
 
+// Helper function to escape HTML special characters
+const escapeHtml = (text) => {
+  if (!text) return ''
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }
+  return text.replace(/[&<>"']/g, char => map[char])
+}
+
 const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) => {
   const editorRef = useRef(null)
   const [selectedFont, setSelectedFont] = useState('Arial')
@@ -39,120 +52,271 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
 
   useEffect(() => {
     if (editorRef.current && value !== editorRef.current.innerHTML) {
-      const newValue = value || ''
+      const newValue = value || '';
       
-      // Check if content is already properly formatted (contains styled divs from backend)
-      if (newValue && newValue.includes('style="margin: 20px 0; padding: 15px;')) {
-        // Content is already formatted by backend, use as-is
-        editorRef.current.innerHTML = newValue
-      }
-      // If content doesn't have HTML tags, convert it to proper HTML format
-      else if (newValue && !newValue.includes('<') && newValue.length > 100) {
-        const formattedHTML = convertPlainTextToHTML(newValue)
-        editorRef.current.innerHTML = formattedHTML
+      // More robust check for HTML content, including inline styles
+      const isHTML = /<[a-z][\s\S]*>/i.test(newValue);
+      const hasStyleAttr = /style=/i.test(newValue);
+
+      console.log(`🔍 RichTextEditor - Content Update:`, {
+        isHTML,
+        hasStyleAttr,
+        contentLength: newValue.length,
+        contentPreview: newValue.substring(0, 100)
+      });
+
+      // If content is already HTML (especially with styles), render it directly
+      if (isHTML && hasStyleAttr) {
+        editorRef.current.innerHTML = newValue;
       } 
-      // If content is one big paragraph, try to reformat it
-      else if (newValue && newValue.startsWith('<p>') && !newValue.includes('</p><p>') && newValue.length > 500) {
-        const textContent = newValue.replace(/<\/?p>/g, '')
-        const formattedHTML = convertPlainTextToHTML(textContent)
-        editorRef.current.innerHTML = formattedHTML
-      } else {
-        editorRef.current.innerHTML = newValue
+      // If it's plain text or simple HTML without styles, convert it
+      else if (newValue && newValue.trim().length > 0) {
+        const formattedHTML = convertPlainTextToHTML(newValue);
+        editorRef.current.innerHTML = formattedHTML;
+      } 
+      // Handle empty content
+      else {
+        editorRef.current.innerHTML = '';
       }
     }
-  }, [value])
+  }, [value]);
 
   // Convert plain text to HTML format
   const convertPlainTextToHTML = (text) => {
-    if (!text || typeof text !== 'string') return ''
+    if (!text || typeof text !== 'string') return '';
     
-    let html = text.trim()
+    let html = text.trim();
     
-    // Clean up formatting
-    html = html.replace(/\t/g, ' ')
-    html = html.replace(/\r/g, '')
+    // Clean up Excel formatting
+    html = html.replace(/\t/g, '  '); // Replace tabs with spaces
+    html = html.replace(/\r\n/g, '\n'); // Normalize line breaks
+    html = html.replace(/\r/g, '\n'); // Remove carriage returns
     
-    // Handle bullet points that might be mixed in with text
-    html = html.replace(/([.!?])\s*([•·▪▫◦‣⁃])\s*/g, '$1\n$2 ')
-    html = html.replace(/([.!?])\s*([-*])\s+([A-Z])/g, '$1\n$2 $3')
+    // Normalize bullet points
+    html = html.replace(/[•·▪▫◦‣⁃]/g, '•');
+    html = html.replace(/^[-*]\s+/gm, '• ');
+    html = html.replace(/^\s*•\s*/gm, '• ');
     
-    // Split paragraphs by looking for sentence endings followed by capital letters
-    html = html.replace(/([.!?])\s+([A-Z][a-z])/g, '$1\n\n$2')
+    // Normalize numbered lists
+    html = html.replace(/^(\d+)[\.\)]\s*/gm, '$1. ');
     
-    // Handle section headings (text ending with colon)
-    html = html.replace(/([.!?])\s+([A-Z][^.!?]*:)\s*/g, '$1\n\n$2\n')
+    // Split into blocks
+    const blocks = [];
+    const lines = html.split('\n');
     
-    // Handle bullet points
-    html = html.replace(/^[•·▪▫◦‣⁃]\s*/gm, '• ')
-    html = html.replace(/^[-*]\s*/gm, '• ')
-    html = html.replace(/^\u2022\s*/gm, '• ')
+    let currentBlock = [];
+    let currentBlockType = null;
     
-    // Split into paragraphs by double line breaks first
-    let paragraphs = html.split(/\n\s*\n/).filter(para => para.trim())
-    
-    // If no paragraphs found, try to split by sentence patterns
-    if (paragraphs.length === 1) {
-      paragraphs = html.split(/(?<=[.!?])\s+(?=[A-Z])/).filter(para => para.trim())
-    }
-    
-    let allFormattedLines = []
-    
-    paragraphs.forEach((paragraph, paraIndex) => {
-      const lines = paragraph.split(/\n/).filter(line => line.trim())
-      let formattedLines = []
-      let inList = false
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
       
-      lines.forEach((line, index) => {
-        const trimmedLine = line.trim()
-        
-        if (!trimmedLine) return
-        
-        // Handle bullet points
-        if (trimmedLine.startsWith('•') || trimmedLine.match(/^[-*]\s/)) {
-          if (!inList) {
-            formattedLines.push('<ul>')
-            inList = true
-          }
-          const content = trimmedLine.replace(/^[•\-*]\s*/, '')
-          formattedLines.push(`<li>${content}</li>`)
-        } else {
-          // Close list if needed
-          if (inList) {
-            formattedLines.push('</ul>')
-            inList = false
-          }
-          
-          // Check if it's a heading
-          const isHeading = (
-            trimmedLine.length < 100 && 
-            (
-              trimmedLine.endsWith(':') ||
-              trimmedLine === trimmedLine.toUpperCase() ||
-              (trimmedLine.split(' ').length <= 10 && 
-               trimmedLine.includes('Market') || trimmedLine.includes('Report') || 
-               trimmedLine.includes('Application') || trimmedLine.includes('Region') ||
-               trimmedLine.includes('Takeaways'))
-            )
-          )
-          
-          if (isHeading) {
-            formattedLines.push(`<h3>${trimmedLine.replace(/:$/, '')}</h3>`)
-          } else {
-            formattedLines.push(`<p>${trimmedLine}</p>`)
-          }
+      // Empty line - end current block
+      if (!line) {
+        if (currentBlock.length > 0) {
+          blocks.push({ type: currentBlockType, content: currentBlock });
+          currentBlock = [];
+          currentBlockType = null;
         }
-      })
-      
-      // Close any remaining list
-      if (inList) {
-        formattedLines.push('</ul>')
+        continue;
       }
       
-      allFormattedLines.push(...formattedLines)
-    })
+      // Detect line type
+      const isBullet = /^•\s+/.test(line);
+      const isNumbered = /^\d+\.\s+/.test(line);
+      const isAllCaps = line === line.toUpperCase() && /[A-Z]/.test(line) && line.split(' ').length <= 10;
+      const endsWithColon = line.endsWith(':') && line.length < 80;
+      const isTitleCase = line.length < 80 && 
+        line.split(' ').length <= 12 && 
+        line.split(' ').every(word => word.length > 0 && /^[A-Z]/.test(word)) &&
+        !line.match(/[.!?]$/);
+      
+      let lineType;
+      if (isBullet) {
+        lineType = 'bullet';
+      } else if (isNumbered) {
+        lineType = 'numbered';
+      } else if (isAllCaps) {
+        lineType = 'heading1';
+      } else if (endsWithColon || isTitleCase) {
+        lineType = 'heading2';
+      } else {
+        lineType = 'paragraph';
+      }
+      
+      // Check if we need to start a new block
+      if (currentBlockType && currentBlockType !== lineType) {
+        // Keep list items together
+        const bothLists = (currentBlockType === 'bullet' || currentBlockType === 'numbered') && 
+                         (lineType === 'bullet' || lineType === 'numbered');
+        
+        if (!bothLists) {
+          blocks.push({ type: currentBlockType, content: currentBlock });
+          currentBlock = [];
+          currentBlockType = null;
+        }
+      }
+      
+      if (!currentBlockType) {
+        currentBlockType = lineType;
+      }
+      
+      currentBlock.push(line);
+    }
     
-    return allFormattedLines.join('\n')
-  }
+    // Add remaining block
+    if (currentBlock.length > 0) {
+      blocks.push({ type: currentBlockType, content: currentBlock });
+    }
+    
+    // Convert blocks to HTML with proper formatting
+    const htmlBlocks = blocks.map(block => {
+      switch (block.type) {
+        case 'heading1':
+          return block.content.map(line => 
+            `<h1>${escapeHtml(line)}</h1>`
+          ).join('\n');
+        
+        case 'heading2':
+          return block.content.map(line => 
+            `<h2>${escapeHtml(line.replace(/:$/, ''))}</h2>`
+          ).join('\n');
+        
+        case 'bullet':
+          const bulletItems = block.content.map(line => {
+            const content = line.replace(/^•\s+/, '');
+            return `  <li>${escapeHtml(content)}</li>`;
+          }).join('\n');
+          return `<ul>\n${bulletItems}\n</ul>`;
+        
+        case 'numbered':
+          const numberedItems = block.content.map(line => {
+            const content = line.replace(/^\d+\.\s+/, '');
+            return `  <li>${escapeHtml(content)}</li>`;
+          }).join('\n');
+          return `<ol>\n${numberedItems}\n</ol>`;
+        
+        case 'paragraph':
+        default:
+          // Combine short consecutive lines, keep long lines separate
+          const paragraphs = [];
+          let currentPara = [];
+          
+          block.content.forEach(line => {
+            if (line.length > 80 || currentPara.join(' ').length > 100) {
+              if (currentPara.length > 0) {
+                paragraphs.push(currentPara.join(' '));
+                currentPara = [];
+              }
+              if (line.length > 80) {
+                paragraphs.push(line);
+              } else {
+                currentPara.push(line);
+              }
+            } else {
+              currentPara.push(line);
+            }
+          });
+          
+          if (currentPara.length > 0) {
+            paragraphs.push(currentPara.join(' '));
+          }
+          
+          return paragraphs.map(p => `<p>${escapeHtml(p)}</p>`).join('\n');
+      }
+    });
+    
+    return htmlBlocks.join('\n\n');
+  };
+  // const convertPlainTextToHTML = (text) => {
+  //   if (!text || typeof text !== 'string') return ''
+    
+  //   let html = text.trim()
+    
+  //   // Clean up formatting
+  //   html = html.replace(/\t/g, ' ')
+  //   html = html.replace(/\r/g, '')
+    
+  //   // Handle bullet points that might be mixed in with text
+  //   html = html.replace(/([.!?])\s*([•·▪▫◦‣⁃])\s*/g, '$1\n$2 ')
+  //   html = html.replace(/([.!?])\s*([-*])\s+([A-Z])/g, '$1\n$2 $3')
+    
+  //   // Split paragraphs by looking for sentence endings followed by capital letters
+  //   html = html.replace(/([.!?])\s+([A-Z][a-z])/g, '$1\n\n$2')
+    
+  //   // Handle section headings (text ending with colon)
+  //   html = html.replace(/([.!?])\s+([A-Z][^.!?]*:)\s*/g, '$1\n\n$2\n')
+    
+  //   // Handle bullet points
+  //   html = html.replace(/^[•·▪▫◦‣⁃]\s*/gm, '• ')
+  //   html = html.replace(/^[-*]\s*/gm, '• ')
+  //   html = html.replace(/^\u2022\s*/gm, '• ')
+    
+  //   // Split into paragraphs by double line breaks first
+  //   let paragraphs = html.split(/\n\s*\n/).filter(para => para.trim())
+    
+  //   // If no paragraphs found, try to split by sentence patterns
+  //   if (paragraphs.length === 1) {
+  //     paragraphs = html.split(/(?<=[.!?])\s+(?=[A-Z])/).filter(para => para.trim())
+  //   }
+    
+  //   let allFormattedLines = []
+    
+  //   paragraphs.forEach((paragraph, paraIndex) => {
+  //     const lines = paragraph.split(/\n/).filter(line => line.trim())
+  //     let formattedLines = []
+  //     let inList = false
+      
+  //     lines.forEach((line, index) => {
+  //       const trimmedLine = line.trim()
+        
+  //       if (!trimmedLine) return
+        
+  //       // Handle bullet points
+  //       if (trimmedLine.startsWith('•') || trimmedLine.match(/^[-*]\s/)) {
+  //         if (!inList) {
+  //           formattedLines.push('<ul>')
+  //           inList = true
+  //         }
+  //         const content = trimmedLine.replace(/^[•\-*]\s*/, '')
+  //         formattedLines.push(`<li>${content}</li>`)
+  //       } else {
+  //         // Close list if needed
+  //         if (inList) {
+  //           formattedLines.push('</ul>')
+  //           inList = false
+  //         }
+          
+  //         // Check if it's a heading
+  //         const isHeading = (
+  //           trimmedLine.length < 100 && 
+  //           (
+  //             trimmedLine.endsWith(':') ||
+  //             trimmedLine === trimmedLine.toUpperCase() ||
+  //             (trimmedLine.split(' ').length <= 10 && 
+  //              trimmedLine.includes('Market') || trimmedLine.includes('Report') || 
+  //              trimmedLine.includes('Application') || trimmedLine.includes('Region') ||
+  //              trimmedLine.includes('Takeaways'))
+  //           )
+  //         )
+          
+  //         if (isHeading) {
+  //           formattedLines.push(`<h3>${trimmedLine.replace(/:$/, '')}</h3>`)
+  //         } else {
+  //           formattedLines.push(`<p>${trimmedLine}</p>`)
+  //         }
+  //       }
+  //     })
+      
+  //     // Close any remaining list
+  //     if (inList) {
+  //       formattedLines.push('</ul>')
+  //     }
+      
+  //     allFormattedLines.push(...formattedLines)
+  //   })
+    
+  //   return allFormattedLines.join('\n')
+  // }
 
   // Close dropdowns when clicking outside and handle keyboard shortcuts
   useEffect(() => {
@@ -172,11 +336,57 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
       }
     }
 
+      const handlePaste = (event) => {
+      event.preventDefault();
+      let paste;
+      if (event.clipboardData && event.clipboardData.getData) {
+        paste = event.clipboardData.getData('text/html');
+        if (!paste) {
+          paste = event.clipboardData.getData('text/plain');
+        }
+      }
+
+      if (paste) {
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+        selection.deleteFromDocument();
+        const range = selection.getRangeAt(0);
+
+        // Use DOMParser to create a document fragment from the pasted HTML
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(paste, 'text/html');
+        
+        // Create a fragment to hold the sanitized content
+        const fragment = document.createDocumentFragment();
+        
+        // Append all nodes from the parsed body to the fragment
+        while (doc.body.firstChild) {
+          fragment.appendChild(doc.body.firstChild);
+        }
+
+        range.insertNode(fragment);
+
+        // Move the cursor to the end of the pasted content
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+
+        updateContent();
+      }
+    };
+
+    if (editorRef.current) {
+      editorRef.current.addEventListener('paste', handlePaste)
+    }
+
     document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('keydown', handleKeyDown)
+      if (editorRef.current) {
+        editorRef.current.removeEventListener('paste', handlePaste)
+      }
     }
   }, [])
 
@@ -188,7 +398,9 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
 
   const updateContent = () => {
     if (editorRef.current && onChange) {
-      onChange(editorRef.current.innerHTML)
+      // Get the inner HTML which preserves formatting
+      const content = editorRef.current.innerHTML
+      onChange(content)
     }
   }
 
