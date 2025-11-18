@@ -42,7 +42,7 @@ const Testimonial = () => {
         offset: (currentPage - 1) * itemsPerPage
       }
       const result = await api.getTestimonials(params)
-      setTestimonials(result.data.items || [])
+      setTestimonials(result.items || [])
     } catch (error) {
       console.error('Error loading testimonials:', error)
       setErrorMessage('Failed to load testimonials')
@@ -71,7 +71,7 @@ const Testimonial = () => {
       const result = await api.uploadTestimonialImage(editingId, imageFile)
       setFormData(prev => ({
         ...prev,
-        clientImage: result.data.imageUrl
+        clientImage: result.imageUrl
       }))
       setImageFile(null)
       setImagePreview('')
