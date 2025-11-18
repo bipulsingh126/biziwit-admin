@@ -21,6 +21,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Inquiries from './components/Inquiries'
 import Categories from './components/Categories'
 import HomePageManagement from './components/HomePageManagement'
+import Testimonial from './components/Testimonial'
 
 const AppContent = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -53,7 +54,7 @@ const AppContent = () => {
           <main className="flex-1 overflow-y-auto bg-gray-50">
             <div className="max-w-7xl mx-auto">
               <Routes>
-                <Route path="/" element={<Navigate to={user?.role === 'admin' ? '/dashboard' : '/reports'} replace />} />
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route 
                   path="/dashboard" 
                   element={
@@ -195,6 +196,14 @@ const AppContent = () => {
                   element={
                     <ProtectedRoute route="/home-page-management">
                       <HomePageManagement />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/testimonials" 
+                  element={
+                    <ProtectedRoute route="/testimonials">
+                      <Testimonial />
                     </ProtectedRoute>
                   } 
                 />

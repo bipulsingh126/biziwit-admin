@@ -9,7 +9,8 @@ import {
   Inbox,
   TrendingUp,
   Search,
-  Folder
+  Folder,
+  MessageSquare
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -28,6 +29,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     { name: 'Megatrends', href: '/admin/megatrends', icon: TrendingUp },
     { name: 'Case Studies', href: '/admin/case-studies', icon: FileText },
     { name: 'Inquiries', href: '/inquiries', icon: Inbox },
+    { name: 'Testimonials', href: '/testimonials', icon: MessageSquare },
     { name: 'Home Page Management', href: '/home-page-management', icon: Home },
   ]
 

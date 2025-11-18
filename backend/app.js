@@ -26,6 +26,7 @@ import blogsRoutes from './src/routes/blogs.js'
 import caseStudiesRoutes from './src/routes/caseStudies.js'
 import servicePagesRoutes from './src/routes/servicePages.js'
 import homePageRoutes from './src/routes/homePage.js'
+import testimonialsRoutes from './src/routes/testimonials.js' 
 
 dotenv.config()
 
@@ -322,6 +323,7 @@ app.use('/api/blogs', blogsRoutes)
 app.use('/api/case-studies', caseStudiesRoutes)
 app.use('/api/service-pages', servicePagesRoutes)
 app.use('/api/homepage', homePageRoutes)
+app.use('/api/testimonials', testimonialsRoutes)
 
 // 404 handler
 app.use((req, res) => {

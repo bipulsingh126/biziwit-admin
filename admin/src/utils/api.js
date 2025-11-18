@@ -680,6 +680,63 @@ class ApiClient {
   async getHomePageAnalytics() {
     return this.request('/api/homepage/analytics')
   }
+
+  // Testimonials Management
+  async getTestimonials(params = {}) {
+    const queryString = new URLSearchParams(params).toString()
+    try {
+      // Try to fetch testimonials from API
+      return await this.request(`/api/testimonials${queryString ? '?' + queryString : ''}`)
+    } catch (error) {
+      // If endpoint not found (404), return empty list as fallback
+      if (error.message === 'Route not found' || error.message.includes('404')) {
+        console.warn('⚠️ Testimonials endpoint not available on production server. Backend code needs to be deployed.')
+        console.warn('To fix: Deploy backend code to production and restart the service.')
+        return { success: true, items: [], total: 0, limit: 10, offset: 0 }
+      }
+      throw error
+    }
+  }
+
+  async getTestimonial(id) {
+    return this.request(`/api/testimonials/${id}`)
+  }
+
+  async createTestimonial(data) {
+    return this.request('/api/testimonials', {
+      method: 'POST',
+      body: data
+    })
+  }
+
+  async updateTestimonial(id, data) {
+    return this.request(`/api/testimonials/${id}`, {
+      method: 'PUT',
+      body: data
+    })
+  }
+
+  async deleteTestimonial(id) {
+    return this.request(`/api/testimonials/${id}`, {
+      method: 'DELETE'
+    })
+  }
+
+  async uploadTestimonialImage(id, file) {
+    const formData = new FormData()
+    formData.append('image', file)
+    
+    return this.request(`/api/testimonials/${id}/upload-image`, {
+      method: 'POST',
+      body: formData
+    })
+  }
+
+  async deleteTestimonialImage(id) {
+    return this.request(`/api/testimonials/${id}/image`, {
+      method: 'DELETE'
+    })
+  }
 }
 
 export default new ApiClient()
