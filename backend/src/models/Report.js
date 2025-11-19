@@ -14,6 +14,12 @@ const reportSchema = new mongoose.Schema({
     trim: true,
     lowercase: true
   },
+  searchTitle: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    select: false
+  },
 
   // Content fields
   subTitle: {
@@ -282,8 +288,12 @@ reportSchema.index({ subRegions: 1 })
 // Note: slug and reportCode indexes are automatically created by unique: true constraints
 reportSchema.index({ trendingReportForHomePage: 1 })
 
-// Auto-generate slug from title
+  // Auto-generate slug and searchTitle from title
 reportSchema.pre('save', function (next) {
+  if (this.isModified('title')) {
+    this.searchTitle = this.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
   // Generate slug if it's empty or if title changed and we want to update slug
   if (!this.slug || (this.isModified('title') && !this.isModified('slug'))) {
     if (this.title) {

@@ -65,11 +65,11 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
         contentPreview: newValue.substring(0, 100)
       });
 
-      // If content is already HTML (especially with styles), render it directly
-      if (isHTML && hasStyleAttr) {
+      // If content is already HTML, render it directly
+      if (isHTML) {
         editorRef.current.innerHTML = newValue;
       } 
-      // If it's plain text or simple HTML without styles, convert it
+      // If it's plain text, convert it
       else if (newValue && newValue.trim().length > 0) {
         const formattedHTML = convertPlainTextToHTML(newValue);
         editorRef.current.innerHTML = formattedHTML;

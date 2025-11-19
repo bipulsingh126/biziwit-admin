@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import sanitizeHtml from 'sanitize-html'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
@@ -9,6 +10,11 @@ import Category from '../models/Category.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
 
 const router = Router()
+
+const sanitizeOptions = {
+  allowedTags: sanitizeHtml.defaults.allowedTags.concat(['h1', 'h2', 'img', 'span', 'div']),
+  allowedAttributes: { ...sanitizeHtml.defaults.allowedAttributes, '*': ['style'] },
+};
 
 // Enhanced helper function to format imported Excel data with better formatting preservation
 function formatImportedContent(rawText, contentType = 'general') {
@@ -47,7 +53,7 @@ function formatImportedContent(rawText, contentType = 'general') {
           inList = true;
           listType = 'bullet';
         }
-        const itemText = escapeHtmlText(bulletMatch[1]);
+        const itemText = sanitizeHtml(bulletMatch[1], sanitizeOptions);
         listHtml += `  <li style="margin: 6px 0; color: #374151; line-height: 1.5;">${itemText}</li>\n`;
         return;
       }
@@ -61,7 +67,7 @@ function formatImportedContent(rawText, contentType = 'general') {
           inList = true;
           listType = 'numbered';
         }
-        const itemText = escapeHtmlText(numberedMatch[2]);
+        const itemText = sanitizeHtml(numberedMatch[2], sanitizeOptions);
         listHtml += `  <li style="margin: 6px 0; color: #374151; line-height: 1.5;">${itemText}</li>\n`;
         return;
       }
@@ -79,11 +85,11 @@ function formatImportedContent(rawText, contentType = 'general') {
       const isHeading = detectHeading(trimmedLine, contentType);
       if (isHeading) {
         const level = getHeadingLevel(trimmedLine, contentType);
-        const headingText = escapeHtmlText(trimmedLine.replace(/:$/, '')); // Remove trailing colon
+        const headingText = sanitizeHtml(trimmedLine.replace(/:$/, ''), sanitizeOptions); // Remove trailing colon
         paragraphHtml += `<h${level} style="margin: 16px 0 10px 0; font-weight: 700; color: #1f2937; font-size: ${1.5 - (level * 0.15)}em; line-height: 1.4;">${headingText}</h${level}>\n`;
       } else {
         // Regular paragraph
-        const paraText = escapeHtmlText(trimmedLine);
+        const paraText = sanitizeHtml(trimmedLine, sanitizeOptions);
         paragraphHtml += `<p style="margin: 8px 0; line-height: 1.6; color: #374151; text-align: left;">${paraText}</p>\n`;
       }
     });
@@ -102,18 +108,6 @@ function formatImportedContent(rawText, contentType = 'general') {
   return html;
 }
 
-// Helper function to escape HTML special characters
-function escapeHtmlText(text) {
-  if (!text) return '';
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  };
-  return text.replace(/[&<>"']/g, char => map[char]);
-}
 
 function formatReportOverview(rawText) {
   if (!rawText || typeof rawText !== 'string' || rawText.trim() === '') {
@@ -149,7 +143,7 @@ function formatReportOverview(rawText) {
           inList = true;
           listType = 'bullet';
         }
-        const itemText = escapeHtmlText(bulletMatch[1]);
+        const itemText = sanitizeHtml(bulletMatch[1], sanitizeOptions);
         listHtml += `  <li style="margin: 6px 0; color: #374151; line-height: 1.5;">${itemText}</li>\n`;
         return;
       }
@@ -163,7 +157,7 @@ function formatReportOverview(rawText) {
           inList = true;
           listType = 'numbered';
         }
-        const itemText = escapeHtmlText(numberedMatch[2]);
+        const itemText = sanitizeHtml(numberedMatch[2], sanitizeOptions);
         listHtml += `  <li style="margin: 6px 0; color: #374151; line-height: 1.5;">${itemText}</li>\n`;
         return;
       }
@@ -180,11 +174,14 @@ function formatReportOverview(rawText) {
       // Detect headings in overview
       const isHeading = detectHeading(trimmedLine, 'reportOverview');
       if (isHeading) {
-        const headingText = escapeHtmlText(trimmedLine.replace(/:$/, ''));
+        const headingText = sanitizeHtml(trimmedLine.replace(/:$/, ''), {
+          allowedTags: sanitizeHtml.defaults.allowedTags.concat(['h1', 'h2', 'img', 'span', 'div']),
+          allowedAttributes: { ...sanitizeHtml.defaults.allowedAttributes, '*': ['style'] },
+        });
         html += `<h3 style="margin: 14px 0 8px 0; font-weight: 700; color: #1f2937; font-size: 1.15em; line-height: 1.4;">${headingText}</h3>\n`;
       } else {
         // Regular paragraph
-        const paraText = escapeHtmlText(trimmedLine);
+        const paraText = sanitizeHtml(trimmedLine, sanitizeOptions);
         html += `<p style="margin: 8px 0; line-height: 1.6; color: #374151; text-align: left;">${paraText}</p>\n`;
       }
     });
@@ -1573,6 +1570,36 @@ router.get('/export', async (req, res, next) => {
   }
 })
 
+// POST /api/reports/migrate-search-titles - Populate searchTitle for existing reports
+router.post('/migrate-search-titles', authenticate, requireRole('super_admin', 'admin'), async (req, res, next) => {
+  try {
+    console.log('🚀 Starting searchTitle migration...');
+    const reportsToUpdate = await Report.find({ searchTitle: { $exists: false } });
+    
+    let updatedCount = 0;
+    let errorCount = 0;
+
+    for (const report of reportsToUpdate) {
+      try {
+        report.searchTitle = report.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+        await report.save();
+        updatedCount++;
+      } catch (e) {
+        console.error(`❌ Failed to update report ${report._id}: ${e.message}`);
+        errorCount++;
+      }
+    }
+
+    const message = `Search title migration completed. Updated: ${updatedCount}, Errors: ${errorCount}`;
+    console.log(`✅ ${message}`);
+    res.json({ success: true, message, updatedCount, errorCount });
+
+  } catch (error) {
+    console.error('❌ Search title migration failed:', error);
+    next(error);
+  }
+});
+
 // POST /api/reports/check-duplicates - Check for duplicates before import
 router.post('/check-duplicates', upload.single('file'), async (req, res, next) => {
   try {
@@ -1634,10 +1661,11 @@ router.post('/check-duplicates', upload.single('file'), async (req, res, next) =
       
       if (title.trim()) {
         // Check if report exists by title or report code
+        const normalizedTitle = title.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
         const existingReport = await Report.findOne({
           $or: [
-            { title: { $regex: new RegExp(`^${title.trim()}$`, 'i') } },
-            ...(reportCode.trim() ? [{ reportCode: reportCode.trim() }] : [])
+            { searchTitle: normalizedTitle },
+            { reportCode: { $regex: new RegExp(`^${reportCode.trim()}$`, 'i') } }
           ]
         });
 
