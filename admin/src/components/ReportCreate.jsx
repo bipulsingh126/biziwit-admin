@@ -64,13 +64,13 @@ const ReportCreate = () => {
   const [coverImage, setCoverImage] = useState(null)
   const [coverImagePreview, setCoverImagePreview] = useState('')
   const [uploadingCover, setUploadingCover] = useState(false)
-  
+
   // Dynamic categories and subcategories from API
   const [categories, setCategories] = useState([])
   const [subCategories, setSubCategories] = useState({})
 
   const regions = [
-    'Global', 'North America', 'Europe', 'Asia Pacific', 'Latin America', 
+    'Global', 'North America', 'Europe', 'Asia Pacific', 'Latin America',
     'Middle East & Africa', 'United States', 'China', 'India', 'Japan'
   ]
 
@@ -93,19 +93,19 @@ const ReportCreate = () => {
     try {
       const result = await api.getCategories()
       const categoriesData = result.data || []
-      
+
       // Extract category names
       let categoryNames = categoriesData.map(cat => cat.name)
-      
+
       // Add imported category if it doesn't exist in the system
       if (importedCategory && !categoryNames.includes(importedCategory)) {
         categoryNames.push(importedCategory)
         console.log(`📝 Added imported category: ${importedCategory}`)
       }
-      
+
       setCategories(categoryNames)
       console.log('📋 Categories loaded:', categoryNames)
-      
+
       // Build subcategories object
       const subCategoriesObj = {}
       categoriesData.forEach(cat => {
@@ -113,7 +113,7 @@ const ReportCreate = () => {
           subCategoriesObj[cat.name] = cat.subcategories.map(sub => sub.name)
         }
       })
-      
+
       // Add imported subcategory if it doesn't exist in the system
       if (importedCategory && importedSubCategory) {
         if (!subCategoriesObj[importedCategory]) {
@@ -124,7 +124,7 @@ const ReportCreate = () => {
           console.log(`📝 Added imported subcategory: ${importedSubCategory} to ${importedCategory}`)
         }
       }
-      
+
       setSubCategories(subCategoriesObj)
       console.log('📋 Subcategories loaded:', subCategoriesObj)
     } catch (err) {
@@ -134,14 +134,14 @@ const ReportCreate = () => {
         'Life Sciences', 'Food and Beverages', 'ICT and Media',
         'Consumer Goods', 'Energy and Power', 'Construction and Manufacturing'
       ]
-      
+
       // Add imported category to fallback if provided
       if (importedCategory && !fallbackCategories.includes(importedCategory)) {
         fallbackCategories.push(importedCategory)
       }
-      
+
       setCategories(fallbackCategories)
-      
+
       const fallbackSubCategories = {
         'Life Sciences': ['Diagnostics and Biotech', 'Medical Devices and Supplies', 'Pharmaceuticals'],
         'Food and Beverages': ['Food Ingredients', 'Beverages', 'Food Processing'],
@@ -150,7 +150,7 @@ const ReportCreate = () => {
         'Energy and Power': ['Equipment and Devices', 'Renewable Energy', 'Oil and Gas'],
         'Construction and Manufacturing': ['Engineering, Equipment and Machinery', 'HVAC', 'Building Materials']
       }
-      
+
       // Add imported subcategory to fallback if provided
       if (importedCategory && importedSubCategory) {
         if (!fallbackSubCategories[importedCategory]) {
@@ -160,7 +160,7 @@ const ReportCreate = () => {
           fallbackSubCategories[importedCategory].push(importedSubCategory)
         }
       }
-      
+
       setSubCategories(fallbackSubCategories)
     }
   }
@@ -171,15 +171,18 @@ const ReportCreate = () => {
       setError('')
       const response = await api.getReport(id)
       const report = response.data || response
-      
+
       // Debug: Log what we're receiving from the backend
-      console.log('🔍 LOADING CONTENT FIELDS:', {
-        'reportDescription': report.reportDescription?.substring(0, 100),
-        'tableOfContents': report.tableOfContents?.substring(0, 100),
-        'segmentCompanies': report.segmentCompanies?.substring(0, 100),
+      console.log('🔍 LOADING CONTENT FIELDS FROM BACKEND:', {
+        'reportDescription': report.reportDescription?.substring(0, 200),
+        'tableOfContents': report.tableOfContents?.substring(0, 200),
+        'segmentCompanies': report.segmentCompanies?.substring(0, 200),
         'reportDescription length': report.reportDescription?.length,
         'tableOfContents length': report.tableOfContents?.length,
-        'segmentCompanies length': report.segmentCompanies?.length
+        'segmentCompanies length': report.segmentCompanies?.length,
+        'reportDescription has HTML': /<[a-z][\s\S]*>/i.test(report.reportDescription || ''),
+        'tableOfContents has HTML': /<[a-z][\s\S]*>/i.test(report.tableOfContents || ''),
+        'segmentCompanies has HTML': /<[a-z][\s\S]*>/i.test(report.segmentCompanies || '')
       });
 
       // Additional debug for slug field issue
@@ -197,13 +200,14 @@ const ReportCreate = () => {
         'Full report object': report
       });
 
-      setFormData({
+      // Set formData with HTML content preserved
+      const newFormData = {
         title: report.title || '',
         subTitle: report.subTitle || '',
         summary: report.summary || '',
         content: report.content || '',
         tableOfContents: report.tableOfContents || '',
-        // Backend-compatible fields
+        // Backend-compatible fields - preserve HTML
         reportDescription: report.reportDescription || report.content || '',
         segmentCompanies: report.segmentCompanies || report.segment || report.segmentationContent || '',
         // Legacy fields for backward compatibility
@@ -240,8 +244,20 @@ const ReportCreate = () => {
         trendingReportForHomePage: report.trendingReportForHomePage || false,
         // Cover image field
         coverImage: report.coverImage?.url || ''
-      })
-      
+      };
+
+      // Log the formData to verify HTML is preserved
+      console.log('📝 SETTING FORM DATA WITH HTML:', {
+        'reportDescription has HTML': /<[a-z][\s\S]*>/i.test(newFormData.reportDescription),
+        'tableOfContents has HTML': /<[a-z][\s\S]*>/i.test(newFormData.tableOfContents),
+        'segmentCompanies has HTML': /<[a-z][\s\S]*>/i.test(newFormData.segmentCompanies),
+        'reportDescription preview': newFormData.reportDescription.substring(0, 150),
+        'tableOfContents preview': newFormData.tableOfContents.substring(0, 150),
+        'segmentCompanies preview': newFormData.segmentCompanies.substring(0, 150)
+      });
+
+      setFormData(newFormData);
+
       // Debug: Log formData after setting to verify all fields are populated
       setTimeout(() => {
         console.log('🔍 FRONTEND DEBUG - FormData after setting:', {
@@ -251,7 +267,7 @@ const ReportCreate = () => {
           'segmentCompanies Length': (report.segmentCompanies || report.segment || report.segmentationContent || '').length
         });
       }, 100);
-      
+
       // Set existing cover image preview if available
       if (report.coverImage?.url) {
         console.log('Setting cover image preview:', getImageUrl(report.coverImage.url))
@@ -259,7 +275,7 @@ const ReportCreate = () => {
       } else {
         console.log('No cover image found in report data:', report.coverImage)
       }
-      
+
       // Reload categories with Imported category and subcategory to ensure they appear in dropdowns
       if (report.category || report.subCategory) {
         console.log('🔄 Reloading categories with imported data:', { category: report.category, subCategory: report.subCategory })
@@ -275,7 +291,7 @@ const ReportCreate = () => {
   // const handleInputChange = (field, value) => {
   //   setFormData(prev => {
   //     const newData = { ...prev, [field]: value }
-      
+
   //     // Auto-generate slug from title if title is being changed and slug is empty
   //     if (field === 'title' && value && !prev.slug) {
   //       newData.slug = value
@@ -285,7 +301,7 @@ const ReportCreate = () => {
   //         .replace(/-+/g, '-')
   //         .trim('-')
   //     }
-      
+
   //     // Format slug input to be URL-friendly
   //     if (field === 'slug' && value) {
   //       newData.slug = value
@@ -295,7 +311,7 @@ const ReportCreate = () => {
   //         .replace(/-+/g, '-')
   //         .trim('-')
   //     }
-      
+
   //     return newData
   //   })
   const handleInputChange = (field, value) => {
@@ -426,14 +442,14 @@ const ReportCreate = () => {
       setSaving(true)
       setError('')
       setSuccess('')
-      
+
       const finalStatus = status || formData.status
-      
+
       if (!validateForm()) {
         setError('Please fill in all required fields')
         return
       }
-      
+
       // Generate slug from title if not provided
       const generateSlug = (title) => {
         if (!title) return ''
@@ -486,7 +502,7 @@ const ReportCreate = () => {
         status: finalStatus,
         trendingReportForHomePage: formData.trendingReportForHomePage
       }
-      
+
       console.log('🔍 SLUG DEBUG - Submitting report data:', {
         'formData.slug': formData.slug,
         'submitData.slug': submitData.slug,
@@ -495,31 +511,31 @@ const ReportCreate = () => {
         'final slug value': submitData.slug
       })
       console.log('Submitting report data:', JSON.stringify(submitData, null, 2))
-      
+
       let savedReport
       if (isEdit) {
         savedReport = await api.updateReport(id, submitData)
       } else {
         savedReport = await api.createReport(submitData)
       }
-      
+
       console.log('🔍 SLUG DEBUG - Saved report response:', {
         'savedReport.data.slug': savedReport.data?.slug,
         'savedReport.data.url': savedReport.data?.url,
         'savedReport keys': Object.keys(savedReport),
         'savedReport.data keys': savedReport.data ? Object.keys(savedReport.data) : null
       })
-      
+
       // Get the report ID for cover image upload
       const reportId = isEdit ? id : (savedReport.data?.id || savedReport.id)
-      
+
       // Upload cover image if selected
       if (coverImage && reportId) {
         try {
           setUploadingCover(true)
           const uploadResult = await api.uploadReportCover(reportId, coverImage)
           console.log('ReportCreate upload result:', uploadResult)
-          
+
           // Update form data with uploaded image URL
           if (uploadResult.data?.coverImage?.url) {
             console.log('Setting cover image URL:', uploadResult.data.coverImage.url)
@@ -528,10 +544,10 @@ const ReportCreate = () => {
           } else {
             console.log('No cover image URL in response:', uploadResult)
           }
-          
+
           // Clear the selected file since it's now uploaded
           setCoverImage(null)
-          
+
           setSuccess(`Report ${isEdit ? 'updated' : 'created'} successfully with cover image!`)
         } catch (uploadErr) {
           console.error('Cover image upload failed:', uploadErr)
@@ -542,9 +558,9 @@ const ReportCreate = () => {
       } else {
         setSuccess(`Report ${isEdit ? 'updated' : 'created'} successfully!`)
       }
-      
+
       setTimeout(() => navigate('/reports'), 2000)
-      
+
     } catch (err) {
       if (err.message.includes('Validation Error')) {
         setError('Please check your input data and try again')
@@ -575,15 +591,15 @@ const ReportCreate = () => {
         setError('Please select a valid image file')
         return
       }
-      
+
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         setError('Image size must be less than 5MB')
         return
       }
-      
+
       setCoverImage(file)
-      
+
       // Create preview
       const reader = new FileReader()
       reader.onload = (e) => {
@@ -607,16 +623,16 @@ const ReportCreate = () => {
     try {
       setUploadingCover(true)
       const uploadResult = await api.uploadReportCover(id, coverImage)
-      
+
       // Update form data with uploaded image URL
       if (uploadResult.data?.coverImage?.url) {
         setFormData(prev => ({ ...prev, coverImage: uploadResult.data.coverImage.url }))
         setCoverImagePreview(getImageUrl(uploadResult.data.coverImage.url))
       }
-      
+
       setSuccess('Cover image uploaded successfully!')
       setCoverImage(null)
-      
+
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.message || 'Failed to upload cover image')
@@ -654,7 +670,7 @@ const ReportCreate = () => {
               {isEdit ? 'Edit Report' : 'Create New Report'}
             </h1>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <button
               onClick={() => handleSave('draft')}
@@ -664,7 +680,7 @@ const ReportCreate = () => {
               <Save className="w-4 h-4" />
               {saving ? 'Saving...' : 'Save as Draft'}
             </button>
-            
+
             <button
               onClick={() => handleSave('published')}
               disabled={saving}
@@ -685,7 +701,7 @@ const ReportCreate = () => {
             {success}
           </div>
         )}
-        
+
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2">
             <AlertCircle className="w-5 h-5" />
@@ -697,7 +713,7 @@ const ReportCreate = () => {
           {/* Form Section */}
           <div className="p-6 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">Report Details</h2>
-            
+
             <div className="grid grid-cols-1 gap-6">
               {/* Title */}
               <div>
@@ -708,9 +724,8 @@ const ReportCreate = () => {
                   type="text"
                   value={formData.title}
                   onChange={(e) => handleInputChange('title', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    validationErrors.title ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${validationErrors.title ? 'border-red-300' : 'border-gray-300'
+                    }`}
                   placeholder="Enter report title"
                   disabled={saving}
                 />
@@ -735,7 +750,7 @@ const ReportCreate = () => {
               {/* SEO Fields Section */}
               <div className="border-t pt-6">
                 <h3 className="text-md font-semibold text-gray-900 mb-4">SEO Settings</h3>
-                
+
                 {/* Title Tag */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -826,9 +841,8 @@ const ReportCreate = () => {
                   <select
                     value={formData.category}
                     onChange={(e) => handleCategoryChange(e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      validationErrors.category ? 'border-red-300' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${validationErrors.category ? 'border-red-300' : 'border-gray-300'
+                      }`}
                     disabled={saving}
                   >
                     <option value="">Select category</option>
@@ -848,9 +862,8 @@ const ReportCreate = () => {
                   <select
                     value={formData.subCategory}
                     onChange={(e) => handleInputChange('subCategory', e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      validationErrors.subCategory ? 'border-red-300' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${validationErrors.subCategory ? 'border-red-300' : 'border-gray-300'
+                      }`}
                     disabled={!formData.category || saving}
                   >
                     <option value="">Select sub category</option>
@@ -873,9 +886,8 @@ const ReportCreate = () => {
                   <select
                     value={formData.region}
                     onChange={(e) => handleInputChange('region', e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      validationErrors.region ? 'border-red-300' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${validationErrors.region ? 'border-red-300' : 'border-gray-300'
+                      }`}
                     disabled={saving}
                   >
                     <option value="">Select region</option>
@@ -913,9 +925,8 @@ const ReportCreate = () => {
                     type="text"
                     value={formData.author}
                     onChange={(e) => handleInputChange('author', e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      validationErrors.author ? 'border-red-300' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${validationErrors.author ? 'border-red-300' : 'border-gray-300'
+                      }`}
                     placeholder="Enter author name"
                     disabled={saving}
                   />
@@ -1033,7 +1044,7 @@ const ReportCreate = () => {
                     />
                     <span className="text-sm font-medium text-gray-700">Yes</span>
                   </label>
-                  
+
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
@@ -1047,10 +1058,10 @@ const ReportCreate = () => {
                     <span className="text-sm font-medium text-gray-700">No</span>
                   </label>
                 </div>
-                
+
                 <div className="mt-2 text-xs text-gray-500">
-                  {formData.trendingReportForHomePage 
-                    ? "✓ This report will be displayed as trending on the home page" 
+                  {formData.trendingReportForHomePage
+                    ? "✓ This report will be displayed as trending on the home page"
                     : "○ This report will not be displayed as trending on the home page"
                   }
                 </div>
@@ -1133,36 +1144,33 @@ const ReportCreate = () => {
             <div className="flex border-b border-gray-200 mb-6">
               <button
                 onClick={() => setActiveTab('overview')}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'overview'
-                    ? 'border-blue-500 text-blue-600 bg-blue-50'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'overview'
+                  ? 'border-blue-500 text-blue-600 bg-blue-50'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
                 disabled={saving}
               >
                 REPORT OVERVIEW
               </button>
               <button
                 onClick={() => setActiveTab('contents')}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'contents'
-                    ? 'border-blue-500 text-blue-600 bg-blue-50'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'contents'
+                  ? 'border-blue-500 text-blue-600 bg-blue-50'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
                 disabled={saving}
               >
                 TABLE OF CONTENTS
               </button>
               <button
                 onClick={() => setActiveTab('segmentation')}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'segmentation'
-                    ? 'border-blue-500 text-blue-600 bg-blue-50'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'segmentation'
+                  ? 'border-blue-500 text-blue-600 bg-blue-50'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
                 disabled={saving}
               >
-               Segment / Companies
+                Segment / Companies
               </button>
             </div>
 

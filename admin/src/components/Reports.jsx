@@ -18,18 +18,18 @@ const sanitizeHtml = (html, options = {}) => {
     'th': ['colspan', 'rowspan'],
     '*': ['style', 'class'] // Allow style and class on all elements
   }
-  
+
   // If input is empty or null, return empty string
   if (!html || typeof html !== 'string') {
     return ''
   }
-  
+
   // Normalize the HTML first
   html = html
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
     .replace(/\n\s*\n/g, '\n\n')
-  
+
   // Use DOMParser for better HTML parsing
   let doc
   try {
@@ -41,30 +41,30 @@ const sanitizeHtml = (html, options = {}) => {
     tempDiv.innerHTML = html
     doc = { body: { firstChild: tempDiv } }
   }
-  
+
   const container = doc.body.firstChild
-  
+
   // Function to recursively clean and format elements
   const cleanElement = (element) => {
     if (!element) return
-    
+
     // Remove dangerous tags completely
     const dangerousTags = ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'link', 'meta', 'base', 'title']
     dangerousTags.forEach(tag => {
       const elements = element.querySelectorAll(tag)
       elements.forEach(el => el.remove())
     })
-    
+
     // Process all elements in reverse order to avoid issues with DOM manipulation
     const allElements = Array.from(element.querySelectorAll('*')).reverse()
     allElements.forEach(el => {
       const tagName = el.tagName.toLowerCase()
-      
+
       // Handle disallowed tags
       if (!allowedTags.includes(tagName)) {
         // Smart tag conversion
         let replacement = null
-        
+
         switch (tagName) {
           case 'b':
           case 'bold':
@@ -95,12 +95,12 @@ const sanitizeHtml = (html, options = {}) => {
             break
           default:
             // For unknown tags, preserve content but remove tag
-            const isBlock = window.getComputedStyle ? 
+            const isBlock = window.getComputedStyle ?
               (el.offsetWidth !== undefined && el.offsetHeight !== undefined) :
               ['div', 'p', 'section', 'article', 'header', 'footer', 'main', 'aside', 'nav'].includes(tagName)
             replacement = document.createElement(isBlock ? 'div' : 'span')
         }
-        
+
         if (replacement) {
           replacement.innerHTML = el.innerHTML
           el.parentNode.replaceChild(replacement, el)
@@ -111,7 +111,7 @@ const sanitizeHtml = (html, options = {}) => {
         const globalAttrs = allowedAttributes['*'] || []
         const allAllowedAttrs = [...allowedAttrs, ...globalAttrs]
         const attrs = Array.from(el.attributes)
-        
+
         attrs.forEach(attr => {
           if (!allAllowedAttrs.includes(attr.name)) {
             el.removeAttribute(attr.name)
@@ -131,7 +131,7 @@ const sanitizeHtml = (html, options = {}) => {
                 .filter(style => {
                   const prop = style.split(':')[0].trim().toLowerCase()
                   // Whitelist safe CSS properties
-                      const safeCSSProps = [
+                  const safeCSSProps = [
                     'margin', 'margin-left', 'margin-right', 'margin-top', 'margin-bottom',
                     'padding', 'padding-left', 'padding-right', 'padding-top', 'padding-bottom',
                     'color', 'background-color',
@@ -150,13 +150,13 @@ const sanitizeHtml = (html, options = {}) => {
       }
     })
   }
-  
+
   // Clean the content
   cleanElement(container)
-  
+
   // Get the cleaned HTML
   let cleanedHtml = container.innerHTML
-  
+
   // Advanced post-processing for professional formatting
   cleanedHtml = cleanedHtml
     // Remove empty elements
@@ -179,7 +179,7 @@ const sanitizeHtml = (html, options = {}) => {
     .replace(/^\s+|\s+$/g, '')
     // Ensure proper paragraph spacing
     .replace(/(<\/p>)\s*(<p[^>]*>)/gi, '$1\n\n$2')
-    
+
   return cleanedHtml
 }
 
@@ -210,6 +210,7 @@ const Reports = () => {
   const [isImporting, setIsImporting] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [dragActive, setDragActive] = useState(false)
+  const dragCounter = useRef(0)
   const [selectedFile, setSelectedFile] = useState(null)
   const [importStats, setImportStats] = useState(null)
   const [importErrors, setImportErrors] = useState([])
@@ -242,7 +243,7 @@ const Reports = () => {
         loadReports()
       }
     }
-    
+
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [])
@@ -252,12 +253,12 @@ const Reports = () => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
     }
-    
+
     searchTimeoutRef.current = setTimeout(() => {
       setCurrentPage(1)
       loadReports()
     }, 1000) // Reduced debounce time for better responsiveness
-    
+
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current)
@@ -274,26 +275,26 @@ const Reports = () => {
   useEffect(() => {
     const category = searchParams.get('category')
     const subCategory = searchParams.get('subCategory')
-    
+
     if (category || subCategory) {
       setFilters(prev => ({
         ...prev,
         category: category || '',
         subCategory: subCategory || ''
       }))
-      
+
       // Show filter panel if filters are applied from URL
       if (category || subCategory) {
         setShowFilter(true)
       }
-      
+
       // Show success message indicating the filter
       if (category && subCategory) {
         setSuccess(`Showing reports for category "${category}" > "${subCategory}"`)
       } else if (category) {
         setSuccess(`Showing reports for category "${category}"`)
       }
-      
+
       // Auto-hide success message
       setTimeout(() => setSuccess(''), 5000)
     }
@@ -314,7 +315,7 @@ const Reports = () => {
     try {
       setLoading(true)
       setError('') // Clear any previous errors
-      
+
       // Try to load from API first, fallback to sample data if API fails
       try {
         const params = {
@@ -323,7 +324,7 @@ const Reports = () => {
           offset: (currentPage - 1) * itemsPerPage,
           ...filters
         }
-        
+
         // Remove empty filter values
         Object.keys(params).forEach(key => {
           if (params[key] === '' || params[key] === null || params[key] === undefined) {
@@ -331,7 +332,7 @@ const Reports = () => {
           }
         })
         const result = await api.getReports(params)
-        
+
         // Debug: Log the first report to see what data we're getting
         if (result.items && result.items.length > 0) {
           console.log('🔍 FRONTEND DEBUG - First report from API:', result.items[0]);
@@ -347,7 +348,7 @@ const Reports = () => {
             'coverImage': result.items[0].coverImage
           });
         }
-        
+
         // Transform API data to match our UI structure
         const transformedReports = result.items?.map(report => ({
           _id: report._id,
@@ -355,14 +356,14 @@ const Reports = () => {
           title: report.title,
           subTitle: report.subTitle && report.subTitle.trim() ? report.subTitle : 'N/A',
           summary: report.summary && report.summary.trim() ? report.summary : 'N/A',
-          reportDescription: (report.reportDescription && report.reportDescription.trim() !== '') ? report.reportDescription : 
-                           (report.description && report.description.trim() !== '') ? report.description : 
-                           (report.summary && report.summary.trim() !== '') ? report.summary : 'N/A',
+          reportDescription: (report.reportDescription && report.reportDescription.trim() !== '') ? report.reportDescription :
+            (report.description && report.description.trim() !== '') ? report.description :
+              (report.summary && report.summary.trim() !== '') ? report.summary : 'N/A',
           segment: (report.segmentCompanies && report.segmentCompanies.trim() !== '') ? report.segmentCompanies :
-                   (report.segment && report.segment.trim() !== '') ? report.segment : 'N/A',
+            (report.segment && report.segment.trim() !== '') ? report.segment : 'N/A',
           companies: (report.companies && report.companies.trim() !== '') ? report.companies : 'N/A',
-          reportCategories: (report.reportCategories && report.reportCategories.trim() !== '') ? report.reportCategories : 
-                           (report.category && report.category.trim() !== '') ? report.category : 'N/A',
+          reportCategories: (report.reportCategories && report.reportCategories.trim() !== '') ? report.reportCategories :
+            (report.category && report.category.trim() !== '') ? report.category : 'N/A',
           category: report.category || 'No Category',
           subCategory: report.subCategory || 'No Subcategory',
           domain: report.category || report.domain || report.industry || 'General',
@@ -382,7 +383,7 @@ const Reports = () => {
           enterprisePrice: report.enterprisePrice || 'N/A',
           coverImage: report.coverImage || null
         })) || []
-        
+
         // Debug: Log the transformed data
         if (transformedReports.length > 0) {
           console.log('🔍 TRANSFORMED DATA - First report:', transformedReports[0]);
@@ -408,7 +409,7 @@ const Reports = () => {
             'Transformed reportCategories': transformedReports[0].reportCategories
           });
         }
-        
+
         setReports(transformedReports)
         setTotalItems(result.total || 0)
       } catch (apiError) {
@@ -434,12 +435,12 @@ const Reports = () => {
   }
 
   const handleCategoryChange = (selectedCategory) => {
-    setFilters(prev => ({ 
-      ...prev, 
+    setFilters(prev => ({
+      ...prev,
       category: selectedCategory,
       subCategory: '' // Reset subcategory when category changes
     }))
-    
+
     // Update subcategories based on selected category
     if (selectedCategory) {
       const category = categories.find(cat => cat.name === selectedCategory)
@@ -470,23 +471,24 @@ const Reports = () => {
   const handleStatusChange = async (reportId, newStatus) => {
     try {
       setUpdatingStatus(prev => ({ ...prev, [reportId]: true }))
-      
-      // Convert display status to backend status
-      const backendStatus = newStatus === 'Active' ? 'published' : 'draft'
-      
-      await api.updateReport(reportId, { status: backendStatus })
-      
+
+      // newStatus is now already 'published' or 'draft' from the dropdown
+      await api.updateReport(reportId, { status: newStatus })
+
       // Update the local state immediately for better UX
-      setReports(prevReports => 
-        prevReports.map(report => 
-          report._id === reportId 
-            ? { ...report, status: newStatus }
+      // Convert 'published' to 'Active' for display
+      const displayStatus = newStatus === 'published' ? 'Active' : newStatus
+
+      setReports(prevReports =>
+        prevReports.map(report =>
+          report._id === reportId
+            ? { ...report, status: displayStatus }
             : report
         )
       )
-      
-      setSuccess(`Report status updated to ${newStatus}!`)
-      
+
+      setSuccess(`Report status updated to ${displayStatus}!`)
+
       // Auto-dismiss success message after 3 seconds
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
@@ -519,19 +521,19 @@ const Reports = () => {
 
     try {
       setUploadingCover(prev => ({ ...prev, [reportId]: true }))
-      
+
       const uploadResult = await api.uploadReportCover(reportId, file)
       console.log('Upload result:', uploadResult)
-      
+
       // Update the local state with the new cover image
-      setReports(prevReports => 
-        prevReports.map(report => 
-          report._id === reportId 
+      setReports(prevReports =>
+        prevReports.map(report =>
+          report._id === reportId
             ? { ...report, coverImage: uploadResult.data.coverImage }
             : report
         )
       )
-      
+
       setSuccess('Cover image uploaded successfully!')
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
@@ -557,10 +559,10 @@ const Reports = () => {
       const newSelected = prev.includes(reportId)
         ? prev.filter(id => id !== reportId)
         : [...prev, reportId]
-      
+
       // Update select all state
       setSelectAll(newSelected.length === reports.length && reports.length > 0)
-      
+
       return newSelected
     })
   }
@@ -580,12 +582,12 @@ const Reports = () => {
     try {
       const deletePromises = selectedReports.map(id => api.deleteReport(id))
       await Promise.all(deletePromises)
-      
+
       setSuccess(`Successfully deleted ${selectedReports.length} reports`)
       setSelectedReports([])
       setSelectAll(false)
       loadReports() // Refresh the list
-      
+
       // Auto-dismiss success message
       setTimeout(() => setSuccess(''), 3000)
     } catch (error) {
@@ -603,16 +605,16 @@ const Reports = () => {
 
     setBulkOperating(true)
     try {
-      const updatePromises = selectedReports.map(id => 
+      const updatePromises = selectedReports.map(id =>
         api.updateReport(id, { status: newStatus })
       )
       await Promise.all(updatePromises)
-      
+
       setSuccess(`Successfully updated ${selectedReports.length} reports to ${newStatus}`)
       setSelectedReports([])
       setSelectAll(false)
       loadReports() // Refresh the list
-      
+
       // Auto-dismiss success message
       setTimeout(() => setSuccess(''), 3000)
     } catch (error) {
@@ -634,16 +636,16 @@ const Reports = () => {
       const now = Date.now()
       const timeSinceLastExport = now - lastExportTime
       const minDelay = 5000 // 5 seconds
-      
+
       if (timeSinceLastExport < minDelay) {
         const remainingTime = Math.ceil((minDelay - timeSinceLastExport) / 1000)
         alert(`Please wait ${remainingTime} more seconds before exporting again.`)
         return
       }
-      
+
       setLastExportTime(now)
       setLoading(true)
-      
+
       // Always use backend API to get ALL reports
       const response = await fetch(`/api/reports/export?format=${format}`, {
         method: 'GET',
@@ -651,36 +653,36 @@ const Reports = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       })
-      
+
       if (!response.ok) {
         throw new Error('Export failed')
       }
-      
+
       // Get the blob data
       const blob = await response.blob()
-      
+
       // Create and download file
       const link = document.createElement('a')
       const url = URL.createObjectURL(blob)
       link.setAttribute('href', url)
-      
+
       const fileExtension = format === 'excel' ? 'xlsx' : 'csv'
-      const mimeType = format === 'excel' 
+      const mimeType = format === 'excel'
         ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         : 'text/csv'
-      
+
       link.setAttribute('download', `reports_export_all_${new Date().toISOString().split('T')[0]}.${fileExtension}`)
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-      
+
       // Clean up
       URL.revokeObjectURL(url)
-      
+
       // Show success message
       alert(`Successfully exported all reports in ${format.toUpperCase()} format!`)
-      
+
     } catch (error) {
       setError(`Failed to export reports: ${error.message}`)
     } finally {
@@ -724,13 +726,13 @@ const Reports = () => {
         'Keywords': 'market research, technology, analysis, business intelligence'
       }
     ]
-    
+
     const csvHeaders = Object.keys(templateData[0])
-    const csvRows = templateData.map(row => 
+    const csvRows = templateData.map(row =>
       csvHeaders.map(header => `"${row[header]}"`).join(',')
     )
     const csvContent = [csvHeaders.join(','), ...csvRows].join('\n')
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
@@ -754,9 +756,9 @@ const Reports = () => {
     try {
       setIsMigrating(true)
       setError('')
-      
+
       const result = await api.migrateReportSlugs()
-      
+
       if (result.success) {
         setSuccess(`Slug migration completed: ${result.stats.updated} reports updated, ${result.stats.errors} errors`)
         loadReports() // Refresh the list
@@ -774,18 +776,26 @@ const Reports = () => {
   const handleDrag = (e) => {
     e.preventDefault()
     e.stopPropagation()
-    if (e.type === 'dragenter' || e.type === 'dragover') {
+
+    if (e.type === 'dragenter') {
+      dragCounter.current++
       setDragActive(true)
     } else if (e.type === 'dragleave') {
-      setDragActive(false)
+      dragCounter.current--
+      if (dragCounter.current === 0) {
+        setDragActive(false)
+      }
+    } else if (e.type === 'dragover') {
+      e.preventDefault()
     }
   }
 
   const handleDrop = (e) => {
     e.preventDefault()
     e.stopPropagation()
+    dragCounter.current = 0
     setDragActive(false)
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFileSelect(e.dataTransfer.files[0])
     }
@@ -846,13 +856,33 @@ const Reports = () => {
           finalHTML.push(`<li style="margin: 6px 0; color: #374151; line-height: 1.5;">${bulletMatch[1]}</li>`);
         } else {
           closeList();
-          // Improved heading detection
-          const isAllCaps = trimmed.length > 5 && trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed) && trimmed.split(' ').length < 10;
-          const isTitleCase = /^[A-Z][a-z]+(\s[A-Z][a-z]+){1,5}$/.test(trimmed);
+
+          // Enhanced heading detection with multiple patterns
+          const isAllCaps = trimmed.length > 5 && trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed) && trimmed.split(' ').length < 15;
+
+          // More flexible Title Case detection - at least 2 words starting with capitals
+          const words = trimmed.split(/\s+/);
+          const capitalWords = words.filter(w => w.length > 0 && /^[A-Z]/.test(w));
+          const isTitleCase = words.length >= 2 && words.length <= 10 && capitalWords.length >= 2 && capitalWords.length / words.length >= 0.5;
+
           const endsWithColon = trimmed.endsWith(':');
 
-          if (isAllCaps || (isTitleCase && trimmed.length < 80) || (endsWithColon && trimmed.length < 100)) {
-            finalHTML.push(`<h3 style="margin: 18px 0 10px 0; font-weight: 700; color: #1f2937;">${trimmed.replace(/:$/, '')}</h3>`);
+          // Check for chapter/section numbers (e.g., "1. Introduction", "Chapter 1", "1.1 Market Overview")
+          const hasChapterNumber = /^(chapter|section|part)\s+\d+/i.test(trimmed) || /^\d+\.(\d+\.)*\s+[A-Z]/i.test(trimmed);
+
+          // Check for common heading keywords
+          const headingKeywords = /^(overview|summary|introduction|conclusion|findings|analysis|methodology|background|scope|objectives?|recommendations?|executive summary|key (findings|takeaways|points)|market (overview|analysis|size|trends?)|competitive landscape|future outlook)/i;
+          const hasHeadingKeyword = headingKeywords.test(trimmed);
+
+          // Determine if this should be a heading
+          const isHeading = isAllCaps ||
+            (isTitleCase && trimmed.length < 100) ||
+            (endsWithColon && trimmed.length < 100) ||
+            hasChapterNumber ||
+            (hasHeadingKeyword && trimmed.length < 100);
+
+          if (isHeading) {
+            finalHTML.push(`<h3 style="margin: 18px 0 10px 0; font-weight: 700; color: #1f2937; font-size: 1.15em;">${trimmed.replace(/:$/, '')}</h3>`);
           } else {
             finalHTML.push(`<p style="margin: 8px 0; line-height: 1.6; color: #374151; text-align: left;">${trimmed}</p>`);
           }
@@ -892,41 +922,41 @@ const Reports = () => {
   };
 
   //   let html = text.trim()
-    
+
   //   // Clean up Excel formatting
   //   html = html.replace(/\t/g, ' ') // Replace tabs with spaces
   //   html = html.replace(/\r/g, '') // Remove carriage returns
-    
+
   //   // Handle different bullet point styles from Excel
   //   html = html.replace(/^[•·▪▫◦‣⁃]\s*/gm, '• ')
   //   html = html.replace(/^[-*]\s*/gm, '• ')
   //   html = html.replace(/^\u2022\s*/gm, '• ') // Unicode bullet
   //   html = html.replace(/^\s*•\s*/gm, '• ') // Clean up bullet spacing
-    
+
   //   // Handle numbered lists from Excel
   //   html = html.replace(/^(\d+)[\.\)]\s*/gm, '$1. ')
-    
+
   //   // Split into paragraphs by double line breaks first
   //   let paragraphs = html.split(/\n\s*\n/).filter(para => para.trim())
-    
+
   //   // If no double line breaks, treat as single content block
   //   if (paragraphs.length === 1) {
   //     paragraphs = [html]
   //   }
-    
+
   //   let allFormattedLines = []
-    
+
   //   paragraphs.forEach((paragraph, paraIndex) => {
   //     const lines = paragraph.split(/\n/).filter(line => line.trim())
   //     let formattedLines = []
   //     let inList = false
   //     let inNumberedList = false
-      
+
   //     lines.forEach((line, index) => {
   //       const trimmedLine = line.trim()
-        
+
   //       if (!trimmedLine) return
-        
+
   //       // Handle numbered lists (1. 2. 3.)
   //       if (trimmedLine.match(/^\d+\.\s/)) {
   //         if (inList && !inNumberedList) {
@@ -962,7 +992,7 @@ const Reports = () => {
   //           formattedLines.push('</ol>')
   //           inNumberedList = false
   //         }
-          
+
   //         // Check if it looks like a heading
   //         const isHeading = (
   //           trimmedLine.length < 100 && 
@@ -973,7 +1003,7 @@ const Reports = () => {
   //              trimmedLine.split(' ').every(word => word.length > 0 && word[0] === word[0].toUpperCase())) // Title Case
   //           )
   //         )
-          
+
   //         if (isHeading) {
   //           formattedLines.push(`<h3>${trimmedLine.replace(/:$/, '')}</h3>`)
   //         } else {
@@ -993,7 +1023,7 @@ const Reports = () => {
   //         }
   //       }
   //     })
-      
+
   //     // Close any remaining open lists
   //     if (inList) {
   //       formattedLines.push('</ul>')
@@ -1001,22 +1031,22 @@ const Reports = () => {
   //     if (inNumberedList) {
   //       formattedLines.push('</ol>')
   //     }
-      
+
   //     allFormattedLines.push(...formattedLines)
   //   })
-    
+
   //   // Sanitize HTML to ensure safety
   //   const result = sanitizeHtml(allFormattedLines.join('\n'), {
   //     allowedTags: ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'strong', 'em', 'br', 'div'],
   //     allowedAttributes: {}
   //   })
-    
+
   //   console.log('🔄 Converting Excel text to HTML:', {
   //     original: text.substring(0, 100) + '...',
   //     converted: result.substring(0, 200) + '...',
   //     hasHTML: result.includes('<')
   //   })
-    
+
   //   return result
   // }
 
@@ -1092,22 +1122,22 @@ const Reports = () => {
     // Validate file type
     const validTypes = ['.xlsx', '.xls', '.csv']
     const fileExtension = '.' + file.name.split('.').pop().toLowerCase()
-    
+
     if (!validTypes.includes(fileExtension)) {
       setError('Please select a valid Excel (.xlsx, .xls) or CSV (.csv) file')
       return
     }
-    
+
     // Validate file size
     const fileSizeMB = (file.size / 1024 / 1024).toFixed(2)
     if (file.size > 10 * 1024 * 1024) { // 10MB limit
       setError(`File size (${fileSizeMB}MB) is too large. Please use files smaller than 10MB.`)
       return
     }
-    
+
     setSelectedFile(file)
     setError('')
-    
+
     // Parse the file immediately for preview
     await parseFileForPreview(file)
   }
@@ -1115,10 +1145,10 @@ const Reports = () => {
   const parseFileForPreview = async (file) => {
     try {
       setImportProgress({ status: 'parsing', message: 'Parsing file...', progress: 25 })
-      
+
       let parsedRows = []
       let headers = []
-      
+
       if (file.name.toLowerCase().endsWith('.csv')) {
         // Parse CSV
         Papa.parse(file, {
@@ -1129,7 +1159,7 @@ const Reports = () => {
               setError(`CSV parsing error: ${results.errors[0].message}`)
               return
             }
-            
+
             parsedRows = results.data
             headers = Object.keys(parsedRows[0] || {})
             processParseResults(headers, parsedRows)
@@ -1148,23 +1178,23 @@ const Reports = () => {
             const workbook = XLSX.read(data, { type: 'array' })
             const sheetName = workbook.SheetNames[0]
             const worksheet = workbook.Sheets[sheetName]
-            
+
             // Convert to JSON with header row
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, {
               header: 1,
               defval: '',
               blankrows: false
             })
-            
+
             if (jsonData.length < 2) {
               setError('Excel file must have at least a header row and one data row')
               setImportProgress(null)
               return
             }
-            
+
             headers = jsonData[0]
             const rows = jsonData.slice(1).filter(row => row.some(cell => cell !== ''))
-            
+
             // Convert to object format
             parsedRows = rows.map(row => {
               const obj = {}
@@ -1173,7 +1203,7 @@ const Reports = () => {
               })
               return obj
             })
-            
+
             processParseResults(headers, parsedRows)
           } catch (err) {
             setError(`Failed to parse Excel file: ${err.message}`)
@@ -1192,16 +1222,16 @@ const Reports = () => {
     setColumns(headers)
     setParsedData(rows)
     setPreviewData(rows.slice(0, 5)) // Show first 5 rows for preview
-    
+
     // Generate automatic column mapping
     const mapping = {}
     console.log('🔍 Excel Headers Found:', headers)
-    
+
     headers.forEach(col => {
       const mappedField = fieldMappings[col] || fieldMappings[col.toUpperCase()]
       if (mappedField) {
         mapping[col] = mappedField
-        
+
         // Debug REPORT OVERVIEW mapping
         if (col.toUpperCase().includes('REPORT OVERVIEW') || col.toUpperCase().includes('OVERVIEW')) {
           console.log('✅ REPORT OVERVIEW Column Mapped:', {
@@ -1215,13 +1245,13 @@ const Reports = () => {
         console.log('⚠️ Unmapped column:', col)
       }
     })
-    
+
     console.log('🗺️ Final Column Mapping:', mapping)
     setColumnMapping(mapping)
-    
+
     setImportProgress({ status: 'completed', message: 'File parsed successfully', progress: 100 })
     setShowPreview(true)
-    
+
     // Auto-hide progress after 2 seconds
     setTimeout(() => {
       setImportProgress(null)
@@ -1233,9 +1263,9 @@ const Reports = () => {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('checkOnly', 'true')
-      
+
       const result = await api.checkImportDuplicates(formData)
-      
+
       if (result.duplicates && result.duplicates.length > 0) {
         setDuplicatePreview({
           count: result.duplicates.length,
@@ -1260,23 +1290,23 @@ const Reports = () => {
       setError('No data to import. Please select and parse a file first.')
       return
     }
-    
+
     try {
       setIsImporting(true)
-      setImportProgress({ 
-        status: 'processing', 
+      setImportProgress({
+        status: 'processing',
         message: `Processing ${parsedData.length} reports...`,
         progress: 25
       })
-      
+
       // Process data for import with HTML formatting
       const processedReports = parsedData.map(row => {
         const processedRow = {}
-        
+
         Object.keys(columnMapping).forEach(excelCol => {
           const dbField = columnMapping[excelCol]
           let value = row[excelCol] || ''
-          
+
           // Debug logging for REPORT OVERVIEW
           if (excelCol.toUpperCase().includes('REPORT OVERVIEW') || excelCol.toUpperCase().includes('OVERVIEW')) {
             console.log('🔍 Processing REPORT OVERVIEW:', {
@@ -1286,12 +1316,12 @@ const Reports = () => {
               valueLength: value.length
             })
           }
-          
+
           // Convert rich text fields to HTML
-          if (['reportDescription', 'tableOfContents', 'segment', 'companies', 'content'].includes(dbField)) {
+          if (['reportDescription', 'tableOfContents', 'segmentCompanies', 'segment', 'companies', 'content'].includes(dbField)) {
             const originalValue = value
             value = convertToHTML(value)
-            
+
             // Debug for rich text conversion
             if (excelCol.toUpperCase().includes('REPORT OVERVIEW') || excelCol.toUpperCase().includes('OVERVIEW')) {
               console.log('🔄 HTML Conversion for REPORT OVERVIEW:', {
@@ -1301,16 +1331,16 @@ const Reports = () => {
               })
             }
           }
-          
+
           // Handle special field conversions
           if (dbField === 'numberOfPages' && value) {
             value = parseInt(value) || 1
           }
-          
+
           if (dbField === 'price' && value) {
             value = parseFloat(value.toString().replace(/[^0-9.]/g, '')) || 0
           }
-          
+
           if (dbField === 'reportDate' && value) {
             try {
               value = new Date(value).toISOString()
@@ -1318,9 +1348,9 @@ const Reports = () => {
               value = new Date().toISOString()
             }
           }
-          
+
           processedRow[dbField] = value
-          
+
           // Final debug for REPORT OVERVIEW
           if (excelCol.toUpperCase().includes('REPORT OVERVIEW') || excelCol.toUpperCase().includes('OVERVIEW')) {
             console.log('✅ Final REPORT OVERVIEW value:', {
@@ -1329,39 +1359,39 @@ const Reports = () => {
             })
           }
         })
-        
+
         // Set default values
         processedRow.status = processedRow.status || 'draft'
         processedRow.visibility = processedRow.visibility || 'public'
         processedRow.reportType = processedRow.reportType || 'market-research'
         processedRow.currency = processedRow.currency || 'USD'
         processedRow.format = processedRow.format || 'pdf'
-        
+
         return processedRow
       })
-      
-      setImportProgress({ 
-        status: 'uploading', 
+
+      setImportProgress({
+        status: 'uploading',
         message: 'Sending data to server...',
         progress: 50
       })
-      
+
       const startTime = Date.now()
-      
+
       // Use the bulk upload endpoint with the original file
       const formData = new FormData()
       formData.append('file', selectedFile)
       formData.append('duplicateHandling', duplicateHandling)
-      
+
       const result = await api.bulkUploadReports(formData)
       const processingTime = ((Date.now() - startTime) / 1000).toFixed(1)
-      
-      setImportProgress({ 
-        status: 'completed', 
+
+      setImportProgress({
+        status: 'completed',
         message: 'Import completed!',
         progress: 100
       })
-      
+
       if (result.success) {
         const { stats } = result
         setImportStats({
@@ -1371,15 +1401,15 @@ const Reports = () => {
           duplicateHandling
         })
         setImportErrors(result.errorDetails || [])
-        
+
         loadReports() // Refresh the list
-        
+
         let successMessage = `Successfully processed ${stats?.total || 0} records: `
         if (stats?.inserted) successMessage += `${stats.inserted} new, `
         if (stats?.updated) successMessage += `${stats.updated} updated, `
         if (stats?.skipped) successMessage += `${stats.skipped} skipped, `
         if (stats?.duplicates) successMessage += `${stats.duplicates} duplicates handled`
-        
+
         // Add category creation information
         if (result.categories) {
           const { created, subcategoriesCreated } = result.categories
@@ -1387,7 +1417,7 @@ const Reports = () => {
             successMessage += `. Auto-created: ${created} categories, ${subcategoriesCreated} subcategories`
           }
         }
-        
+
         setSuccess(successMessage)
       } else {
         throw new Error(result.message || 'Import failed')
@@ -1413,12 +1443,12 @@ const Reports = () => {
 
   const downloadErrorLog = () => {
     if (!importErrors.length) return
-    
+
     const csvContent = [
       'Row,Error,Details',
       ...importErrors.map(error => `${error.row},"${error.error}","${error.details || ''}"`)
     ].join('\n')
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
@@ -1459,11 +1489,11 @@ const Reports = () => {
         const sheetName = workbook.SheetNames[0]
         const worksheet = workbook.Sheets[sheetName]
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
-        
+
         if (jsonData.length < 2) {
           throw new Error('File must contain at least a header row and one data row')
         }
-        
+
         const headers = jsonData[0]
         const rows = jsonData.slice(1).map(row => {
           const obj = {}
@@ -1472,10 +1502,10 @@ const Reports = () => {
           })
           return obj
         }).filter(row => Object.values(row).some(val => val && val.toString().trim()))
-        
+
         processParseResults(headers, rows)
       }
-      
+
       // Check for duplicates after parsing
       if (file) {
         await checkForDuplicates(file)
@@ -1519,15 +1549,15 @@ const Reports = () => {
       {success && (
         <div className="mb-4 bg-green-50 border border-green-200 rounded p-4 text-green-700">
           {success}
-          <button 
-            onClick={() => setSuccess('')} 
+          <button
+            onClick={() => setSuccess('')}
             className="ml-4 text-green-600 hover:text-green-800 font-medium"
           >
             ×
           </button>
         </div>
       )}
-      
+
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
         <div>
@@ -1556,22 +1586,20 @@ const Reports = () => {
             </div>
           )}
         </div>
-        
+
         {/* Controls Container */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           {/* Search Bar */}
           <div className="relative flex-shrink-0">
-            <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${
-              loading ? 'text-blue-500 animate-pulse' : 'text-gray-400'
-            }`} />
+            <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${loading ? 'text-blue-500 animate-pulse' : 'text-gray-400'
+              }`} />
             <input
               type="text"
               placeholder="Search reports, categories, authors..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className={`pl-10 pr-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-80 transition-all ${
-                searchTerm ? 'border-blue-300 bg-blue-50' : 'border-gray-300 bg-white'
-              } ${loading ? 'opacity-75' : ''}`}
+              className={`pl-10 pr-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-80 transition-all ${searchTerm ? 'border-blue-300 bg-blue-50' : 'border-gray-300 bg-white'
+                } ${loading ? 'opacity-75' : ''}`}
               disabled={loading}
             />
             {searchTerm && (
@@ -1589,22 +1617,21 @@ const Reports = () => {
               </div>
             )}
           </div>
-          
+
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-1.5">
             {/* Filter Button */}
             <button
               onClick={() => setShowFilter(!showFilter)}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2 border rounded-md transition-colors whitespace-nowrap text-sm ${
-                showFilter 
-                  ? 'border-blue-500 bg-blue-50 text-blue-700' 
-                  : 'border-gray-300 hover:bg-gray-50'
-              }`}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2 border rounded-md transition-colors whitespace-nowrap text-sm ${showFilter
+                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                : 'border-gray-300 hover:bg-gray-50'
+                }`}
             >
               <Filter className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Filter</span>
             </button>
-             
+
             {/* Template & Import Buttons */}
             <div className="flex items-center gap-1.5">
               <button
@@ -1616,15 +1643,14 @@ const Reports = () => {
                 <Download className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Template</span>
               </button>
-              
+
               <button
                 onClick={handleImport}
                 disabled={isImporting}
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2 border rounded-md transition-colors whitespace-nowrap text-sm ${
-                  isImporting 
-                    ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed' 
-                    : 'border-gray-300 hover:bg-gray-50'
-                }`}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2 border rounded-md transition-colors whitespace-nowrap text-sm ${isImporting
+                  ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                  : 'border-gray-300 hover:bg-gray-50'
+                  }`}
                 title="Import Excel File"
               >
                 {isImporting ? (
@@ -1640,7 +1666,7 @@ const Reports = () => {
                 )}
               </button>
             </div>
-            
+
             {/* Export Button */}
             <div className="relative export-menu-container">
               <button
@@ -1676,9 +1702,9 @@ const Reports = () => {
                 </div>
               )}
             </div>
-            
+
             {/* Add New Report Button */}
-            <button 
+            <button
               onClick={() => navigate('/reports/create')}
               className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors whitespace-nowrap font-medium text-sm"
             >
@@ -1694,13 +1720,12 @@ const Reports = () => {
       {/* Import Progress Indicator */}
       {importProgress && (
         <div className="mx-6 mb-4">
-          <div className={`p-4 rounded-lg border ${
-            importProgress.status === 'error' 
-              ? 'bg-red-50 border-red-200 text-red-700'
-              : importProgress.status === 'completed'
+          <div className={`p-4 rounded-lg border ${importProgress.status === 'error'
+            ? 'bg-red-50 border-red-200 text-red-700'
+            : importProgress.status === 'completed'
               ? 'bg-green-50 border-green-200 text-green-700'
               : 'bg-blue-50 border-blue-200 text-blue-700'
-          }`}>
+            }`}>
             <div className="flex items-center gap-3">
               {importProgress.status === 'uploading' && (
                 <div className="w-5 h-5 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"></div>
@@ -1740,7 +1765,7 @@ const Reports = () => {
                 ))}
               </select>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Subcategory</label>
               <select
@@ -1757,7 +1782,7 @@ const Reports = () => {
                 ))}
               </select>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
               <select
@@ -1770,7 +1795,7 @@ const Reports = () => {
                 <option value="draft">Draft</option>
               </select>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Author</label>
               <input
@@ -1782,7 +1807,7 @@ const Reports = () => {
               />
             </div>
           </div>
-          
+
           <div className="mt-4 flex items-center gap-2">
             <button
               onClick={() => {
@@ -2018,13 +2043,12 @@ const Reports = () => {
 
                   {/* File Upload Area */}
                   <div
-                    className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                      dragActive
-                        ? 'border-blue-400 bg-blue-50'
-                        : selectedFile
+                    className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive
+                      ? 'border-blue-400 bg-blue-50'
+                      : selectedFile
                         ? 'border-green-400 bg-green-50'
                         : 'border-gray-300 bg-gray-50 hover:border-gray-400'
-                    }`}
+                      }`}
                     onDragEnter={handleDrag}
                     onDragLeave={handleDrag}
                     onDragOver={handleDrag}
@@ -2048,9 +2072,8 @@ const Reports = () => {
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        <Upload className={`w-12 h-12 mx-auto ${
-                          dragActive ? 'text-blue-500' : 'text-gray-400'
-                        }`} />
+                        <Upload className={`w-12 h-12 mx-auto ${dragActive ? 'text-blue-500' : 'text-gray-400'
+                          }`} />
                         <div>
                           <p className="text-lg font-medium text-gray-900">
                             {dragActive ? 'Drop your file here' : 'Drag and drop your file here'}
@@ -2092,13 +2115,12 @@ const Reports = () => {
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
-                          className={`h-2 rounded-full transition-all duration-300 ${
-                            importProgress.status === 'error'
-                              ? 'bg-red-500'
-                              : importProgress.status === 'completed'
+                          className={`h-2 rounded-full transition-all duration-300 ${importProgress.status === 'error'
+                            ? 'bg-red-500'
+                            : importProgress.status === 'completed'
                               ? 'bg-green-500'
                               : 'bg-blue-500'
-                          }`}
+                            }`}
                           style={{ width: `${importProgress.progress || 0}%` }}
                         ></div>
                       </div>
@@ -2180,7 +2202,7 @@ const Reports = () => {
                     {importStats.duplicateHandling && (
                       <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
                         <p className="text-sm text-blue-800">
-                          <span className="font-medium">Duplicate Handling:</span> 
+                          <span className="font-medium">Duplicate Handling:</span>
                           {importStats.duplicateHandling === 'update' && 'Updated existing reports with new data'}
                           {importStats.duplicateHandling === 'skip' && 'Skipped duplicate reports, kept existing data'}
                           {importStats.duplicateHandling === 'create' && 'Created new reports even for duplicates'}
@@ -2353,20 +2375,19 @@ const Reports = () => {
                       {report.category || 'No Category'}
                     </div>
                   </td>
-                
+
                   <td className="px-4 py-4">
                     <div className="relative">
                       <select
-                        value={report.status}
+                        value={report.status === 'Active' ? 'published' : report.status}
                         onChange={(e) => handleStatusChange(report._id, e.target.value)}
                         disabled={updatingStatus[report._id]}
-                        className={`appearance-none bg-transparent border-0 text-xs font-medium rounded-full px-2.5 py-0.5 pr-6 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          report.status === 'Active' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-yellow-100 text-yellow-800'
-                        } ${updatingStatus[report._id] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`appearance-none bg-transparent border-0 text-xs font-medium rounded-full px-2.5 py-0.5 pr-6 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 ${report.status === 'Active'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                          } ${updatingStatus[report._id] ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                        <option value="Active">Active</option>
+                        <option value="published">Active</option>
                         <option value="draft">Draft</option>
                       </select>
                       <div className="absolute inset-y-0 right-0 flex items-center pr-1 pointer-events-none">

@@ -27,14 +27,14 @@ function formatImportedContent(rawText, contentType = 'general') {
   // General cleanup - preserve line breaks and structure
   text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   text = text.replace(/\t/g, '    '); // Preserve tabs as spaces
-  
+
   // Split by double line breaks to preserve paragraph structure
   const paragraphs = text.split(/\n\s*\n/);
   let html = '';
 
   paragraphs.forEach(paragraph => {
     if (!paragraph.trim()) return;
-    
+
     const lines = paragraph.split('\n').filter(line => line.trim());
     let paragraphHtml = '';
     let inList = false;
@@ -43,7 +43,7 @@ function formatImportedContent(rawText, contentType = 'general') {
 
     lines.forEach(line => {
       const trimmedLine = line.trim();
-      
+
       // Detect bullet points with various bullet styles
       const bulletMatch = trimmedLine.match(/^[\s]*[-*•·▪▫◦‣⁃]\s+(.+)$/);
       if (bulletMatch) {
@@ -127,13 +127,13 @@ function formatReportOverview(rawText) {
   let inList = false;
   let listType = null;
   let listHtml = '';
-  
+
   paragraphs.forEach((para) => {
     const lines = para.split('\n').filter(line => line.trim());
-    
+
     lines.forEach(line => {
       const trimmedLine = line.trim();
-      
+
       // Detect bullet points in overview
       const bulletMatch = trimmedLine.match(/^[\s]*[-*•·▪▫◦‣⁃]\s+(.+)$/);
       if (bulletMatch) {
@@ -199,7 +199,7 @@ function formatReportOverview(rawText) {
 // Helper function to detect if a line should be a heading
 function detectHeading(line, contentType) {
   if (!line || line.trim().length === 0) return false;
-  
+
   // Common heading patterns
   const headingPatterns = [
     /^(chapter|section|part)\s+\d+/i,
@@ -209,29 +209,29 @@ function detectHeading(line, contentType) {
     /^(table of contents|toc)$/i,
     /^(market segment|target demographics|key characteristics|regional analysis|industry analysis|company profiles)$/i
   ]
-  
+
   // Content-specific patterns
   if (contentType === 'tableOfContents') {
-    return line.match(/^(chapter|section|part)\s+\d+/i) || 
-           line.match(/^\d+\.\d*\s+[A-Z]/) ||
-           (line.length < 80 && line.includes('.'))
+    return line.match(/^(chapter|section|part)\s+\d+/i) ||
+      line.match(/^\d+\.\d*\s+[A-Z]/) ||
+      (line.length < 80 && line.includes('.'))
   }
-  
+
   if (contentType === 'segment') {
     return line.match(/^(market segment|target demographics|market size|key characteristics|opportunities|challenges|regional|industry)/i)
   }
 
   if (contentType === 'reportOverview') {
     return line.match(/^(overview|summary|introduction|key findings|market analysis|recommendations|conclusion|executive summary)/i) ||
-           (line.length < 100 && line.endsWith(':')) ||
-           (line.length < 60 && line === line.toUpperCase() && line.split(' ').length <= 8)
+      (line.length < 100 && line.endsWith(':')) ||
+      (line.length < 60 && line === line.toUpperCase() && line.split(' ').length <= 8)
   }
-  
+
   // General heading detection
   return headingPatterns.some(pattern => pattern.test(line)) ||
-         (line.length < 100 && line.endsWith(':') && line.split(' ').length <= 10) ||
-         (line.length < 60 && line === line.toUpperCase() && line.split(' ').length <= 8) ||
-         (line.length < 80 && /^[A-Z][a-z]+(\s[A-Z][a-z]+)*$/.test(line) && line.split(' ').length <= 6)
+    (line.length < 100 && line.endsWith(':') && line.split(' ').length <= 10) ||
+    (line.length < 60 && line === line.toUpperCase() && line.split(' ').length <= 8) ||
+    (line.length < 80 && /^[A-Z][a-z]+(\s[A-Z][a-z]+)*$/.test(line) && line.split(' ').length <= 6)
 }
 
 // Helper function to determine heading level
@@ -245,7 +245,7 @@ function getHeadingLevel(line, contentType) {
 // Helper function to get container styling based on content type
 function getContainerStyle(contentType) {
   const baseStyle = 'margin: 20px 0; padding: 15px; border-radius: 8px; background-color: #ffffff;'
-  
+
   switch (contentType) {
     case 'reportOverview':
       return `${baseStyle} border-left: 4px solid #3b82f6; background-color: #f8fafc;`
@@ -266,7 +266,7 @@ function getContainerStyle(contentType) {
 async function syncReportsWithCategories() {
   try {
     console.log('🔄 Starting report-category synchronization...')
-    
+
     // Get all reports with category/subcategory data
     const reports = await Report.find({
       $or: [
@@ -274,48 +274,48 @@ async function syncReportsWithCategories() {
         { subCategory: { $exists: true, $ne: '' } }
       ]
     })
-    
+
     console.log(`📊 Found ${reports.length} reports with category data`)
-    
+
     let categoriesUpdated = 0
     let subcategoriesUpdated = 0
-    
+
     for (const report of reports) {
       if (report.category && report.category.trim()) {
-        const category = await Category.findOne({ 
+        const category = await Category.findOne({
           name: { $regex: new RegExp(`^${report.category.trim()}$`, 'i') }
         })
-        
+
         if (category) {
           // Add report to category if not already present
           if (!category.reports.includes(report._id)) {
             category.reports.push(report._id)
             categoriesUpdated++
           }
-          
+
           // Handle subcategory
           if (report.subCategory && report.subCategory.trim()) {
-            const subcategory = category.subcategories.find(sub => 
+            const subcategory = category.subcategories.find(sub =>
               sub.name.toLowerCase() === report.subCategory.trim().toLowerCase()
             )
-            
+
             if (subcategory && !subcategory.reports.includes(report._id)) {
               subcategory.reports.push(report._id)
               subcategoriesUpdated++
             }
           }
-          
+
           // Update counts
           category.reportCount = category.reports.length
           category.subcategories.forEach(sub => {
             sub.reportCount = sub.reports.length
           })
-          
+
           await category.save()
         }
       }
     }
-    
+
     console.log(`✅ Synchronization complete: ${categoriesUpdated} category updates, ${subcategoriesUpdated} subcategory updates`)
     return { categoriesUpdated, subcategoriesUpdated }
   } catch (error) {
@@ -331,20 +331,20 @@ async function ensureCategoryExists(categoryName) {
   }
 
   const cleanCategoryName = categoryName.trim()
-  
+
   try {
     // Check if category already exists (case-insensitive)
-    let category = await Category.findOne({ 
+    let category = await Category.findOne({
       name: { $regex: new RegExp(`^${cleanCategoryName}$`, 'i') }
     })
-    
+
     if (!category) {
       // Create new category
       const slug = cleanCategoryName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
-      
+
       // Ensure unique slug
       let uniqueSlug = slug
       let counter = 1
@@ -352,11 +352,11 @@ async function ensureCategoryExists(categoryName) {
         uniqueSlug = `${slug}-${counter}`
         counter++
       }
-      
+
       // Get the highest sort order
       const lastCategory = await Category.findOne().sort({ sortOrder: -1 })
       const sortOrder = lastCategory ? lastCategory.sortOrder + 1 : 0
-      
+
       category = new Category({
         name: cleanCategoryName,
         slug: uniqueSlug || `category-${Date.now()}`,
@@ -364,12 +364,12 @@ async function ensureCategoryExists(categoryName) {
         sortOrder,
         subcategories: []
       })
-      
+
       await category.save()
       console.log(`✅ Auto-created category: "${cleanCategoryName}" with slug: "${uniqueSlug}"`)
       return { category, created: true }
     }
-    
+
     return { category, created: false }
   } catch (error) {
     console.error(`❌ Error ensuring category "${cleanCategoryName}":`, error.message)
@@ -379,39 +379,39 @@ async function ensureCategoryExists(categoryName) {
 
 // Helper function to ensure subcategory exists under category, create if not
 async function ensureSubcategoryExists(categoryName, subcategoryName) {
-  if (!categoryName || !subcategoryName || 
-      typeof categoryName !== 'string' || typeof subcategoryName !== 'string' ||
-      categoryName.trim() === '' || subcategoryName.trim() === '') {
+  if (!categoryName || !subcategoryName ||
+    typeof categoryName !== 'string' || typeof subcategoryName !== 'string' ||
+    categoryName.trim() === '' || subcategoryName.trim() === '') {
     return null
   }
 
   const cleanCategoryName = categoryName.trim()
   const cleanSubcategoryName = subcategoryName.trim()
-  
+
   try {
     // First ensure the parent category exists
     let categoryResult = await ensureCategoryExists(cleanCategoryName)
-    
+
     if (!categoryResult) {
       console.error(`❌ Failed to create/find category "${cleanCategoryName}" for subcategory "${cleanSubcategoryName}"`)
       return null
     }
-    
+
     let category = categoryResult.category
     let categoryWasCreated = categoryResult.created
-    
+
     // Check if subcategory already exists (case-insensitive)
-    const existingSubcategory = category.subcategories.find(sub => 
+    const existingSubcategory = category.subcategories.find(sub =>
       sub.name.toLowerCase() === cleanSubcategoryName.toLowerCase()
     )
-    
+
     if (!existingSubcategory) {
       // Create new subcategory
       const subSlug = cleanSubcategoryName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
-      
+
       const newSubcategory = {
         name: cleanSubcategoryName,
         slug: subSlug || `subcategory-${Date.now()}`,
@@ -419,10 +419,10 @@ async function ensureSubcategoryExists(categoryName, subcategoryName) {
         sortOrder: category.subcategories.length,
         isActive: true
       }
-      
+
       category.subcategories.push(newSubcategory)
       await category.save()
-      
+
       console.log(`✅ Auto-created subcategory: "${cleanSubcategoryName}" under category: "${cleanCategoryName}"`)
       return { category, categoryCreated: categoryWasCreated, subcategoryCreated: true }
     } else {
@@ -499,7 +499,7 @@ const generateUniqueSlug = async (title, existingSlug = null) => {
 router.post('/sync-categories', async (req, res, next) => {
   try {
     const result = await syncReportsWithCategories()
-    
+
     res.json({
       success: true,
       message: 'Report-category synchronization completed successfully',
@@ -518,19 +518,19 @@ router.post('/sync-categories', async (req, res, next) => {
 // GET /api/reports - List reports with filtering support
 router.get('/', async (req, res, next) => {
   try {
-    const { 
-      q = '', 
-      category = '', 
-      subCategory = '', 
-      status = '', 
-      author = '', 
-      limit = 10, 
-      offset = 0 
+    const {
+      q = '',
+      category = '',
+      subCategory = '',
+      status = '',
+      author = '',
+      limit = 10,
+      offset = 0
     } = req.query
 
     // Build query filter
     const filter = {}
-    
+
     // Text search across multiple fields
     if (q && q.trim()) {
       filter.$or = [
@@ -541,22 +541,22 @@ router.get('/', async (req, res, next) => {
         { reportCode: { $regex: q.trim(), $options: 'i' } }
       ]
     }
-    
+
     // Category filtering
     if (category && category.trim()) {
       filter.category = { $regex: new RegExp(`^${category.trim()}$`, 'i') }
     }
-    
+
     // Subcategory filtering
     if (subCategory && subCategory.trim()) {
       filter.subCategory = { $regex: new RegExp(`^${subCategory.trim()}$`, 'i') }
     }
-    
+
     // Status filtering
     if (status && status.trim()) {
       filter.status = status.trim()
     }
-    
+
     // Author filtering
     if (author && author.trim()) {
       filter.author = { $regex: author.trim(), $options: 'i' }
@@ -564,7 +564,7 @@ router.get('/', async (req, res, next) => {
 
     // Get total count for pagination
     const total = await Report.countDocuments(filter)
-    
+
     // Get all reports without pagination limits
     const reports = await Report.find(filter)
       .sort({ createdAt: -1 })
@@ -589,7 +589,7 @@ router.get('/', async (req, res, next) => {
 router.get('/subcategories/:categoryName', async (req, res, next) => {
   try {
     const { categoryName } = req.params
-    
+
     if (!categoryName) {
       return res.status(400).json({
         success: false,
@@ -599,13 +599,13 @@ router.get('/subcategories/:categoryName', async (req, res, next) => {
 
     // Import Category model
     const Category = (await import('../models/Category.js')).default
-    
+
     // Find the category by name
-    const category = await Category.findOne({ 
+    const category = await Category.findOne({
       name: { $regex: new RegExp(`^${categoryName}$`, 'i') },
-      isActive: true 
+      isActive: true
     }).lean()
-    
+
     if (!category) {
       return res.status(404).json({
         success: false,
@@ -613,7 +613,7 @@ router.get('/subcategories/:categoryName', async (req, res, next) => {
         data: []
       })
     }
-    
+
     // Return active subcategories
     const activeSubcategories = category.subcategories
       .filter(sub => sub.isActive !== false)
@@ -624,7 +624,7 @@ router.get('/subcategories/:categoryName', async (req, res, next) => {
         slug: sub.slug,
         description: sub.description
       }))
-    
+
     res.json({
       success: true,
       data: activeSubcategories,
@@ -645,7 +645,7 @@ router.get('/subcategories/:categoryName', async (req, res, next) => {
 router.post('/ensure-subcategory', async (req, res, next) => {
   try {
     const { categoryName, subcategoryName, subcategoryDescription = '' } = req.body
-    
+
     if (!categoryName || !subcategoryName) {
       return res.status(400).json({
         success: false,
@@ -655,19 +655,19 @@ router.post('/ensure-subcategory', async (req, res, next) => {
 
     // Import Category model
     const Category = (await import('../models/Category.js')).default
-    
+
     // Find the category by name
-    let category = await Category.findOne({ 
+    let category = await Category.findOne({
       name: { $regex: new RegExp(`^${categoryName.trim()}$`, 'i') }
     })
-    
+
     if (!category) {
       // Create the category if it doesn't exist
       const slug = categoryName.trim()
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
-      
+
       category = new Category({
         name: categoryName.trim(),
         slug: slug || `category-${Date.now()}`,
@@ -676,19 +676,19 @@ router.post('/ensure-subcategory', async (req, res, next) => {
         subcategories: []
       })
     }
-    
+
     // Check if subcategory already exists
-    const existingSubcategory = category.subcategories.find(sub => 
+    const existingSubcategory = category.subcategories.find(sub =>
       sub.name.toLowerCase() === subcategoryName.trim().toLowerCase()
     )
-    
+
     if (!existingSubcategory) {
       // Create the subcategory
       const subSlug = subcategoryName.trim()
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
-      
+
       category.subcategories.push({
         name: subcategoryName.trim(),
         slug: subSlug || `subcategory-${Date.now()}`,
@@ -696,12 +696,12 @@ router.post('/ensure-subcategory', async (req, res, next) => {
         sortOrder: category.subcategories.length,
         isActive: true
       })
-      
+
       await category.save()
-      
+
       console.log(`✅ Created subcategory "${subcategoryName}" under category "${categoryName}"`)
     }
-    
+
     // Return the updated subcategories
     const activeSubcategories = category.subcategories
       .filter(sub => sub.isActive !== false)
@@ -712,7 +712,7 @@ router.post('/ensure-subcategory', async (req, res, next) => {
         slug: sub.slug,
         description: sub.description
       }))
-    
+
     res.json({
       success: true,
       data: activeSubcategories,
@@ -723,8 +723,8 @@ router.post('/ensure-subcategory', async (req, res, next) => {
         slug: category.slug
       },
       created: !existingSubcategory,
-      message: existingSubcategory 
-        ? 'Subcategory already exists' 
+      message: existingSubcategory
+        ? 'Subcategory already exists'
         : `Subcategory "${subcategoryName}" created successfully`
     })
   } catch (error) {
@@ -818,7 +818,7 @@ router.get('/', async (req, res, next) => {
 
     // Execute query without pagination limits (fetch all data)
     const offsetNum = parseInt(offset) || 0
-    
+
     // Remove limit to fetch all data
     const [items, total] = await Promise.all([
       Report.find(findCondition, projection)
@@ -917,7 +917,7 @@ router.post('/', async (req, res, next) => {
     })
 
     console.log('Creating report with data:', JSON.stringify(reportData, null, 2))
-    
+
     // Ensure slug is provided if not generated by model
     if (!reportData.slug && reportData.title) {
       reportData.slug = reportData.title
@@ -944,9 +944,9 @@ router.post('/', async (req, res, next) => {
         field: key,
         message: error.errors[key].message
       }))
-      
+
       console.log('Validation errors:', details)
-      
+
       return res.status(400).json({
         error: 'Validation Error',
         message: 'Please check your input data and try again',
@@ -1000,7 +1000,7 @@ router.get('/:id', async (req, res, next) => {
     if (id.match(/^[0-9a-fA-F]{24}$/)) {
       report = await Report.findById(id).lean()
     }
-    
+
     // If not found by ID, try to find by slug
     if (!report) {
       report = await Report.findOne({ slug: id }).lean()
@@ -1110,7 +1110,7 @@ router.patch('/:id', async (req, res, next) => {
 
     // Try to find by slug first, then by ID for backward compatibility
     let currentReport = await Report.findOne({ slug: id }).lean()
-    
+
     if (!currentReport && id.match(/^[0-9a-fA-F]{24}$/)) {
       currentReport = await Report.findById(id).lean()
     }
@@ -1217,7 +1217,7 @@ router.delete('/:id', async (req, res, next) => {
 
     // Try to find by slug first, then by ID for backward compatibility
     let deletedReport = await Report.findOneAndDelete({ slug: id })
-    
+
     if (!deletedReport && id.match(/^[0-9a-fA-F]{24}$/)) {
       // If it looks like a MongoDB ObjectId, try deleting by ID
       deletedReport = await Report.findByIdAndDelete(id)
@@ -1320,7 +1320,7 @@ router.post('/:id/cover', upload.single('file'), async (req, res, next) => {
       },
       { new: true }
     )
-    
+
     if (!updatedReport && id.match(/^[0-9a-fA-F]{24}$/)) {
       // If it looks like a MongoDB ObjectId, try updating by ID
       updatedReport = await Report.findByIdAndUpdate(
@@ -1380,16 +1380,16 @@ router.post('/upload-image', upload.single('file'), (req, res, next) => {
 router.get('/export', async (req, res, next) => {
   try {
     const { format = 'csv' } = req.query
-    
+
     // Get ALL reports from database (no pagination limit)
     const reports = await Report.find({}).lean()
-    
+
     console.log(`Exporting ${reports.length} reports in ${format} format`)
-    
+
     if (format === 'excel') {
       // Create Excel workbook
       const workbook = XLSX.utils.book_new()
-      
+
       // Prepare data for Excel
       const excelData = reports.map(report => ({
         'Report Title': report.title,
@@ -1428,18 +1428,18 @@ router.get('/export', async (req, res, next) => {
         'Meta Description': report.metaDescription || '',
         'Keywords': report.keywords || ''
       }))
-      
+
       // Create worksheet
       const worksheet = XLSX.utils.json_to_sheet(excelData)
-      
+
       // Add styling to the worksheet
       const range = XLSX.utils.decode_range(worksheet['!ref'])
-      
+
       // Style header row (row 0)
       for (let col = range.s.c; col <= range.e.c; col++) {
         const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
         if (!worksheet[cellAddress]) continue
-        
+
         worksheet[cellAddress].s = {
           fill: { fgColor: { rgb: "4F46E5" } }, // Blue background
           font: { color: { rgb: "FFFFFF" }, bold: true, sz: 12 }, // White, bold text
@@ -1452,14 +1452,14 @@ router.get('/export', async (req, res, next) => {
           }
         }
       }
-      
+
       // Style data rows with alternating colors
       for (let row = 1; row <= range.e.r; row++) {
         const isEvenRow = row % 2 === 0
         for (let col = range.s.c; col <= range.e.c; col++) {
           const cellAddress = XLSX.utils.encode_cell({ r: row, c: col })
           if (!worksheet[cellAddress]) continue
-          
+
           worksheet[cellAddress].s = {
             fill: { fgColor: { rgb: isEvenRow ? "F8FAFC" : "FFFFFF" } }, // Alternating row colors
             font: { color: { rgb: "1F2937" }, sz: 10 }, // Dark gray text
@@ -1473,7 +1473,7 @@ router.get('/export', async (req, res, next) => {
           }
         }
       }
-      
+
       // Set column widths for better readability
       const columnWidths = [
         { wch: 50 }, // Report Title
@@ -1511,19 +1511,19 @@ router.get('/export', async (req, res, next) => {
         { wch: 30 }  // Keywords
       ]
       worksheet['!cols'] = columnWidths
-      
+
       // Set row heights
       worksheet['!rows'] = [{ hpt: 25 }] // Header row height
-      
+
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Reports')
-      
+
       // Generate Excel buffer with styling support
-      const excelBuffer = XLSX.write(workbook, { 
-        type: 'buffer', 
+      const excelBuffer = XLSX.write(workbook, {
+        type: 'buffer',
         bookType: 'xlsx',
         cellStyles: true
       })
-      
+
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
       res.setHeader('Content-Disposition', `attachment; filename=reports_export_${new Date().toISOString().split('T')[0]}.xlsx`)
       res.send(excelBuffer)
@@ -1557,9 +1557,9 @@ router.get('/export', async (req, res, next) => {
         `"${(report.metaDescription || '').replace(/"/g, '""')}"`,
         `"${(report.keywords || '').replace(/"/g, '""')}"`
       ])
-      
+
       const csvContent = [csvHeaders.join(','), ...csvRows.map(row => row.join(','))].join('\n')
-      
+
       res.setHeader('Content-Type', 'text/csv')
       res.setHeader('Content-Disposition', `attachment; filename=reports_export_${new Date().toISOString().split('T')[0]}.csv`)
       res.send(csvContent)
@@ -1575,7 +1575,7 @@ router.post('/migrate-search-titles', authenticate, requireRole('super_admin', '
   try {
     console.log('🚀 Starting searchTitle migration...');
     const reportsToUpdate = await Report.find({ searchTitle: { $exists: false } });
-    
+
     let updatedCount = 0;
     let errorCount = 0;
 
@@ -1612,10 +1612,10 @@ router.post('/check-duplicates', upload.single('file'), async (req, res, next) =
 
     let data;
     const fileExtension = path.extname(req.file.originalname).toLowerCase();
-    
+
     try {
       if (fileExtension === '.csv') {
-        const workbook = XLSX.readFile(req.file.path, { 
+        const workbook = XLSX.readFile(req.file.path, {
           type: 'file',
           cellDates: true,
           cellNF: false,
@@ -1654,11 +1654,11 @@ router.post('/check-duplicates', upload.single('file'), async (req, res, next) =
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
-      
+
       // Extract title and report code
       const title = row['Report Title'] || row['REPORT TITLE'] || row['Title'] || '';
       const reportCode = row['Report Code'] || row['REPORT CODE'] || row['Code'] || '';
-      
+
       if (title.trim()) {
         // Check if report exists by title or report code
         const normalizedTitle = title.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1696,14 +1696,14 @@ router.post('/check-duplicates', upload.single('file'), async (req, res, next) =
 
   } catch (error) {
     console.error('❌ Duplicate check error:', error);
-    
+
     // Clean up uploaded file on error
     if (req.file && req.file.path) {
       fs.unlink(req.file.path, (err) => {
         if (err) console.error('Error deleting temp file:', err);
       });
     }
-    
+
     res.status(500).json({
       error: 'Duplicate Check Failed',
       message: error.message
@@ -1723,13 +1723,13 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
 
     let data;
     const fileExtension = path.extname(req.file.originalname).toLowerCase();
-    
+
     console.log(`📁 Processing file: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`);
-    
+
     try {
       if (fileExtension === '.csv') {
         // Handle CSV files with streaming for large files
-        const workbook = XLSX.readFile(req.file.path, { 
+        const workbook = XLSX.readFile(req.file.path, {
           type: 'file',
           cellDates: true,
           cellNF: false,
@@ -1765,21 +1765,21 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
     }
 
     console.log(`🚀 Starting import of ${data.length} rows`);
-    
+
     // Get duplicate handling preference
     const duplicateHandling = req.body.duplicateHandling || 'update';
     console.log(`🔄 Duplicate handling mode: ${duplicateHandling}`);
-    
+
     // Validate file size for performance
     if (data.length > 1000) {
       console.log('⚠️  Large file detected, using optimized processing...');
     }
-    
+
     // Optimized column detection and validation
     const allColumns = Object.keys(data[0] || {});
     const requiredColumns = ['Report Title', 'Title', 'Report Name'];
     const hasRequiredColumn = requiredColumns.some(col => allColumns.includes(col));
-    
+
     if (!hasRequiredColumn) {
       return res.status(400).json({
         error: 'Invalid File Format',
@@ -1787,7 +1787,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         availableColumns: allColumns
       });
     }
-    
+
     console.log('🔍 Validating data structure...');
 
     let insertedCount = 0;
@@ -1795,21 +1795,21 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
     let skippedCount = 0;
     let failedCount = 0;
     const errors = [];
-    
+
     // Category creation tracking
     let categoriesCreated = 0;
     let subcategoriesCreated = 0;
-    
+
     // Dynamic batch size based on data volume
     const batchSize = data.length > 500 ? 25 : data.length > 100 ? 50 : 100;
     const reportBatch = [];
-    
+
     console.log(`⚡ Processing ${data.length} reports in optimized batches of ${batchSize}`);
-    
+
     // Pre-compile regex patterns for better performance
     const cleanTextRegex = /[\r\n\t]+/g;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    
+
     // Performance tracking
     const startTime = Date.now();
     let processedCount = 0;
@@ -1817,15 +1817,15 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
       processedCount++;
-      
+
       // Progress logging for large datasets
       if (data.length > 100 && processedCount % 50 === 0) {
         const elapsed = Date.now() - startTime;
         const rate = processedCount / (elapsed / 1000);
         const eta = ((data.length - processedCount) / rate) / 60;
-        console.log(`📈 Progress: ${processedCount}/${data.length} (${(processedCount/data.length*100).toFixed(1)}%) - ETA: ${eta.toFixed(1)}min`);
+        console.log(`📈 Progress: ${processedCount}/${data.length} (${(processedCount / data.length * 100).toFixed(1)}%) - ETA: ${eta.toFixed(1)}min`);
       }
-      
+
       // Declare variables outside try block so they're accessible in catch block
       let cleanTitle = '';
       let cleanSubTitle = '';
@@ -1836,62 +1836,62 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
       let category = '';
       let subCategory = '';
       let reportCode = '';
-      
+
       try {
         // Optimized field mapping with performance improvements
         const title = row['Report Title'] || row['Title'] || row['Report Name'] || row['title'] || '';
-        
+
         // Try multiple variations for subtitle/meta tag with fallback
-        const subTitle = row['Report Sub Title / Title Meta Tag'] || 
-                        row['Title Meta Tag'] || 
-                        row['Report Sub Title'] || 
-                        row['Sub Title'] || 
-                        row['Subtitle'] || 
-                        row['subTitle'] || '';
-        
+        const subTitle = row['Report Sub Title / Title Meta Tag'] ||
+          row['Title Meta Tag'] ||
+          row['Report Sub Title'] ||
+          row['Sub Title'] ||
+          row['Subtitle'] ||
+          row['subTitle'] || '';
+
         const summary = row['Summary'] || row['Description'] || row['summary'] || '';
         const content = row['Content'] || row['content'] || '';
-        
+
         // Try multiple variations for report description - ENHANCED for REPORT OVERVIEW
-        const reportDescription = row['REPORT OVERVIEW'] || 
-                                 row['Report Overview'] || 
-                                 row['Report Discription'] || 
-                                 row['Report Description'] || 
-                                 row['Description'] || 
-                                 row['description'] || 
-                                 row['Overview'] || '';
-        
+        const reportDescription = row['REPORT OVERVIEW'] ||
+          row['Report Overview'] ||
+          row['Report Discription'] ||
+          row['Report Description'] ||
+          row['Description'] ||
+          row['description'] ||
+          row['Overview'] || '';
+
         const tableOfContents = row['Table of Contents'] || row['TOC'] || row['tableOfContents'] || '';
-        
+
         // Map categories with more variations including new "Report Category" format
-        category = row['Report Categories'] || 
-                  row['Report Category'] || 
-                  row['CATEGORIES'] || 
-                  row['Categories'] || 
-                  row['Category'] || 
-                  row['CATEGORY'] || 
-                  row['Domain'] || 
-                  row['DOMAIN'] || 
-                  row['Industry'] || 
-                  row['INDUSTRY'] || 
-                  row['category'] || 
-                  row['domain'] || 
-                  row['industry'] || '';
-                  
-        subCategory = row['Report Sub Category'] || 
-                     row['Report Sub Categories'] || 
-                     row['Sub Category'] || 
-                     row['Sub Categories'] || 
-                     row['SUB CATEGORY'] || 
-                     row['SUB CATEGORIES'] || 
-                     row['Sub Domain'] || 
-                     row['SUB DOMAIN'] || 
-                     row['Subdomain'] || 
-                     row['SUBDOMAIN'] || 
-                     row['subCategory'] || 
-                     row['subCategories'] || 
-                     row['subdomain'] || '';
-        
+        category = row['Report Categories'] ||
+          row['Report Category'] ||
+          row['CATEGORIES'] ||
+          row['Categories'] ||
+          row['Category'] ||
+          row['CATEGORY'] ||
+          row['Domain'] ||
+          row['DOMAIN'] ||
+          row['Industry'] ||
+          row['INDUSTRY'] ||
+          row['category'] ||
+          row['domain'] ||
+          row['industry'] || '';
+
+        subCategory = row['Report Sub Category'] ||
+          row['Report Sub Categories'] ||
+          row['Sub Category'] ||
+          row['Sub Categories'] ||
+          row['SUB CATEGORY'] ||
+          row['SUB CATEGORIES'] ||
+          row['Sub Domain'] ||
+          row['SUB DOMAIN'] ||
+          row['Subdomain'] ||
+          row['SUBDOMAIN'] ||
+          row['subCategory'] ||
+          row['subCategories'] ||
+          row['subdomain'] || '';
+
         // Debug category extraction for first 3 rows
         if (i < 3) {
           console.log(`🏷️ Row ${i + 1} CATEGORY EXTRACTION:`, {
@@ -1903,36 +1903,36 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
             'subCategory isEmpty': !subCategory || subCategory.trim() === ''
           });
         }
-        
+
         // Try multiple variations for combined segment/companies field
-        const segmentCompanies = row['SEGMENT / COMPANIES'] || 
-                                row['Segment / Companies'] || 
-                                row['SEGMENT/COMPANIES'] || 
-                                row['Segment/Companies'] || 
-                                row['SEGMENTATION'] || 
-                                row['Segmentation'] || 
-                                row['Segment'] || 
-                                row['segment'] || 
-                                row['SEGMENT'] || '';
-        
+        const segmentCompanies = row['SEGMENT / COMPANIES'] ||
+          row['Segment / Companies'] ||
+          row['SEGMENT/COMPANIES'] ||
+          row['Segment/Companies'] ||
+          row['SEGMENTATION'] ||
+          row['Segmentation'] ||
+          row['Segment'] ||
+          row['segment'] ||
+          row['SEGMENT'] || '';
+
         // Legacy: Try multiple variations for separate segment field (for backward compatibility)
-        const segment = row['SEGMENTATION'] || 
-                       row['Segmentation'] || 
-                       row['Segment'] || 
-                       row['segment'] || 
-                       row['SEGMENT'] || '';
-        
+        const segment = row['SEGMENTATION'] ||
+          row['Segmentation'] ||
+          row['Segment'] ||
+          row['segment'] ||
+          row['SEGMENT'] || '';
+
         // Legacy: Try multiple variations for separate companies field (for backward compatibility)
-        const companies = row['Companies'] || 
-                         row['companies'] || 
-                         row['COMPANIES'] || 
-                         row['Company'] || 
-                         row['company'] || '';
-        
+        const companies = row['Companies'] ||
+          row['companies'] ||
+          row['COMPANIES'] ||
+          row['Company'] ||
+          row['company'] || '';
+
         // Extract region and sub-regions fields
         const region = row['Region'] || row['region'] || '';
         const subRegions = row['Sub Regions'] || row['Sub Region'] || row['subRegions'] || row['sub_regions'] || '';
-        
+
         // Extract additional fields for bulk upload
         const authorName = row['Author Name'] || row['Author'] || row['author'] || '';
         reportCode = row['Report Code'] || row['Code'] || row['reportCode'] || '';
@@ -1945,23 +1945,23 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         const language = row['Language'] || row['language'] || 'English';
         const industry = row['Industry'] || row['industry'] || '';
         const reportType = row['Report Type'] || row['Type'] || row['reportType'] || 'Market Research';
-        
+
         // Pricing fields - matching your Excel image exactly
         const excelDatapackPrice = row['Excel Datapack Prices'] || row['Excel Datapack Price'] || row['Excel Data Pack Prices'] || row['Excel Data Pack Price'] || row['excelDatapackPrice'] || '';
         const singleUserPrice = row['Single User License Prices'] || row['Single User Prices'] || row['Single User Price'] || row['singleUserPrice'] || '';
         const enterprisePrice = row['Enterprise License Prices'] || row['Enterprise Price'] || row['Enterprise Prices'] || row['enterprisePrice'] || '';
         const internetHandlingCharges = row['Internet Handling Charges'] || row['internetHandlingCharges'] || '';
-        
+
         // License fields
         const excelDataPackLicense = row['Excel Data Pack License'] || row['excelDataPackLicense'] || '';
         const singleUserLicense = row['Single User License'] || row['singleUserLicense'] || '';
         const enterpriseLicensePrice = row['Enterprise License Price'] || row['enterpriseLicensePrice'] || '';
-        
+
         // Status fields
         const status = row['Status'] || row['status'] || 'draft';
         const featured = row['Featured'] || row['featured'] || false;
         const popular = row['Popular'] || row['popular'] || false;
-        
+
         // Extract SEO fields
         const titleTag = row['Title Tag'] || row['SEO Title'] || row['titleTag'] || '';
         const urlSlug = row['URL Slug'] || row['URL'] || row['url'] || row['Slug'] || '';
@@ -1971,7 +1971,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         // Enhanced cleaning and validation with better type handling
         cleanTitle = (title !== null && title !== undefined && title !== '') ? String(title).replace(cleanTextRegex, ' ').trim() : '';
         cleanSubTitle = (subTitle !== null && subTitle !== undefined && subTitle !== '') ? String(subTitle).replace(cleanTextRegex, ' ').trim() : '';
-        
+
         // Format REPORT OVERVIEW data with consistent database-level formatting
         cleanDescription = formatReportOverview(reportDescription);
         cleanSegment = formatImportedContent(segment);
@@ -1979,10 +1979,10 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         cleanSegmentCompanies = formatImportedContent(segmentCompanies);
 
         // Ensure slug is handled correctly
-        let cleanSlug = (urlSlug !== null && urlSlug !== undefined && urlSlug !== '') 
-          ? String(urlSlug).trim() 
+        let cleanSlug = (urlSlug !== null && urlSlug !== undefined && urlSlug !== '')
+          ? String(urlSlug).trim()
           : '';
-        
+
         // FALLBACK LOGIC: If SEGMENT / COMPANIES is empty, combine separate fields or use REPORT OVERVIEW
         if (!cleanSegmentCompanies || cleanSegmentCompanies === '' || cleanSegmentCompanies === '<div style="margin: 20px 0; padding: 15px; border-radius: 8px; background-color: #ffffff; border-left: 4px solid #10b981; background-color: #f0fdf4;"></div>') {
           if (cleanSegment || cleanCompanies) {
@@ -2001,7 +2001,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
             console.log(`✅ FALLBACK: Using REPORT OVERVIEW as segmentCompanies with segment formatting`);
           }
         }
-        
+
         // FINAL CHECK: Ensure we have some data in segmentCompanies
         if (i < 3) {
           console.log(`🎯 FINAL segmentCompanies CHECK for Row ${i + 1}:`, {
@@ -2010,13 +2010,13 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
             'Will be saved as': cleanSegmentCompanies || 'EMPTY STRING'
           });
         }
-        
+
         // Clean SEO fields
         const cleanTitleTag = titleTag ? titleTag.toString().trim() : '';
         const cleanUrlSlug = urlSlug ? urlSlug.toString().trim() : '';
         const cleanMetaDescription = metaDescription ? metaDescription.toString().trim() : '';
         const cleanKeywords = keywords ? keywords.toString().trim() : '';
-        
+
         // CRITICAL DEBUG: Log SEGMENTATION and REGION data extraction for first 3 rows
         if (i < 3) {
           console.log(`🔍 Row ${i + 1} BULK UPLOAD Debug:`, {
@@ -2070,14 +2070,14 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         // Enhanced validation with better error messages
         if (!cleanTitle || cleanTitle.length < 3) {
           failedCount++;
-          errors.push({ 
+          errors.push({
             row: i + 1,
             reportCode: reportCode || 'N/A',
             error: cleanTitle ? 'Title too short (minimum 3 characters)' : 'Title is required'
           });
           continue;
         }
-        
+
         // Additional validation for data quality
         if (cleanTitle.length > 500) {
           cleanTitle = cleanTitle.substring(0, 500) + '...';
@@ -2110,12 +2110,12 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
               }
             }
           }
-          
+
           // Ensure subcategory exists under category (create if not found)
-          if (category && category.toString().trim() !== '' && 
-              subCategory && subCategory.toString().trim() !== '') {
+          if (category && category.toString().trim() !== '' &&
+            subCategory && subCategory.toString().trim() !== '') {
             const subcategoryResult = await ensureSubcategoryExists(
-              category.toString().trim(), 
+              category.toString().trim(),
               subCategory.toString().trim()
             );
             if (subcategoryResult) {
@@ -2154,35 +2154,35 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           format: format?.toString().toLowerCase() || 'pdf',
           industry: industry?.toString().trim() || '',
           reportType: reportType?.toString() || 'market-research',
-          
+
           // Excel import field mapping for frontend compatibility - USE EMPTY STRINGS NOT NULL
           reportDate: reportDate ? (isNaN(Date.parse(reportDate)) ? new Date() : new Date(reportDate)) : new Date(),
           reportCategories: (category?.toString().trim() && category.toString().trim() !== '') ? category.toString().trim() : '',
-          
+
           // NEW: Combined segment/companies field
           segmentCompanies: [cleanSegment, cleanCompanies].filter(Boolean).join('\n\n'),
           segment: (cleanSegment && cleanSegment !== '') ? cleanSegment : '',
           companies: (cleanCompanies && cleanCompanies !== '') ? cleanCompanies : '',
           reportDescription: (cleanDescription && cleanDescription !== '') ? cleanDescription : '',
-          
+
           // SEO fields from Excel import
           titleTag: (cleanTitleTag && cleanTitleTag !== '') ? cleanTitleTag : null,
           url: (cleanUrlSlug && cleanUrlSlug !== '') ? cleanUrlSlug : null, // Keep for legacy compatibility
           slug: slug, // Use the definitive slug determined above
           metaDescription: (cleanMetaDescription && cleanMetaDescription !== '') ? cleanMetaDescription : null,
           keywords: (cleanKeywords && cleanKeywords !== '') ? cleanKeywords : null,
-          
+
           // Pricing fields - matching Excel image exactly
           excelDatapackPrice: excelDatapackPrice?.toString() || '',
           singleUserPrice: singleUserPrice?.toString() || '',
           enterprisePrice: enterprisePrice?.toString() || '',
           internetHandlingCharges: internetHandlingCharges?.toString() || '',
-          
+
           // License fields (from Excel or defaults)
           excelDataPackLicense: excelDataPackLicense?.toString() || '',
           singleUserLicense: singleUserLicense?.toString() || '',
           enterpriseLicensePrice: enterpriseLicensePrice?.toString() || '',
-          
+
           status: status || 'draft',
           featured: Boolean(featured),
           popular: Boolean(popular),
@@ -2233,29 +2233,29 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
             }
           });
         }
-        
+
         // Add to batch instead of saving immediately
         reportBatch.push(reportData);
-        
+
         // Process batch when it reaches batchSize or is the last item
         if (reportBatch.length >= batchSize || i === data.length - 1) {
           console.log(`Processing batch of ${reportBatch.length} reports...`);
-          
+
           // Optimized bulk processing with better error handling and duplicate prevention
           try {
             // Handle different duplicate strategies
             const bulkOps = [];
-            
+
             for (const reportData of reportBatch) {
-              const filter = reportData.reportCode && reportData.reportCode.trim() 
+              const filter = reportData.reportCode && reportData.reportCode.trim()
                 ? { reportCode: reportData.reportCode }
-                : { 
-                    $or: [
-                      { slug: reportData.slug },
-                      { title: reportData.title }
-                    ]
-                  };
-              
+                : {
+                  $or: [
+                    { slug: reportData.slug },
+                    { title: reportData.title }
+                  ]
+                };
+
               if (duplicateHandling === 'skip') {
                 // Skip duplicates - only insert if not exists
                 const existing = await Report.findOne(filter);
@@ -2286,22 +2286,22 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
                 });
               }
             }
-            
-            const bulkResult = await Report.bulkWrite(bulkOps, { 
+
+            const bulkResult = await Report.bulkWrite(bulkOps, {
               ordered: false,
               writeConcern: { w: 1 }
             });
-            
+
             insertedCount += bulkResult.insertedCount || 0;
             updatedCount += bulkResult.modifiedCount || 0;
             insertedCount += bulkResult.upsertedCount || 0;
-            
+
             if (data.length <= 100) {
               console.log(`✅ Batch completed: +${bulkResult.insertedCount || 0} new, ~${bulkResult.modifiedCount || 0} updated, ^${bulkResult.upsertedCount || 0} upserted`);
               if (bulkResult.modifiedCount > 0) {
                 console.log(`🔄 ${bulkResult.modifiedCount} duplicate(s) detected and updated instead of creating new records`);
               }
-              
+
               // CRITICAL: Verify SEGMENTATION data was actually saved for first few records
               if (reportBatch.length > 0) {
                 const firstReport = reportBatch[0];
@@ -2331,10 +2331,10 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
                 }
               }
             }
-            
+
           } catch (bulkError) {
             console.error('❌ Bulk operation failed:', bulkError.message);
-            
+
             // Fallback to individual processing for this batch with duplicate prevention
             for (const reportData of reportBatch) {
               try {
@@ -2349,7 +2349,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
                 } else {
                   // Use title or slug to prevent duplicates
                   result = await Report.findOneAndUpdate(
-                    { 
+                    {
                       $or: [
                         { slug: reportData.slug },
                         { title: reportData.title }
@@ -2359,7 +2359,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
                     { new: true, upsert: true, runValidators: true }
                   );
                 }
-                
+
                 // Check if this was an insert or update
                 if (result.isNew !== false) {
                   insertedCount++;
@@ -2377,9 +2377,9 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
               }
             }
           }
-          
+
           reportBatch.length = 0; // Clear the batch
-          
+
           // Progress update for large files
           if (data.length > 100) {
             const progress = ((i + 1) / data.length * 100).toFixed(1);
@@ -2393,7 +2393,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           cleanTitle, cleanSubTitle, cleanDescription, cleanSegment, category, subCategory
         });
         failedCount++;
-        errors.push({ 
+        errors.push({
           title: cleanTitle || 'Unknown',
           reportCode: reportCode || 'Unknown',
           error: error.message,
@@ -2409,10 +2409,10 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
     // Performance summary
     const totalTime = (Date.now() - startTime) / 1000;
     const rate = data.length / totalTime;
-    
+
     console.log(`🎉 Import completed in ${totalTime.toFixed(2)}s (${rate.toFixed(1)} records/sec)`);
     console.log(`📊 Results: ${insertedCount} new, ${updatedCount} updated, ${failedCount} failed`);
-    
+
     // Clean up uploaded file
     try {
       fs.unlinkSync(req.file.path);
@@ -2422,10 +2422,10 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
 
     const totalProcessed = insertedCount + updatedCount + skippedCount;
     const successRate = ((totalProcessed / data.length) * 100).toFixed(1);
-    
+
     console.log(`📊 Final Results: ${insertedCount} new, ${updatedCount} updated, ${skippedCount} skipped, ${failedCount} failed`);
     console.log(`🏷️ Categories: ${categoriesCreated} new categories, ${subcategoriesCreated} new subcategories created`);
-    
+
     res.status(201).json({
       success: true,
       message: `Import completed: ${totalProcessed}/${data.length} records processed (${successRate}% success rate)`,
@@ -2445,7 +2445,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
       categories: {
         created: categoriesCreated,
         subcategoriesCreated: subcategoriesCreated,
-        message: categoriesCreated > 0 || subcategoriesCreated > 0 
+        message: categoriesCreated > 0 || subcategoriesCreated > 0
           ? `Auto-created ${categoriesCreated} categories and ${subcategoriesCreated} subcategories from Excel data`
           : 'No new categories or subcategories were needed'
       },
@@ -2455,7 +2455,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
 
   } catch (error) {
     console.error('❌ Critical error during bulk import:', error);
-    
+
     // Clean up uploaded file
     if (req.file) {
       try {
@@ -2464,7 +2464,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         console.warn('⚠️  Failed to cleanup uploaded file after error:', cleanupError.message);
       }
     }
-    
+
     // Return structured error response
     res.status(500).json({
       success: false,
@@ -2483,7 +2483,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
 const validateSlugAndReport = async (req, res, next) => {
   try {
     const { slug } = req.params
-    
+
     if (!slug) {
       return res.status(400).json({
         success: false,
@@ -2492,7 +2492,7 @@ const validateSlugAndReport = async (req, res, next) => {
     }
 
     // Find report by slug
-    const report = await Report.findOne({ 
+    const report = await Report.findOne({
       slug: slug.toLowerCase(),
       status: 'published' // Only show published reports
     }).lean()
@@ -2532,17 +2532,17 @@ const trackInteraction = async (reportId, interactionType, metadata = {}) => {
 // GET /api/reports/public/store
 router.get('/public/store', async (req, res) => {
   try {
-    const { 
-      page = 1, 
-      limit = 20, 
-      category, 
-      search, 
+    const {
+      page = 1,
+      limit = 20,
+      category,
+      search,
       featured,
-      popular 
+      popular
     } = req.query
 
     const query = { status: 'published' }
-    
+
     // Add filters
     if (category) query.category = category
     if (featured === 'true') query.featured = true
@@ -2556,7 +2556,7 @@ router.get('/public/store', async (req, res) => {
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit)
-    
+
     const [reports, total] = await Promise.all([
       Report.find(query)
         .select('title slug summary category subCategory price currency coverImage publishDate featured popular')
@@ -2567,11 +2567,11 @@ router.get('/public/store', async (req, res) => {
       Report.countDocuments(query)
     ])
 
-    await trackInteraction(null, 'reports_store_view', { 
-      page, 
-      limit, 
-      total, 
-      filters: { category, search, featured, popular } 
+    await trackInteraction(null, 'reports_store_view', {
+      page,
+      limit,
+      total,
+      filters: { category, search, featured, popular }
     })
 
     res.json({
@@ -2602,9 +2602,9 @@ router.get('/public/:slug', validateSlugAndReport, async (req, res) => {
     const report = req.report
 
     // Track report view
-    await trackInteraction(report._id, 'report_view', { 
+    await trackInteraction(report._id, 'report_view', {
       slug: report.slug,
-      title: report.title 
+      title: report.title
     })
 
     // Return full report details with action URLs
@@ -2639,8 +2639,8 @@ router.get('/request-sample/:slug', validateSlugAndReport, async (req, res) => {
   try {
     const report = req.report
 
-    await trackInteraction(report._id, 'sample_request_page_view', { 
-      slug: report.slug 
+    await trackInteraction(report._id, 'sample_request_page_view', {
+      slug: report.slug
     })
 
     res.json({
@@ -2680,14 +2680,14 @@ router.get('/request-sample/:slug', validateSlugAndReport, async (req, res) => {
 router.post('/request-sample/:slug', validateSlugAndReport, async (req, res) => {
   try {
     const report = req.report
-    const { 
-      name, 
-      email, 
-      phone, 
-      company, 
-      jobTitle, 
-      country, 
-      message 
+    const {
+      name,
+      email,
+      phone,
+      company,
+      jobTitle,
+      country,
+      message
     } = req.body
 
     // Validate required fields
@@ -2717,7 +2717,7 @@ router.post('/request-sample/:slug', validateSlugAndReport, async (req, res) => 
       status: 'new'
     })
 
-    await trackInteraction(report._id, 'sample_request_submitted', { 
+    await trackInteraction(report._id, 'sample_request_submitted', {
       inquiryId: inquiry._id,
       email: email.trim()
     })
@@ -2750,8 +2750,8 @@ router.get('/buy-now/:slug', validateSlugAndReport, async (req, res) => {
   try {
     const report = req.report
 
-    await trackInteraction(report._id, 'buy_now_page_view', { 
-      slug: report.slug 
+    await trackInteraction(report._id, 'buy_now_page_view', {
+      slug: report.slug
     })
 
     res.json({
@@ -2785,7 +2785,8 @@ router.get('/buy-now/:slug', validateSlugAndReport, async (req, res) => {
         action: 'buy_now',
         message: 'Buy now page loaded successfully',
         formFields: [
-          { name: 'licenseType', type: 'select', required: true, label: 'License Type', 
+          {
+            name: 'licenseType', type: 'select', required: true, label: 'License Type',
             options: [
               { value: 'single_user', label: 'Single User License' },
               { value: 'excel_datapack', label: 'Excel Datapack' },
@@ -2812,13 +2813,13 @@ router.get('/buy-now/:slug', validateSlugAndReport, async (req, res) => {
 router.post('/buy-now/:slug', validateSlugAndReport, async (req, res) => {
   try {
     const report = req.report
-    const { 
+    const {
       licenseType = 'single_user',
       customerName,
       customerEmail,
       customerPhone,
       customerCompany,
-      billingInfo 
+      billingInfo
     } = req.body
 
     // Validate customer info
@@ -2870,7 +2871,7 @@ router.post('/buy-now/:slug', validateSlugAndReport, async (req, res) => {
       orderDate: new Date()
     })
 
-    await trackInteraction(report._id, 'order_created', { 
+    await trackInteraction(report._id, 'order_created', {
       orderId: order._id,
       licenseType,
       price,
@@ -2913,8 +2914,8 @@ router.get('/inquiry/:slug', validateSlugAndReport, async (req, res) => {
   try {
     const report = req.report
 
-    await trackInteraction(report._id, 'inquiry_page_view', { 
-      slug: report.slug 
+    await trackInteraction(report._id, 'inquiry_page_view', {
+      slug: report.slug
     })
 
     res.json({
@@ -2942,7 +2943,8 @@ router.get('/inquiry/:slug', validateSlugAndReport, async (req, res) => {
           { name: 'company', type: 'text', required: false, label: 'Company Name' },
           { name: 'jobTitle', type: 'text', required: false, label: 'Job Title' },
           { name: 'country', type: 'text', required: false, label: 'Country' },
-          { name: 'inquiryType', type: 'select', required: false, label: 'Inquiry Type',
+          {
+            name: 'inquiryType', type: 'select', required: false, label: 'Inquiry Type',
             options: [
               { value: 'Inquiry Before Buying', label: 'General Inquiry' },
               { value: 'Pricing Information', label: 'Pricing Information' },
@@ -2967,13 +2969,13 @@ router.get('/inquiry/:slug', validateSlugAndReport, async (req, res) => {
 router.post('/inquiry/:slug', validateSlugAndReport, async (req, res) => {
   try {
     const report = req.report
-    const { 
-      name, 
-      email, 
-      phone, 
-      company, 
-      jobTitle, 
-      country, 
+    const {
+      name,
+      email,
+      phone,
+      company,
+      jobTitle,
+      country,
       message,
       inquiryType = 'Inquiry Before Buying'
     } = req.body
@@ -3005,7 +3007,7 @@ router.post('/inquiry/:slug', validateSlugAndReport, async (req, res) => {
       status: 'new'
     })
 
-    await trackInteraction(report._id, 'inquiry_submitted', { 
+    await trackInteraction(report._id, 'inquiry_submitted', {
       inquiryId: inquiry._id,
       inquiryType,
       email: email.trim()
@@ -3039,8 +3041,8 @@ router.get('/talk-to-analyst/:slug', validateSlugAndReport, async (req, res) => 
   try {
     const report = req.report
 
-    await trackInteraction(report._id, 'talk_to_analyst_page_view', { 
-      slug: report.slug 
+    await trackInteraction(report._id, 'talk_to_analyst_page_view', {
+      slug: report.slug
     })
 
     res.json({
@@ -3074,7 +3076,8 @@ router.get('/talk-to-analyst/:slug', validateSlugAndReport, async (req, res) => 
           { name: 'company', type: 'text', required: false, label: 'Company Name' },
           { name: 'jobTitle', type: 'text', required: false, label: 'Job Title' },
           { name: 'country', type: 'text', required: false, label: 'Country' },
-          { name: 'consultationType', type: 'select', required: false, label: 'Consultation Type',
+          {
+            name: 'consultationType', type: 'select', required: false, label: 'Consultation Type',
             options: [
               { value: 'General Consultation', label: 'General Consultation' },
               { value: 'Report Clarification', label: 'Report Clarification' },
@@ -3101,13 +3104,13 @@ router.get('/talk-to-analyst/:slug', validateSlugAndReport, async (req, res) => 
 router.post('/talk-to-analyst/:slug', validateSlugAndReport, async (req, res) => {
   try {
     const report = req.report
-    const { 
-      name, 
-      email, 
-      phone, 
-      company, 
-      jobTitle, 
-      country, 
+    const {
+      name,
+      email,
+      phone,
+      company,
+      jobTitle,
+      country,
       message,
       preferredTime,
       consultationType = 'General Consultation'
@@ -3144,7 +3147,7 @@ router.post('/talk-to-analyst/:slug', validateSlugAndReport, async (req, res) =>
       }
     })
 
-    await trackInteraction(report._id, 'analyst_consultation_requested', { 
+    await trackInteraction(report._id, 'analyst_consultation_requested', {
       inquiryId: inquiry._id,
       consultationType,
       email: email.trim()
@@ -3180,7 +3183,7 @@ router.get('/thank-you/:slug', validateSlugAndReport, async (req, res) => {
     const report = req.report
     const { type, orderId, inquiryId } = req.query
 
-    await trackInteraction(report._id, 'thank_you_page_view', { 
+    await trackInteraction(report._id, 'thank_you_page_view', {
       slug: report.slug,
       type,
       orderId,
@@ -3273,9 +3276,9 @@ router.get('/thank-you/:slug', validateSlugAndReport, async (req, res) => {
 router.get('/slug/:slug', async (req, res) => {
   try {
     const { slug } = req.params
-    const report = await Report.findOne({ 
+    const report = await Report.findOne({
       slug: slug.toLowerCase(),
-      status: 'published' 
+      status: 'published'
     }).lean()
 
     if (!report) {
@@ -3327,9 +3330,9 @@ router.get('/public/categories', async (req, res) => {
     const categories = await Report.distinct('category', { status: 'published' })
     const categoriesWithCounts = await Promise.all(
       categories.map(async (category) => {
-        const count = await Report.countDocuments({ 
-          category, 
-          status: 'published' 
+        const count = await Report.countDocuments({
+          category,
+          status: 'published'
         })
         return { name: category, count }
       })
@@ -3373,7 +3376,7 @@ router.post('/import', authenticate, requireRole('super_admin', 'admin', 'editor
     // Process reports with proper HTML formatting preservation
     for (let i = 0; i < reports.length; i++) {
       const reportData = reports[i]
-      
+
       try {
         // Generate unique slug if not provided
         if (!reportData.slug && reportData.title) {
@@ -3391,12 +3394,12 @@ router.post('/import', authenticate, requireRole('super_admin', 'admin', 'editor
         // Handle duplicates based on strategy
         const filter = reportData.reportCode && reportData.reportCode.trim()
           ? { reportCode: reportData.reportCode }
-          : { 
-              $or: [
-                { slug: reportData.slug },
-                { title: reportData.title }
-              ]
-            }
+          : {
+            $or: [
+              { slug: reportData.slug },
+              { title: reportData.title }
+            ]
+          }
 
         if (duplicateHandling === 'skip') {
           const existing = await Report.findOne(filter)
@@ -3417,7 +3420,7 @@ router.post('/import', authenticate, requireRole('super_admin', 'admin', 'editor
             { $set: reportData },
             { new: true, upsert: true, runValidators: true }
           )
-          
+
           if (result.isNew !== false) {
             created++
           } else {
@@ -3477,7 +3480,7 @@ function generateSlug(title) {
 router.post('/migrate-slugs', authenticate, requireRole('super_admin'), async (req, res) => {
   try {
     console.log('🔄 Starting slug migration...')
-    
+
     // Find reports without slugs or with empty slugs
     const reportsWithoutSlugs = await Report.find({
       $or: [
@@ -3496,11 +3499,11 @@ router.post('/migrate-slugs', authenticate, requireRole('super_admin'), async (r
     for (const report of reportsWithoutSlugs) {
       try {
         const newSlug = generateSlug(report.title)
-        
+
         if (newSlug) {
           // Check if slug already exists
           const existingReport = await Report.findOne({ slug: newSlug, _id: { $ne: report._id } })
-          
+
           let finalSlug = newSlug
           if (existingReport) {
             // Add timestamp to make it unique
@@ -3535,10 +3538,10 @@ router.post('/migrate-slugs', authenticate, requireRole('super_admin'), async (r
     res.json({
       success: true,
       message: `Slug migration completed: ${updated} updated, ${errors} errors`,
-      stats: { 
+      stats: {
         total: reportsWithoutSlugs.length,
-        updated, 
-        errors 
+        updated,
+        errors
       },
       errorDetails: errorDetails.slice(0, 10)
     })

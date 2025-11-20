@@ -1,8 +1,8 @@
 import { useRef, useEffect, useState } from 'react'
-import { 
-  Bold, 
-  Italic, 
-  Underline, 
+import {
+  Bold,
+  Italic,
+  Underline,
   Strikethrough,
   AlignLeft,
   AlignCenter,
@@ -53,7 +53,7 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
   useEffect(() => {
     if (editorRef.current && value !== editorRef.current.innerHTML) {
       const newValue = value || '';
-      
+
       // More robust check for HTML content, including inline styles
       const isHTML = /<[a-z][\s\S]*>/i.test(newValue);
       const hasStyleAttr = /style=/i.test(newValue);
@@ -68,12 +68,12 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
       // If content is already HTML, render it directly
       if (isHTML) {
         editorRef.current.innerHTML = newValue;
-      } 
+      }
       // If it's plain text, convert it
       else if (newValue && newValue.trim().length > 0) {
         const formattedHTML = convertPlainTextToHTML(newValue);
         editorRef.current.innerHTML = formattedHTML;
-      } 
+      }
       // Handle empty content
       else {
         editorRef.current.innerHTML = '';
@@ -84,32 +84,32 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
   // Convert plain text to HTML format
   const convertPlainTextToHTML = (text) => {
     if (!text || typeof text !== 'string') return '';
-    
+
     let html = text.trim();
-    
+
     // Clean up Excel formatting
     html = html.replace(/\t/g, '  '); // Replace tabs with spaces
     html = html.replace(/\r\n/g, '\n'); // Normalize line breaks
     html = html.replace(/\r/g, '\n'); // Remove carriage returns
-    
+
     // Normalize bullet points
     html = html.replace(/[•·▪▫◦‣⁃]/g, '•');
     html = html.replace(/^[-*]\s+/gm, '• ');
     html = html.replace(/^\s*•\s*/gm, '• ');
-    
+
     // Normalize numbered lists
     html = html.replace(/^(\d+)[\.\)]\s*/gm, '$1. ');
-    
+
     // Split into blocks
     const blocks = [];
     const lines = html.split('\n');
-    
+
     let currentBlock = [];
     let currentBlockType = null;
-    
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
-      
+
       // Empty line - end current block
       if (!line) {
         if (currentBlock.length > 0) {
@@ -119,17 +119,17 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
         }
         continue;
       }
-      
+
       // Detect line type
       const isBullet = /^•\s+/.test(line);
       const isNumbered = /^\d+\.\s+/.test(line);
       const isAllCaps = line === line.toUpperCase() && /[A-Z]/.test(line) && line.split(' ').length <= 10;
       const endsWithColon = line.endsWith(':') && line.length < 80;
-      const isTitleCase = line.length < 80 && 
-        line.split(' ').length <= 12 && 
+      const isTitleCase = line.length < 80 &&
+        line.split(' ').length <= 12 &&
         line.split(' ').every(word => word.length > 0 && /^[A-Z]/.test(word)) &&
         !line.match(/[.!?]$/);
-      
+
       let lineType;
       if (isBullet) {
         lineType = 'bullet';
@@ -142,65 +142,65 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
       } else {
         lineType = 'paragraph';
       }
-      
+
       // Check if we need to start a new block
       if (currentBlockType && currentBlockType !== lineType) {
         // Keep list items together
-        const bothLists = (currentBlockType === 'bullet' || currentBlockType === 'numbered') && 
-                         (lineType === 'bullet' || lineType === 'numbered');
-        
+        const bothLists = (currentBlockType === 'bullet' || currentBlockType === 'numbered') &&
+          (lineType === 'bullet' || lineType === 'numbered');
+
         if (!bothLists) {
           blocks.push({ type: currentBlockType, content: currentBlock });
           currentBlock = [];
           currentBlockType = null;
         }
       }
-      
+
       if (!currentBlockType) {
         currentBlockType = lineType;
       }
-      
+
       currentBlock.push(line);
     }
-    
+
     // Add remaining block
     if (currentBlock.length > 0) {
       blocks.push({ type: currentBlockType, content: currentBlock });
     }
-    
+
     // Convert blocks to HTML with proper formatting
     const htmlBlocks = blocks.map(block => {
       switch (block.type) {
         case 'heading1':
-          return block.content.map(line => 
+          return block.content.map(line =>
             `<h1>${escapeHtml(line)}</h1>`
           ).join('\n');
-        
+
         case 'heading2':
-          return block.content.map(line => 
+          return block.content.map(line =>
             `<h2>${escapeHtml(line.replace(/:$/, ''))}</h2>`
           ).join('\n');
-        
+
         case 'bullet':
           const bulletItems = block.content.map(line => {
             const content = line.replace(/^•\s+/, '');
             return `  <li>${escapeHtml(content)}</li>`;
           }).join('\n');
           return `<ul>\n${bulletItems}\n</ul>`;
-        
+
         case 'numbered':
           const numberedItems = block.content.map(line => {
             const content = line.replace(/^\d+\.\s+/, '');
             return `  <li>${escapeHtml(content)}</li>`;
           }).join('\n');
           return `<ol>\n${numberedItems}\n</ol>`;
-        
+
         case 'paragraph':
         default:
           // Combine short consecutive lines, keep long lines separate
           const paragraphs = [];
           let currentPara = [];
-          
+
           block.content.forEach(line => {
             if (line.length > 80 || currentPara.join(' ').length > 100) {
               if (currentPara.length > 0) {
@@ -216,61 +216,61 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
               currentPara.push(line);
             }
           });
-          
+
           if (currentPara.length > 0) {
             paragraphs.push(currentPara.join(' '));
           }
-          
+
           return paragraphs.map(p => `<p>${escapeHtml(p)}</p>`).join('\n');
       }
     });
-    
+
     return htmlBlocks.join('\n\n');
   };
   // const convertPlainTextToHTML = (text) => {
   //   if (!text || typeof text !== 'string') return ''
-    
+
   //   let html = text.trim()
-    
+
   //   // Clean up formatting
   //   html = html.replace(/\t/g, ' ')
   //   html = html.replace(/\r/g, '')
-    
+
   //   // Handle bullet points that might be mixed in with text
   //   html = html.replace(/([.!?])\s*([•·▪▫◦‣⁃])\s*/g, '$1\n$2 ')
   //   html = html.replace(/([.!?])\s*([-*])\s+([A-Z])/g, '$1\n$2 $3')
-    
+
   //   // Split paragraphs by looking for sentence endings followed by capital letters
   //   html = html.replace(/([.!?])\s+([A-Z][a-z])/g, '$1\n\n$2')
-    
+
   //   // Handle section headings (text ending with colon)
   //   html = html.replace(/([.!?])\s+([A-Z][^.!?]*:)\s*/g, '$1\n\n$2\n')
-    
+
   //   // Handle bullet points
   //   html = html.replace(/^[•·▪▫◦‣⁃]\s*/gm, '• ')
   //   html = html.replace(/^[-*]\s*/gm, '• ')
   //   html = html.replace(/^\u2022\s*/gm, '• ')
-    
+
   //   // Split into paragraphs by double line breaks first
   //   let paragraphs = html.split(/\n\s*\n/).filter(para => para.trim())
-    
+
   //   // If no paragraphs found, try to split by sentence patterns
   //   if (paragraphs.length === 1) {
   //     paragraphs = html.split(/(?<=[.!?])\s+(?=[A-Z])/).filter(para => para.trim())
   //   }
-    
+
   //   let allFormattedLines = []
-    
+
   //   paragraphs.forEach((paragraph, paraIndex) => {
   //     const lines = paragraph.split(/\n/).filter(line => line.trim())
   //     let formattedLines = []
   //     let inList = false
-      
+
   //     lines.forEach((line, index) => {
   //       const trimmedLine = line.trim()
-        
+
   //       if (!trimmedLine) return
-        
+
   //       // Handle bullet points
   //       if (trimmedLine.startsWith('•') || trimmedLine.match(/^[-*]\s/)) {
   //         if (!inList) {
@@ -285,7 +285,7 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
   //           formattedLines.push('</ul>')
   //           inList = false
   //         }
-          
+
   //         // Check if it's a heading
   //         const isHeading = (
   //           trimmedLine.length < 100 && 
@@ -298,7 +298,7 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
   //              trimmedLine.includes('Takeaways'))
   //           )
   //         )
-          
+
   //         if (isHeading) {
   //           formattedLines.push(`<h3>${trimmedLine.replace(/:$/, '')}</h3>`)
   //         } else {
@@ -306,15 +306,15 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
   //         }
   //       }
   //     })
-      
+
   //     // Close any remaining list
   //     if (inList) {
   //       formattedLines.push('</ul>')
   //     }
-      
+
   //     allFormattedLines.push(...formattedLines)
   //   })
-    
+
   //   return allFormattedLines.join('\n')
   // }
 
@@ -336,41 +336,89 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
       }
     }
 
-      const handlePaste = (event) => {
+    const handlePaste = (event) => {
       event.preventDefault();
-      let paste;
+
+      let pasteContent;
       if (event.clipboardData && event.clipboardData.getData) {
-        paste = event.clipboardData.getData('text/html');
-        if (!paste) {
-          paste = event.clipboardData.getData('text/plain');
+        // Try to get HTML first (preserves formatting)
+        pasteContent = event.clipboardData.getData('text/html');
+
+        // Fallback to plain text if no HTML
+        if (!pasteContent || pasteContent.trim() === '') {
+          pasteContent = event.clipboardData.getData('text/plain');
         }
       }
 
-      if (paste) {
+      if (pasteContent) {
         const selection = window.getSelection();
         if (!selection.rangeCount) return;
+
+        // Delete any selected content first
         selection.deleteFromDocument();
         const range = selection.getRangeAt(0);
 
-        // Use DOMParser to create a document fragment from the pasted HTML
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(paste, 'text/html');
-        
-        // Create a fragment to hold the sanitized content
-        const fragment = document.createDocumentFragment();
-        
-        // Append all nodes from the parsed body to the fragment
-        while (doc.body.firstChild) {
-          fragment.appendChild(doc.body.firstChild);
+        // Check if we have HTML content
+        const isHTML = /<[a-z][\s\S]*>/i.test(pasteContent);
+
+        if (isHTML) {
+          // Parse HTML content
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(pasteContent, 'text/html');
+
+          // Create a fragment to hold the content
+          const fragment = document.createDocumentFragment();
+
+          // Function to clone node with all attributes and styles preserved
+          const cloneNodeWithStyles = (node) => {
+            if (node.nodeType === Node.TEXT_NODE) {
+              return document.createTextNode(node.textContent);
+            }
+
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const clone = document.createElement(node.tagName);
+
+              // Copy all attributes including style, class, align, etc.
+              Array.from(node.attributes).forEach(attr => {
+                clone.setAttribute(attr.name, attr.value);
+              });
+
+              // Recursively clone children
+              Array.from(node.childNodes).forEach(child => {
+                const childClone = cloneNodeWithStyles(child);
+                if (childClone) {
+                  clone.appendChild(childClone);
+                }
+              });
+
+              return clone;
+            }
+
+            return null;
+          };
+
+          // Clone all body children with styles preserved
+          Array.from(doc.body.childNodes).forEach(node => {
+            const clonedNode = cloneNodeWithStyles(node);
+            if (clonedNode) {
+              fragment.appendChild(clonedNode);
+            }
+          });
+
+          // Insert the fragment
+          range.insertNode(fragment);
+        } else {
+          // Plain text - insert as text node
+          const textNode = document.createTextNode(pasteContent);
+          range.insertNode(textNode);
         }
 
-        range.insertNode(fragment);
-
-        // Move the cursor to the end of the pasted content
+        // Move cursor to end of pasted content
         range.collapse(false);
         selection.removeAllRanges();
         selection.addRange(range);
 
+        // Update the content
         updateContent();
       }
     };
@@ -460,7 +508,7 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
         span.style.backgroundColor = color
         span.style.padding = '2px 4px'
         span.style.borderRadius = '3px'
-        
+
         try {
           // Surround the selected content with the span
           range.surroundContents(span)
@@ -470,10 +518,10 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
           span.appendChild(contents)
           range.insertNode(span)
         }
-        
+
         // Clear selection
         selection.removeAllRanges()
-        
+
         // Update content
         updateContent()
       } else {
@@ -500,7 +548,7 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
   // Enhanced table function with custom rows/columns
   const insertTable = () => {
     let tableHTML = `<table border="1" style="border-collapse: collapse; width: 100%; margin: 10px 0;">`
-    
+
     for (let i = 0; i < tableRows; i++) {
       tableHTML += '<tr>'
       for (let j = 0; j < tableCols; j++) {
@@ -509,7 +557,7 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
       }
       tableHTML += '</tr>'
     }
-    
+
     tableHTML += '</table>'
     executeCommand('insertHTML', tableHTML)
     setShowTableOptions(false)
@@ -834,7 +882,7 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
             { value: 'Lato', label: 'Lato' },
             { value: 'Montserrat', label: 'Montserrat' },
             { value: 'Source Sans Pro', label: 'Source Sans Pro' },
-            
+
             // Serif Fonts
             { value: 'Times New Roman', label: 'Times New Roman' },
             { value: 'Times', label: 'Times' },
@@ -844,7 +892,7 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
             { value: 'Palatino', label: 'Palatino' },
             { value: 'Merriweather', label: 'Merriweather' },
             { value: 'Playfair Display', label: 'Playfair Display' },
-            
+
             // Monospace Fonts
             { value: 'Courier New', label: 'Courier New' },
             { value: 'Monaco', label: 'Monaco' },
@@ -852,7 +900,7 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
             { value: 'Menlo', label: 'Menlo' },
             { value: 'Source Code Pro', label: 'Source Code Pro' },
             { value: 'Fira Code', label: 'Fira Code' },
-            
+
             // Display Fonts
             { value: 'Impact', label: 'Impact' },
             { value: 'Oswald', label: 'Oswald' },
@@ -984,17 +1032,16 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
                     <div key={itemIndex} className="relative">
                       <button
                         onClick={() => item.action ? item.action() : executeCommand(item.command)}
-                        className={`p-1 hover:bg-gray-200 rounded transition-colors ${
-                          (item.type === 'color' && showColorPicker) || 
-                          (item.type === 'highlight' && showHighlightPicker) ||
-                          (item.type === 'table' && showTableOptions) ? 'bg-blue-100' : ''
-                        }`}
+                        className={`p-1 hover:bg-gray-200 rounded transition-colors ${(item.type === 'color' && showColorPicker) ||
+                            (item.type === 'highlight' && showHighlightPicker) ||
+                            (item.type === 'table' && showTableOptions) ? 'bg-blue-100' : ''
+                          }`}
                         title={item.title}
                         type="button"
                       >
                         <Icon className="w-4 h-4" />
                       </button>
-                      
+
                       {/* Color Picker Dropdown */}
                       {item.type === 'color' && showColorPicker && (
                         <div className="absolute top-8 left-0 z-10 bg-white border border-gray-300 rounded-lg shadow-lg p-3">
@@ -1011,7 +1058,7 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
                           </div>
                         </div>
                       )}
-                      
+
                       {/* Highlight Picker Dropdown */}
                       {item.type === 'highlight' && showHighlightPicker && (
                         <div className="absolute top-8 left-0 z-10 bg-white border border-gray-300 rounded-lg shadow-lg p-3">
@@ -1042,7 +1089,7 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
                           </div>
                         </div>
                       )}
-                      
+
                       {/* Table Options Dropdown */}
                       {item.type === 'table' && showTableOptions && (
                         <div className="absolute top-8 left-0 z-10 bg-white border border-gray-300 rounded-lg shadow-lg p-4 w-64">
@@ -1126,7 +1173,7 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
           onInput={updateContent}
           onBlur={updateContent}
           className="w-full min-h-96 p-4 focus:outline-none"
-          style={{ 
+          style={{
             minHeight: '384px',
             maxHeight: '600px',
             overflowY: 'auto'
