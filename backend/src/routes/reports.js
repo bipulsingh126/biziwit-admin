@@ -8,7 +8,7 @@ import slugify from 'slugify'
 import Report from '../models/Report.js'
 import Category from '../models/Category.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
-
+import { JSDOM } from 'jsdom';
 const router = Router()
 
 const sanitizeOptions = {
@@ -1712,6 +1712,769 @@ router.post('/check-duplicates', upload.single('file'), async (req, res, next) =
 })
 
 // POST /api/reports/bulk-upload - Optimized bulk upload for 500+ records
+// router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
+//   try {
+//     if (!req.file) {
+//       return res.status(400).json({
+//         error: 'No File',
+//         message: 'No file uploaded for bulk import'
+//       });
+//     }
+
+//     let data;
+//     const fileExtension = path.extname(req.file.originalname).toLowerCase();
+
+//     console.log(`📁 Processing file: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`);
+
+//     try {
+//       if (fileExtension === '.csv') {
+//         // Handle CSV files with streaming for large files
+//         const workbook = XLSX.readFile(req.file.path, {
+//           type: 'file',
+//           cellDates: true,
+//           cellNF: false,
+//           cellText: false
+//         });
+//         const sheetName = workbook.SheetNames[0];
+//         const sheet = workbook.Sheets[sheetName];
+//         data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+//       } else {
+//         // Handle Excel files (.xlsx, .xls) with optimized reading
+//         const workbook = XLSX.readFile(req.file.path, {
+//           cellDates: true,
+//           cellNF: false,
+//           cellText: false
+//         });
+//         const sheetName = workbook.SheetNames[0];
+//         const sheet = workbook.Sheets[sheetName];
+//         data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+//       }
+//     } catch (fileError) {
+//       console.error('❌ File reading error:', fileError);
+//       return res.status(400).json({
+//         error: 'File Reading Error',
+//         message: `Failed to read the uploaded file: ${fileError.message}`
+//       });
+//     }
+
+//     if (!data || data.length === 0) {
+//       return res.status(400).json({
+//         error: 'Empty File',
+//         message: 'The uploaded file contains no data or has invalid format.'
+//       });
+//     }
+
+//     console.log(`🚀 Starting import of ${data.length} rows`);
+
+//     // Get duplicate handling preference
+//     const duplicateHandling = req.body.duplicateHandling || 'update';
+//     console.log(`🔄 Duplicate handling mode: ${duplicateHandling}`);
+
+//     // Validate file size for performance
+//     if (data.length > 1000) {
+//       console.log('⚠️  Large file detected, using optimized processing...');
+//     }
+
+//     // Optimized column detection and validation
+//     const allColumns = Object.keys(data[0] || {});
+//     const requiredColumns = ['Report Title', 'Title', 'Report Name'];
+//     const hasRequiredColumn = requiredColumns.some(col => allColumns.includes(col));
+
+//     if (!hasRequiredColumn) {
+//       return res.status(400).json({
+//         error: 'Invalid File Format',
+//         message: `Missing required title column. Expected one of: ${requiredColumns.join(', ')}`,
+//         availableColumns: allColumns
+//       });
+//     }
+
+//     console.log('🔍 Validating data structure...');
+
+//     let insertedCount = 0;
+//     let updatedCount = 0;
+//     let skippedCount = 0;
+//     let failedCount = 0;
+//     const errors = [];
+
+//     // Category creation tracking
+//     let categoriesCreated = 0;
+//     let subcategoriesCreated = 0;
+
+//     // Dynamic batch size based on data volume
+//     const batchSize = data.length > 500 ? 25 : data.length > 100 ? 50 : 100;
+//     const reportBatch = [];
+
+//     console.log(`⚡ Processing ${data.length} reports in optimized batches of ${batchSize}`);
+
+//     // Pre-compile regex patterns for better performance
+//     const cleanTextRegex = /[\r\n\t]+/g;
+//     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+//     // Performance tracking
+//     const startTime = Date.now();
+//     let processedCount = 0;
+
+//     for (let i = 0; i < data.length; i++) {
+//       const row = data[i];
+//       processedCount++;
+
+//       // Progress logging for large datasets
+//       if (data.length > 100 && processedCount % 50 === 0) {
+//         const elapsed = Date.now() - startTime;
+//         const rate = processedCount / (elapsed / 1000);
+//         const eta = ((data.length - processedCount) / rate) / 60;
+//         console.log(`📈 Progress: ${processedCount}/${data.length} (${(processedCount / data.length * 100).toFixed(1)}%) - ETA: ${eta.toFixed(1)}min`);
+//       }
+
+//       // Declare variables outside try block so they're accessible in catch block
+//       let cleanTitle = '';
+//       let cleanSubTitle = '';
+//       let cleanSegment = '';
+//       let cleanDescription = '';
+//       let cleanCompanies = '';
+//       let cleanSegmentCompanies = '';
+//       let category = '';
+//       let subCategory = '';
+//       let reportCode = '';
+
+//       try {
+//         // Optimized field mapping with performance improvements
+//         const title = row['Report Title'] || row['Title'] || row['Report Name'] || row['title'] || '';
+
+//         // Try multiple variations for subtitle/meta tag with fallback
+//         const subTitle = row['Report Sub Title / Title Meta Tag'] ||
+//           row['Title Meta Tag'] ||
+//           row['Report Sub Title'] ||
+//           row['Sub Title'] ||
+//           row['Subtitle'] ||
+//           row['subTitle'] || '';
+
+//         const summary = row['Summary'] || row['Description'] || row['summary'] || '';
+//         const content = row['Content'] || row['content'] || '';
+
+//         // Try multiple variations for report description - ENHANCED for REPORT OVERVIEW
+//         const reportDescription = row['REPORT OVERVIEW'] ||
+//           row['Report Overview'] ||
+//           row['Report Discription'] ||
+//           row['Report Description'] ||
+//           row['Description'] ||
+//           row['description'] ||
+//           row['Overview'] || '';
+
+//         const tableOfContents = row['Table of Contents'] || row['TOC'] || row['tableOfContents'] || '';
+
+//         // Map categories with more variations including new "Report Category" format
+//         category = row['Report Categories'] ||
+//           row['Report Category'] ||
+//           row['CATEGORIES'] ||
+//           row['Categories'] ||
+//           row['Category'] ||
+//           row['CATEGORY'] ||
+//           row['Domain'] ||
+//           row['DOMAIN'] ||
+//           row['Industry'] ||
+//           row['INDUSTRY'] ||
+//           row['category'] ||
+//           row['domain'] ||
+//           row['industry'] || '';
+
+//         subCategory = row['Report Sub Category'] ||
+//           row['Report Sub Categories'] ||
+//           row['Sub Category'] ||
+//           row['Sub Categories'] ||
+//           row['SUB CATEGORY'] ||
+//           row['SUB CATEGORIES'] ||
+//           row['Sub Domain'] ||
+//           row['SUB DOMAIN'] ||
+//           row['Subdomain'] ||
+//           row['SUBDOMAIN'] ||
+//           row['subCategory'] ||
+//           row['subCategories'] ||
+//           row['subdomain'] || '';
+
+//         // Debug category extraction for first 3 rows
+//         if (i < 3) {
+//           console.log(`🏷️ Row ${i + 1} CATEGORY EXTRACTION:`, {
+//             'category result': category,
+//             'subCategory result': subCategory,
+//             'category length': category ? category.length : 0,
+//             'subCategory length': subCategory ? subCategory.length : 0,
+//             'category isEmpty': !category || category.trim() === '',
+//             'subCategory isEmpty': !subCategory || subCategory.trim() === ''
+//           });
+//         }
+
+//         // Try multiple variations for combined segment/companies field
+//         const segmentCompanies = row['SEGMENT / COMPANIES'] ||
+//           row['Segment / Companies'] ||
+//           row['SEGMENT/COMPANIES'] ||
+//           row['Segment/Companies'] ||
+//           row['SEGMENTATION'] ||
+//           row['Segmentation'] ||
+//           row['Segment'] ||
+//           row['segment'] ||
+//           row['SEGMENT'] || '';
+
+//         // Legacy: Try multiple variations for separate segment field (for backward compatibility)
+//         const segment = row['SEGMENTATION'] ||
+//           row['Segmentation'] ||
+//           row['Segment'] ||
+//           row['segment'] ||
+//           row['SEGMENT'] || '';
+
+//         // Legacy: Try multiple variations for separate companies field (for backward compatibility)
+//         const companies = row['Companies'] ||
+//           row['companies'] ||
+//           row['COMPANIES'] ||
+//           row['Company'] ||
+//           row['company'] || '';
+
+//         // Extract region and sub-regions fields
+//         const region = row['Region'] || row['region'] || '';
+//         const subRegions = row['Sub Regions'] || row['Sub Region'] || row['subRegions'] || row['sub_regions'] || '';
+
+//         // Extract additional fields for bulk upload
+//         const authorName = row['Author Name'] || row['Author'] || row['author'] || '';
+//         reportCode = row['Report Code'] || row['Code'] || row['reportCode'] || '';
+//         const numberOfPages = row['Number of Page'] || row['Pages'] || row['numberOfPages'] || '';
+//         const reportDate = row['Report Date'] || row['Date'] || row['reportDate'] || '';
+//         const publishDate = row['Publish Date'] || row['publishDate'] || '';
+//         const price = row['Price'] || row['price'] || '';
+//         const currency = row['Currency'] || row['currency'] || 'USD';
+//         const format = row['Format'] || row['format'] || 'PDF';
+//         const language = row['Language'] || row['language'] || 'English';
+//         const industry = row['Industry'] || row['industry'] || '';
+//         const reportType = row['Report Type'] || row['Type'] || row['reportType'] || 'Market Research';
+
+//         // Pricing fields - matching your Excel image exactly
+//         const excelDatapackPrice = row['Excel Datapack Prices'] || row['Excel Datapack Price'] || row['Excel Data Pack Prices'] || row['Excel Data Pack Price'] || row['excelDatapackPrice'] || '';
+//         const singleUserPrice = row['Single User License Prices'] || row['Single User Prices'] || row['Single User Price'] || row['singleUserPrice'] || '';
+//         const enterprisePrice = row['Enterprise License Prices'] || row['Enterprise Price'] || row['Enterprise Prices'] || row['enterprisePrice'] || '';
+//         const internetHandlingCharges = row['Internet Handling Charges'] || row['internetHandlingCharges'] || '';
+
+//         // License fields
+//         const excelDataPackLicense = row['Excel Data Pack License'] || row['excelDataPackLicense'] || '';
+//         const singleUserLicense = row['Single User License'] || row['singleUserLicense'] || '';
+//         const enterpriseLicensePrice = row['Enterprise License Price'] || row['enterpriseLicensePrice'] || '';
+
+//         // Status fields
+//         const status = row['Status'] || row['status'] || 'draft';
+//         const featured = row['Featured'] || row['featured'] || false;
+//         const popular = row['Popular'] || row['popular'] || false;
+
+//         // Extract SEO fields
+//         const titleTag = row['Title Tag'] || row['SEO Title'] || row['titleTag'] || '';
+//         const urlSlug = row['URL Slug'] || row['URL'] || row['url'] || row['Slug'] || '';
+//         const metaDescription = row['Meta Description'] || row['metaDescription'] || row['SEO Description'] || '';
+//         const keywords = row['Keywords'] || row['keywords'] || row['SEO Keywords'] || '';
+
+//         // Enhanced cleaning and validation with better type handling
+//         cleanTitle = (title !== null && title !== undefined && title !== '') ? String(title).replace(cleanTextRegex, ' ').trim() : '';
+//         cleanSubTitle = (subTitle !== null && subTitle !== undefined && subTitle !== '') ? String(subTitle).replace(cleanTextRegex, ' ').trim() : '';
+
+//         // Format REPORT OVERVIEW data with consistent database-level formatting
+//         cleanDescription = formatReportOverview(reportDescription);
+//         cleanSegment = formatImportedContent(segment);
+//         cleanCompanies = formatImportedContent(companies);
+//         cleanSegmentCompanies = formatImportedContent(segmentCompanies);
+
+//         // Ensure slug is handled correctly
+//         let cleanSlug = (urlSlug !== null && urlSlug !== undefined && urlSlug !== '')
+//           ? String(urlSlug).trim()
+//           : '';
+
+//         // FALLBACK LOGIC: If SEGMENT / COMPANIES is empty, combine separate fields or use REPORT OVERVIEW
+//         if (!cleanSegmentCompanies || cleanSegmentCompanies === '' || cleanSegmentCompanies === '<div style="margin: 20px 0; padding: 15px; border-radius: 8px; background-color: #ffffff; border-left: 4px solid #10b981; background-color: #f0fdf4;"></div>') {
+//           if (cleanSegment || cleanCompanies) {
+//             // Combine separate segment and companies data with proper formatting
+//             const combinedParts = [];
+//             if (cleanSegment) combinedParts.push(cleanSegment);
+//             if (cleanCompanies) {
+//               combinedParts.push(`<h3 style="color: #1f2937; margin: 15px 0 10px 0; font-weight: 600;">Companies</h3>${cleanCompanies}`);
+//             }
+//             cleanSegmentCompanies = `<div style="margin: 20px 0; padding: 15px; border-radius: 8px; background-color: #ffffff; border-left: 4px solid #10b981; background-color: #f0fdf4;">${combinedParts.join('')}</div>`;
+//             console.log(`✅ FALLBACK: Combined separate fields into segmentCompanies with formatting`);
+//           } else if (cleanDescription && cleanDescription.length > 100) {
+//             // Use REPORT OVERVIEW as fallback if it contains substantial content, but reformat for segment context
+//             const rawDescription = (reportDescription !== null && reportDescription !== undefined && reportDescription !== '') ? String(reportDescription) : '';
+//             cleanSegmentCompanies = formatImportedContent(rawDescription, 'segment');
+//             console.log(`✅ FALLBACK: Using REPORT OVERVIEW as segmentCompanies with segment formatting`);
+//           }
+//         }
+
+//         // FINAL CHECK: Ensure we have some data in segmentCompanies
+//         if (i < 3) {
+//           console.log(`🎯 FINAL segmentCompanies CHECK for Row ${i + 1}:`, {
+//             'cleanSegmentCompanies length': cleanSegmentCompanies ? cleanSegmentCompanies.length : 0,
+//             'cleanSegmentCompanies preview': cleanSegmentCompanies ? cleanSegmentCompanies.substring(0, 150) + '...' : 'EMPTY',
+//             'Will be saved as': cleanSegmentCompanies || 'EMPTY STRING'
+//           });
+//         }
+
+//         // Clean SEO fields
+//         const cleanTitleTag = titleTag ? titleTag.toString().trim() : '';
+//         const cleanUrlSlug = urlSlug ? urlSlug.toString().trim() : '';
+//         const cleanMetaDescription = metaDescription ? metaDescription.toString().trim() : '';
+//         const cleanKeywords = keywords ? keywords.toString().trim() : '';
+
+//         // CRITICAL DEBUG: Log SEGMENTATION and REGION data extraction for first 3 rows
+//         if (i < 3) {
+//           console.log(`🔍 Row ${i + 1} BULK UPLOAD Debug:`, {
+//             'Available Excel Columns': Object.keys(row),
+//             'SEGMENT/COMPANIES Data (NEW)': {
+//               'Excel SEGMENT / COMPANIES Column': row['SEGMENT / COMPANIES'],
+//               'Excel SEGMENT/COMPANIES Column': row['SEGMENT/COMPANIES'],
+//               'Raw segmentCompanies extracted': segmentCompanies,
+//               'cleanSegmentCompanies after processing': cleanSegmentCompanies
+//             },
+//             'Legacy SEGMENTATION Data': {
+//               'Excel SEGMENTATION Column': row['SEGMENTATION'],
+//               'Raw segment extracted': segment,
+//               'cleanSegment after processing': cleanSegment
+//             },
+//             'Legacy COMPANIES Data': {
+//               'Excel COMPANIES Column': row['COMPANIES'],
+//               'Raw companies extracted': companies,
+//               'cleanCompanies after processing': cleanCompanies
+//             },
+//             'REGION Data': {
+//               'Excel Region Column': row['Region'],
+//               'Raw region extracted': region,
+//               'Raw subRegions extracted': subRegions
+//             },
+//             'CATEGORY Data': {
+//               'Excel Categories Column': row['Categories'],
+//               'Excel Category Column': row['Category'],
+//               'Excel Report Category Column': row['Report Category'],
+//               'Excel Report Categories Column': row['Report Categories'],
+//               'Raw category extracted': category,
+//               'Raw subCategory extracted': subCategory
+//             },
+//             'SEO Data': {
+//               'Excel Title Tag Column': row['Title Tag'],
+//               'Excel URL Slug Column': row['URL Slug'],
+//               'Excel Meta Description Column': row['Meta Description'],
+//               'Excel Keywords Column': row['Keywords'],
+//               'Raw titleTag extracted': titleTag,
+//               'Raw urlSlug extracted': cleanSlug,
+//               'Raw metaDescription extracted': metaDescription,
+//               'Raw keywords extracted': keywords,
+//               'cleanTitleTag after processing': cleanTitleTag,
+//               'cleanUrlSlug after processing': cleanUrlSlug,
+//               'cleanMetaDescription after processing': cleanMetaDescription,
+//               'cleanKeywords after processing': cleanKeywords
+//             }
+//           });
+//         }
+
+//         // Enhanced validation with better error messages
+//         if (!cleanTitle || cleanTitle.length < 3) {
+//           failedCount++;
+//           errors.push({
+//             row: i + 1,
+//             reportCode: reportCode || 'N/A',
+//             error: cleanTitle ? 'Title too short (minimum 3 characters)' : 'Title is required'
+//           });
+//           continue;
+//         }
+
+//         // Additional validation for data quality
+//         if (cleanTitle.length > 500) {
+//           cleanTitle = cleanTitle.substring(0, 500) + '...';
+//         }
+
+
+//         // Slug handling: Prioritize Excel slug, then generate from title, then fallback.
+//         let slug = cleanUrlSlug;
+//         if (!slug) {
+//           try {
+//             slug = await generateUniqueSlug(cleanTitle);
+//           } catch (slugError) {
+//             console.error('Slug generation error:', slugError);
+//             // Fallback to a timestamped slug if generation fails
+//             slug = `report-${Date.now()}`;
+//           }
+//         }
+
+//         // AUTO-CREATE CATEGORIES AND SUBCATEGORIES FROM EXCEL DATA
+//         try {
+//           // Ensure category exists (create if not found)
+//           if (category && category.toString().trim() !== '') {
+//             const categoryResult = await ensureCategoryExists(category.toString().trim());
+//             if (categoryResult) {
+//               if (categoryResult.created) {
+//                 categoriesCreated++;
+//                 console.log(`📂 NEW Category created: "${category.toString().trim()}" for report: "${cleanTitle}"`);
+//               } else {
+//                 console.log(`📂 Category "${category.toString().trim()}" already exists for report: "${cleanTitle}"`);
+//               }
+//             }
+//           }
+
+//           // Ensure subcategory exists under category (create if not found)
+//           if (category && category.toString().trim() !== '' &&
+//             subCategory && subCategory.toString().trim() !== '') {
+//             const subcategoryResult = await ensureSubcategoryExists(
+//               category.toString().trim(),
+//               subCategory.toString().trim()
+//             );
+//             if (subcategoryResult) {
+//               if (subcategoryResult.categoryCreated) {
+//                 categoriesCreated++;
+//               }
+//               if (subcategoryResult.subcategoryCreated) {
+//                 subcategoriesCreated++;
+//                 console.log(`📁 NEW Subcategory created: "${subCategory.toString().trim()}" under category "${category.toString().trim()}" for report: "${cleanTitle}"`);
+//               } else {
+//                 console.log(`📁 Subcategory "${subCategory.toString().trim()}" already exists under category "${category.toString().trim()}" for report: "${cleanTitle}"`);
+//               }
+//             }
+//           }
+//         } catch (categoryError) {
+//           console.error(`⚠️ Category/Subcategory creation failed for report "${cleanTitle}":`, categoryError.message);
+//           // Continue with report creation even if category creation fails
+//         }
+
+//         const reportData = {
+//           title: cleanTitle,
+//           subTitle: cleanSubTitle,  // Maps from 'Report Sub Title / Title Meta Tag' Excel column
+//           slug,
+//           summary: summary?.toString().trim() || '',  // Keep existing summary field
+//           reportDescription: cleanDescription,  // Maps from 'Report Discription' Excel column
+//           content: content?.toString() || '',
+//           tableOfContents: tableOfContents?.toString() ? formatImportedContent(tableOfContents.toString(), 'tableOfContents') : '',
+//           category: category?.toString().trim() || '',
+//           subCategory: subCategory?.toString().trim() || '',
+//           region: region?.toString().trim() || '',
+//           subRegions: subRegions?.toString().trim() || '',
+//           reportCode: reportCode?.toString().trim() || '',
+//           numberOfPages: numberOfPages ? parseInt(numberOfPages) || 1 : 1,
+//           price: price ? parseFloat(price) || 0 : 0,
+//           currency: currency?.toString().toLowerCase() || 'usd',
+//           format: format?.toString().toLowerCase() || 'pdf',
+//           industry: industry?.toString().trim() || '',
+//           reportType: reportType?.toString() || 'market-research',
+
+//           // Excel import field mapping for frontend compatibility - USE EMPTY STRINGS NOT NULL
+//           reportDate: reportDate ? (isNaN(Date.parse(reportDate)) ? new Date() : new Date(reportDate)) : new Date(),
+//           reportCategories: (category?.toString().trim() && category.toString().trim() !== '') ? category.toString().trim() : '',
+
+//           // NEW: Combined segment/companies field
+//           segmentCompanies: [cleanSegment, cleanCompanies].filter(Boolean).join('\n\n'),
+//           segment: (cleanSegment && cleanSegment !== '') ? cleanSegment : '',
+//           companies: (cleanCompanies && cleanCompanies !== '') ? cleanCompanies : '',
+//           reportDescription: (cleanDescription && cleanDescription !== '') ? cleanDescription : '',
+
+//           // SEO fields from Excel import
+//           titleTag: (cleanTitleTag && cleanTitleTag !== '') ? cleanTitleTag : null,
+//           url: (cleanUrlSlug && cleanUrlSlug !== '') ? cleanUrlSlug : null, // Keep for legacy compatibility
+//           slug: slug, // Use the definitive slug determined above
+//           metaDescription: (cleanMetaDescription && cleanMetaDescription !== '') ? cleanMetaDescription : null,
+//           keywords: (cleanKeywords && cleanKeywords !== '') ? cleanKeywords : null,
+
+//           // Pricing fields - matching Excel image exactly
+//           excelDatapackPrice: excelDatapackPrice?.toString() || '',
+//           singleUserPrice: singleUserPrice?.toString() || '',
+//           enterprisePrice: enterprisePrice?.toString() || '',
+//           internetHandlingCharges: internetHandlingCharges?.toString() || '',
+
+//           // License fields (from Excel or defaults)
+//           excelDataPackLicense: excelDataPackLicense?.toString() || '',
+//           singleUserLicense: singleUserLicense?.toString() || '',
+//           enterpriseLicensePrice: enterpriseLicensePrice?.toString() || '',
+
+//           status: status || 'draft',
+//           featured: Boolean(featured),
+//           popular: Boolean(popular),
+//           tags: cleanSegment ? [cleanSegment] : [],  // Keep for backward compatibility
+//           author: authorName?.toString().trim() || req.user?.name || 'System',
+//           publishDate: publishDate ? (isNaN(Date.parse(publishDate)) ? new Date() : new Date(publishDate)) : new Date(),
+//           domain: category?.toString().trim() || '',
+//           subdomain: subCategory?.toString().trim() || ''
+//         };
+
+//         // Validate required fields
+//         if (!reportData.title || !reportData.slug) {
+//           throw new Error(`Missing required fields: title="${reportData.title}", slug="${reportData.slug}"`);
+//         }
+
+//         // Enhanced debugging for first few records only
+//         if (i < 3 && data.length <= 100) {
+//           console.log('🔍 COMPLETE EXCEL IMPORT DEBUG - About to save report data:', {
+//             title: reportData.title,
+//             'CRITICAL FIELDS TO SAVE': {
+//               'segmentCompanies (NEW)': reportData.segmentCompanies,
+//               'reportDescription': reportData.reportDescription,
+//               'segment (Legacy)': reportData.segment,
+//               'companies (Legacy)': reportData.companies,
+//               'reportCategories': reportData.reportCategories
+//             },
+//             'Excel Raw Values': {
+//               'SEGMENT / COMPANIES (NEW)': row['SEGMENT / COMPANIES'],
+//               'REPORT OVERVIEW': row['REPORT OVERVIEW'],
+//               'SEGMENTATION (Legacy)': row['SEGMENTATION'],
+//               'COMPANIES (Legacy)': row['COMPANIES'],
+//               'CATEGORIES': row['CATEGORIES']
+//             },
+//             'Cleaned Values': {
+//               'cleanSegmentCompanies (NEW)': cleanSegmentCompanies,
+//               'cleanDescription': cleanDescription,
+//               'cleanSegment (Legacy)': cleanSegment,
+//               'cleanCompanies (Legacy)': cleanCompanies,
+//               'category': category
+//             },
+//             'FINAL VALIDATION': {
+//               'segmentCompanies field will be saved as': reportData.segmentCompanies,
+//               'segmentCompanies is empty?': !reportData.segmentCompanies || reportData.segmentCompanies === '',
+//               'segmentCompanies length': reportData.segmentCompanies ? reportData.segmentCompanies.length : 0,
+//               'segment (Legacy) field will be saved as': reportData.segment,
+//               'segment (Legacy) is empty?': !reportData.segment || reportData.segment === '',
+//               'segment (Legacy) length': reportData.segment ? reportData.segment.length : 0
+//             }
+//           });
+//         }
+
+//         // Add to batch instead of saving immediately
+//         reportBatch.push(reportData);
+
+//         // Process batch when it reaches batchSize or is the last item
+//         if (reportBatch.length >= batchSize || i === data.length - 1) {
+//           console.log(`Processing batch of ${reportBatch.length} reports...`);
+
+//           // Optimized bulk processing with better error handling and duplicate prevention
+//           try {
+//             // Handle different duplicate strategies
+//             const bulkOps = [];
+
+//             for (const reportData of reportBatch) {
+//               const filter = reportData.reportCode && reportData.reportCode.trim()
+//                 ? { reportCode: reportData.reportCode }
+//                 : {
+//                   $or: [
+//                     { slug: reportData.slug },
+//                     { title: reportData.title }
+//                   ]
+//                 };
+
+//               if (duplicateHandling === 'skip') {
+//                 // Skip duplicates - only insert if not exists
+//                 const existing = await Report.findOne(filter);
+//                 if (!existing) {
+//                   bulkOps.push({
+//                     insertOne: {
+//                       document: reportData
+//                     }
+//                   });
+//                 } else {
+//                   skippedCount++;
+//                 }
+//               } else if (duplicateHandling === 'create') {
+//                 // Always create new - don't check for duplicates
+//                 bulkOps.push({
+//                   insertOne: {
+//                     document: reportData
+//                   }
+//                 });
+//               } else {
+//                 // Default: update existing or create new (upsert)
+//                 bulkOps.push({
+//                   updateOne: {
+//                     filter: filter,
+//                     update: { $set: reportData },
+//                     upsert: true
+//                   }
+//                 });
+//               }
+//             }
+
+//             const bulkResult = await Report.bulkWrite(bulkOps, {
+//               ordered: false,
+//               writeConcern: { w: 1 }
+//             });
+
+//             insertedCount += bulkResult.insertedCount || 0;
+//             updatedCount += bulkResult.modifiedCount || 0;
+//             insertedCount += bulkResult.upsertedCount || 0;
+
+//             if (data.length <= 100) {
+//               console.log(`✅ Batch completed: +${bulkResult.insertedCount || 0} new, ~${bulkResult.modifiedCount || 0} updated, ^${bulkResult.upsertedCount || 0} upserted`);
+//               if (bulkResult.modifiedCount > 0) {
+//                 console.log(`🔄 ${bulkResult.modifiedCount} duplicate(s) detected and updated instead of creating new records`);
+//               }
+
+//               // CRITICAL: Verify SEGMENTATION data was actually saved for first few records
+//               if (reportBatch.length > 0) {
+//                 const firstReport = reportBatch[0];
+//                 if (firstReport.title) {
+//                   try {
+//                     const savedReport = await Report.findOne({ title: firstReport.title }).lean();
+//                     if (savedReport) {
+//                       console.log('🔍 POST-SAVE VERIFICATION - SEGMENTATION data in database:', {
+//                         'Report Title': savedReport.title,
+//                         'segment field in DB': savedReport.segment,
+//                         'segment length': savedReport.segment ? savedReport.segment.length : 0,
+//                         'segment is empty?': !savedReport.segment || savedReport.segment === '',
+//                         'companies field in DB': savedReport.companies,
+//                         'reportDescription field in DB': savedReport.reportDescription,
+//                         'SEO FIELDS in DB': {
+//                           'titleTag': savedReport.titleTag,
+//                           'slug': savedReport.slug,
+//                           'url': savedReport.url,
+//                           'metaDescription': savedReport.metaDescription,
+//                           'keywords': savedReport.keywords
+//                         }
+//                       });
+//                     }
+//                   } catch (verifyError) {
+//                     console.error('❌ Post-save verification failed:', verifyError.message);
+//                   }
+//                 }
+//               }
+//             }
+
+//           } catch (bulkError) {
+//             console.error('❌ Bulk operation failed:', bulkError.message);
+
+//             // Fallback to individual processing for this batch with duplicate prevention
+//             for (const reportData of reportBatch) {
+//               try {
+//                 let result;
+//                 if (reportData.reportCode && reportData.reportCode.trim()) {
+//                   // Use reportCode as primary identifier
+//                   result = await Report.findOneAndUpdate(
+//                     { reportCode: reportData.reportCode },
+//                     reportData,
+//                     { new: true, upsert: true, runValidators: true }
+//                   );
+//                 } else {
+//                   // Use title or slug to prevent duplicates
+//                   result = await Report.findOneAndUpdate(
+//                     {
+//                       $or: [
+//                         { slug: reportData.slug },
+//                         { title: reportData.title }
+//                       ]
+//                     },
+//                     reportData,
+//                     { new: true, upsert: true, runValidators: true }
+//                   );
+//                 }
+
+//                 // Check if this was an insert or update
+//                 if (result.isNew !== false) {
+//                   insertedCount++;
+//                 } else {
+//                   updatedCount++;
+//                 }
+//               } catch (individualError) {
+//                 failedCount++;
+//                 errors.push({
+//                   row: reportBatch.indexOf(reportData) + 1,
+//                   title: reportData.title || 'Unknown',
+//                   reportCode: reportData.reportCode || 'N/A',
+//                   error: individualError.message
+//                 });
+//               }
+//             }
+//           }
+
+//           reportBatch.length = 0; // Clear the batch
+
+//           // Progress update for large files
+//           if (data.length > 100) {
+//             const progress = ((i + 1) / data.length * 100).toFixed(1);
+//             console.log(`📊 Progress: ${progress}% (${insertedCount + updatedCount} processed, ${failedCount} failed)`);
+//           }
+//         }
+//       } catch (error) {
+//         console.error('Error processing row:', error);
+//         console.error('Row data:', row);
+//         console.error('Processed data:', {
+//           cleanTitle, cleanSubTitle, cleanDescription, cleanSegment, category, subCategory
+//         });
+//         failedCount++;
+//         errors.push({
+//           title: cleanTitle || 'Unknown',
+//           reportCode: reportCode || 'Unknown',
+//           error: error.message,
+//           stack: error.stack,
+//           rowData: Object.keys(row).slice(0, 10).reduce((obj, key) => {
+//             obj[key] = row[key];
+//             return obj;
+//           }, {})
+//         });
+//       }
+//     }
+
+//     // Performance summary
+//     const totalTime = (Date.now() - startTime) / 1000;
+//     const rate = data.length / totalTime;
+
+//     console.log(`🎉 Import completed in ${totalTime.toFixed(2)}s (${rate.toFixed(1)} records/sec)`);
+//     console.log(`📊 Results: ${insertedCount} new, ${updatedCount} updated, ${failedCount} failed`);
+
+//     // Clean up uploaded file
+//     try {
+//       fs.unlinkSync(req.file.path);
+//     } catch (cleanupError) {
+//       console.warn('⚠️  Failed to cleanup uploaded file:', cleanupError.message);
+//     }
+
+//     const totalProcessed = insertedCount + updatedCount + skippedCount;
+//     const successRate = ((totalProcessed / data.length) * 100).toFixed(1);
+
+//     console.log(`📊 Final Results: ${insertedCount} new, ${updatedCount} updated, ${skippedCount} skipped, ${failedCount} failed`);
+//     console.log(`🏷️ Categories: ${categoriesCreated} new categories, ${subcategoriesCreated} new subcategories created`);
+
+//     res.status(201).json({
+//       success: true,
+//       message: `Import completed: ${totalProcessed}/${data.length} records processed (${successRate}% success rate)`,
+//       stats: {
+//         total: data.length,
+//         inserted: insertedCount,
+//         updated: updatedCount,
+//         skipped: skippedCount,
+//         failed: failedCount,
+//         duplicates: skippedCount + updatedCount,
+//         successRate: parseFloat(successRate),
+//         processingTime: totalTime,
+//         recordsPerSecond: parseFloat(rate.toFixed(1)),
+//         categoriesCreated: categoriesCreated,
+//         subcategoriesCreated: subcategoriesCreated
+//       },
+//       categories: {
+//         created: categoriesCreated,
+//         subcategoriesCreated: subcategoriesCreated,
+//         message: categoriesCreated > 0 || subcategoriesCreated > 0
+//           ? `Auto-created ${categoriesCreated} categories and ${subcategoriesCreated} subcategories from Excel data`
+//           : 'No new categories or subcategories were needed'
+//       },
+//       errors: errors.slice(0, 10), // Limit errors in response
+//       note: failedCount > 0 ? `${failedCount} records failed. Check logs for details.` : 'All records processed successfully'
+//     });
+
+//   } catch (error) {
+//     console.error('❌ Critical error during bulk import:', error);
+
+//     // Clean up uploaded file
+//     if (req.file) {
+//       try {
+//         fs.unlinkSync(req.file.path);
+//       } catch (cleanupError) {
+//         console.warn('⚠️  Failed to cleanup uploaded file after error:', cleanupError.message);
+//       }
+//     }
+
+//     // Return structured error response
+//     res.status(500).json({
+//       success: false,
+//       error: 'Import Failed',
+//       message: error.message || 'An unexpected error occurred during import',
+//       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+//     });
+//   }
+// });
+
 router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) {
@@ -1739,15 +2502,75 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         const sheet = workbook.Sheets[sheetName];
         data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
       } else {
-        // Handle Excel files (.xlsx, .xls) with optimized reading
+        // Handle Excel files (.xlsx, .xls) with FORMATTING PRESERVATION
         const workbook = XLSX.readFile(req.file.path, {
           cellDates: true,
           cellNF: false,
-          cellText: false
+          cellText: false,
+          cellStyles: true  // ✅ Enable style reading
         });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-        data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+
+
+        // ✅ Use sheet_to_html to preserve formatting (bold, italic, underline)
+        const htmlTable = XLSX.utils.sheet_to_html(sheet);
+        console.log('📊 Excel HTML output (first 500 chars):', htmlTable.substring(0, 500));
+
+        // ✅ Parse HTML to extract formatted content
+        const dom = new JSDOM(htmlTable);
+        const rows = Array.from(dom.window.document.querySelectorAll('tr'));
+
+        if (rows.length < 2) {
+          throw new Error('Excel file must have at least a header row and one data row');
+        }
+
+        // Extract headers from first row
+        const headerCells = rows[0].querySelectorAll('th, td');
+        const headers = Array.from(headerCells).map(cell => cell.textContent.trim());
+
+
+
+        // ✅ Extract data rows with formatting preserved
+        data = rows.slice(1).map((row, rowIndex) => {
+          const cells = row.querySelectorAll('td');
+          const obj = {};
+
+          Array.from(cells).forEach((cell, index) => {
+            const header = headers[index];
+            if (header) {
+              // ✅ Get HTML content to preserve formatting tags
+              let cellContent = cell.innerHTML.trim();
+
+              // Clean up Excel's HTML (remove extra spans, etc.)
+              cellContent = cellContent
+                .replace(/<span[^>]*>/g, '')
+                .replace(/<\/span>/g, '')
+                .replace(/&nbsp;/g, ' ')
+                .replace(/<br\s*\/?>/g, '\n');  // Convert <br> to newlines
+
+              obj[header] = cellContent || '';
+
+              // Debug first few cells
+              if (rowIndex < 2 && index < 3) {
+                console.log(`📝 Cell [${rowIndex},${index}] (${header}):`, {
+                  text: cell.textContent.substring(0, 50),
+                  html: cellContent.substring(0, 100),
+                  hasBold: cellContent.includes('<b>') || cellContent.includes('<strong>')
+                });
+              }
+            }
+          });
+
+          return obj;
+        }).filter(row => Object.values(row).some(val => val && val.toString().trim()));
+
+        console.log(`✅ Excel parsed with formatting. Total rows: ${data.length}`, {
+          headers,
+          firstRowSample: data[0] ? Object.keys(data[0]).slice(0, 3) : [],
+          hasFormatting: JSON.stringify(data[0] || {}).includes('<b>')
+        });
       }
     } catch (fileError) {
       console.error('❌ File reading error:', fileError);
@@ -1853,6 +2676,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         const content = row['Content'] || row['content'] || '';
 
         // Try multiple variations for report description - ENHANCED for REPORT OVERVIEW
+        // ✅ NOW INCLUDES FORMATTING TAGS (<b>, <i>, <u>)
         const reportDescription = row['REPORT OVERVIEW'] ||
           row['Report Overview'] ||
           row['Report Discription'] ||
@@ -1892,19 +2716,10 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           row['subCategories'] ||
           row['subdomain'] || '';
 
-        // Debug category extraction for first 3 rows
-        if (i < 3) {
-          console.log(`🏷️ Row ${i + 1} CATEGORY EXTRACTION:`, {
-            'category result': category,
-            'subCategory result': subCategory,
-            'category length': category ? category.length : 0,
-            'subCategory length': subCategory ? subCategory.length : 0,
-            'category isEmpty': !category || category.trim() === '',
-            'subCategory isEmpty': !subCategory || subCategory.trim() === ''
-          });
-        }
+
 
         // Try multiple variations for combined segment/companies field
+        // ✅ NOW INCLUDES FORMATTING TAGS (<b>, <i>, <u>)
         const segmentCompanies = row['SEGMENT / COMPANIES'] ||
           row['Segment / Companies'] ||
           row['SEGMENT/COMPANIES'] ||
@@ -1972,7 +2787,8 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         cleanTitle = (title !== null && title !== undefined && title !== '') ? String(title).replace(cleanTextRegex, ' ').trim() : '';
         cleanSubTitle = (subTitle !== null && subTitle !== undefined && subTitle !== '') ? String(subTitle).replace(cleanTextRegex, ' ').trim() : '';
 
-        // Format REPORT OVERVIEW data with consistent database-level formatting
+        // ✅ Format REPORT OVERVIEW data with consistent database-level formatting
+        // NOW PRESERVES <b>, <i>, <u> tags from Excel
         cleanDescription = formatReportOverview(reportDescription);
         cleanSegment = formatImportedContent(segment);
         cleanCompanies = formatImportedContent(companies);
@@ -2002,70 +2818,12 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           }
         }
 
-        // FINAL CHECK: Ensure we have some data in segmentCompanies
-        if (i < 3) {
-          console.log(`🎯 FINAL segmentCompanies CHECK for Row ${i + 1}:`, {
-            'cleanSegmentCompanies length': cleanSegmentCompanies ? cleanSegmentCompanies.length : 0,
-            'cleanSegmentCompanies preview': cleanSegmentCompanies ? cleanSegmentCompanies.substring(0, 150) + '...' : 'EMPTY',
-            'Will be saved as': cleanSegmentCompanies || 'EMPTY STRING'
-          });
-        }
 
         // Clean SEO fields
         const cleanTitleTag = titleTag ? titleTag.toString().trim() : '';
         const cleanUrlSlug = urlSlug ? urlSlug.toString().trim() : '';
         const cleanMetaDescription = metaDescription ? metaDescription.toString().trim() : '';
         const cleanKeywords = keywords ? keywords.toString().trim() : '';
-
-        // CRITICAL DEBUG: Log SEGMENTATION and REGION data extraction for first 3 rows
-        if (i < 3) {
-          console.log(`🔍 Row ${i + 1} BULK UPLOAD Debug:`, {
-            'Available Excel Columns': Object.keys(row),
-            'SEGMENT/COMPANIES Data (NEW)': {
-              'Excel SEGMENT / COMPANIES Column': row['SEGMENT / COMPANIES'],
-              'Excel SEGMENT/COMPANIES Column': row['SEGMENT/COMPANIES'],
-              'Raw segmentCompanies extracted': segmentCompanies,
-              'cleanSegmentCompanies after processing': cleanSegmentCompanies
-            },
-            'Legacy SEGMENTATION Data': {
-              'Excel SEGMENTATION Column': row['SEGMENTATION'],
-              'Raw segment extracted': segment,
-              'cleanSegment after processing': cleanSegment
-            },
-            'Legacy COMPANIES Data': {
-              'Excel COMPANIES Column': row['COMPANIES'],
-              'Raw companies extracted': companies,
-              'cleanCompanies after processing': cleanCompanies
-            },
-            'REGION Data': {
-              'Excel Region Column': row['Region'],
-              'Raw region extracted': region,
-              'Raw subRegions extracted': subRegions
-            },
-            'CATEGORY Data': {
-              'Excel Categories Column': row['Categories'],
-              'Excel Category Column': row['Category'],
-              'Excel Report Category Column': row['Report Category'],
-              'Excel Report Categories Column': row['Report Categories'],
-              'Raw category extracted': category,
-              'Raw subCategory extracted': subCategory
-            },
-            'SEO Data': {
-              'Excel Title Tag Column': row['Title Tag'],
-              'Excel URL Slug Column': row['URL Slug'],
-              'Excel Meta Description Column': row['Meta Description'],
-              'Excel Keywords Column': row['Keywords'],
-              'Raw titleTag extracted': titleTag,
-              'Raw urlSlug extracted': cleanSlug,
-              'Raw metaDescription extracted': metaDescription,
-              'Raw keywords extracted': keywords,
-              'cleanTitleTag after processing': cleanTitleTag,
-              'cleanUrlSlug after processing': cleanUrlSlug,
-              'cleanMetaDescription after processing': cleanMetaDescription,
-              'cleanKeywords after processing': cleanKeywords
-            }
-          });
-        }
 
         // Enhanced validation with better error messages
         if (!cleanTitle || cleanTitle.length < 3) {
@@ -2140,7 +2898,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           subTitle: cleanSubTitle,  // Maps from 'Report Sub Title / Title Meta Tag' Excel column
           slug,
           summary: summary?.toString().trim() || '',  // Keep existing summary field
-          reportDescription: cleanDescription,  // Maps from 'Report Discription' Excel column
+          reportDescription: cleanDescription,  // Maps from 'Report Discription' Excel column - NOW WITH FORMATTING
           content: content?.toString() || '',
           tableOfContents: tableOfContents?.toString() ? formatImportedContent(tableOfContents.toString(), 'tableOfContents') : '',
           category: category?.toString().trim() || '',
@@ -2159,11 +2917,10 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
           reportDate: reportDate ? (isNaN(Date.parse(reportDate)) ? new Date() : new Date(reportDate)) : new Date(),
           reportCategories: (category?.toString().trim() && category.toString().trim() !== '') ? category.toString().trim() : '',
 
-          // NEW: Combined segment/companies field
-          segmentCompanies: [cleanSegment, cleanCompanies].filter(Boolean).join('\n\n'),
+          // NEW: Combined segment/companies field - NOW WITH FORMATTING
+          segmentCompanies: cleanSegmentCompanies,
           segment: (cleanSegment && cleanSegment !== '') ? cleanSegment : '',
           companies: (cleanCompanies && cleanCompanies !== '') ? cleanCompanies : '',
-          reportDescription: (cleanDescription && cleanDescription !== '') ? cleanDescription : '',
 
           // SEO fields from Excel import
           titleTag: (cleanTitleTag && cleanTitleTag !== '') ? cleanTitleTag : null,
@@ -2229,7 +2986,8 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
               'segmentCompanies length': reportData.segmentCompanies ? reportData.segmentCompanies.length : 0,
               'segment (Legacy) field will be saved as': reportData.segment,
               'segment (Legacy) is empty?': !reportData.segment || reportData.segment === '',
-              'segment (Legacy) length': reportData.segment ? reportData.segment.length : 0
+              'segment (Legacy) length': reportData.segment ? reportData.segment.length : 0,
+              'HAS FORMATTING TAGS': reportData.segmentCompanies ? (reportData.segmentCompanies.includes('<b>') || reportData.segmentCompanies.includes('<strong>')) : false
             }
           });
         }
@@ -2302,7 +3060,6 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
                 console.log(`🔄 ${bulkResult.modifiedCount} duplicate(s) detected and updated instead of creating new records`);
               }
 
-              // CRITICAL: Verify SEGMENTATION data was actually saved for first few records
               if (reportBatch.length > 0) {
                 const firstReport = reportBatch[0];
                 if (firstReport.title) {
@@ -2316,6 +3073,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
                         'segment is empty?': !savedReport.segment || savedReport.segment === '',
                         'companies field in DB': savedReport.companies,
                         'reportDescription field in DB': savedReport.reportDescription,
+                        'HAS FORMATTING IN DB': savedReport.segment ? (savedReport.segment.includes('<b>') || savedReport.segment.includes('<strong>')) : false,
                         'SEO FIELDS in DB': {
                           'titleTag': savedReport.titleTag,
                           'slug': savedReport.slug,
