@@ -54,8 +54,8 @@ const allowedOrigins = [
   'https://admin.bizwitresearch.com',
   'https://bizwitresearch.com',
   'https://api.bizwitresearch.com',
-  process.env.FRONTEND_URL,
-  process.env.ADMIN_URL
+  // process.env.FRONTEND_URL,
+  // process.env.ADMIN_URL
 ].filter(Boolean) // Remove undefined values
 
 // Security and CORS headers middleware
