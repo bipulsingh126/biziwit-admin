@@ -47,53 +47,99 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || ''
 const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null
 
 // Environment-based CORS origins
+// const allowedOrigins = [
+//   'http://localhost:3000',
+//   'http://localhost:5173',
+//   'http://localhost:3001',
+//   'https://admin.bizwitresearch.com',
+//   'https://bizwitresearch.com',
+//   'https://api.bizwitresearch.com',
+//   process.env.FRONTEND_URL,
+//   process.env.ADMIN_URL
+// ].filter(Boolean) // Remove undefined values
+
+// // Security and CORS headers middleware
+// app.use((req, res, next) => {
+//   // Remove problematic headers
+//   res.removeHeader('Origin-Agent-Cluster')
+  
+//   // Add security headers for cross-origin requests
+//   res.header('Cross-Origin-Embedder-Policy', 'unsafe-none')
+//   res.header('Cross-Origin-Opener-Policy', 'unsafe-none')
+//   res.header('Cross-Origin-Resource-Policy', 'cross-origin')
+  
+//   // Special handling for static file requests (images, uploads)
+//   if (req.path.startsWith('/uploads') || req.path.startsWith('/images')) {
+//     res.header('Access-Control-Allow-Origin', '*')
+//     res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+//     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control')
+//     res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Last-Modified, ETag')
+//     res.header('Vary', 'Origin')
+//   }
+  
+//   // Handle preflight requests
+//   if (req.method === 'OPTIONS') {
+//     const origin = req.headers.origin
+//     if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+//       res.header('Access-Control-Allow-Origin', origin)
+//       res.header('Access-Control-Allow-Credentials', 'true')
+//     } else {
+//       res.header('Access-Control-Allow-Origin', '*')
+//       res.header('Access-Control-Allow-Credentials', 'false')
+//     }
+//     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS')
+//     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control')
+//     return res.status(200).end()
+//   }
+  
+//   next()
+// })
+// relpace
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:3001',
   'https://admin.bizwitresearch.com',
   'https://bizwitresearch.com',
-  'https://api.bizwitresearch.com',
   process.env.FRONTEND_URL,
   process.env.ADMIN_URL
-].filter(Boolean) // Remove undefined values
+].filter(Boolean);
 
-// Security and CORS headers middleware
 app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
   // Remove problematic headers
-  res.removeHeader('Origin-Agent-Cluster')
-  
-  // Add security headers for cross-origin requests
-  res.header('Cross-Origin-Embedder-Policy', 'unsafe-none')
-  res.header('Cross-Origin-Opener-Policy', 'unsafe-none')
-  res.header('Cross-Origin-Resource-Policy', 'cross-origin')
-  
-  // Special handling for static file requests (images, uploads)
+  res.removeHeader('Origin-Agent-Cluster');
+
+  // Security headers
+  res.header('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  res.header('Cross-Origin-Opener-Policy', 'unsafe-none');
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+
+  // ⭐ CORS for ALL requests (POST, GET, PUT, DELETE)
+  if (allowedOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header("Vary", "Origin");
+  }
+
+  // Special handling for static files
   if (req.path.startsWith('/uploads') || req.path.startsWith('/images')) {
-    res.header('Access-Control-Allow-Origin', '*')
-    res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control')
-    res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Last-Modified, ETag')
-    res.header('Vary', 'Origin')
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
+    res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Last-Modified, ETag');
   }
-  
-  // Handle preflight requests
+
+  // ⭐ PRE-FLIGHT (OPTIONS) REQUEST
   if (req.method === 'OPTIONS') {
-    const origin = req.headers.origin
-    if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
-      res.header('Access-Control-Allow-Origin', origin)
-      res.header('Access-Control-Allow-Credentials', 'true')
-    } else {
-      res.header('Access-Control-Allow-Origin', '*')
-      res.header('Access-Control-Allow-Credentials', 'false')
-    }
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS')
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control')
-    return res.status(200).end()
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
+    return res.status(200).end();
   }
-  
-  next()
-})
+
+  next();
+});
 
 // CORS Configuration - Environment-aware
 app.use(cors({
