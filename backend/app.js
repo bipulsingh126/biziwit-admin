@@ -26,7 +26,7 @@ import blogsRoutes from './src/routes/blogs.js'
 import caseStudiesRoutes from './src/routes/caseStudies.js'
 import servicePagesRoutes from './src/routes/servicePages.js'
 import homePageRoutes from './src/routes/homePage.js'
-import testimonialsRoutes from './src/routes/testimonials.js' 
+import testimonialsRoutes from './src/routes/testimonials.js'
 
 dotenv.config()
 
@@ -62,12 +62,12 @@ const allowedOrigins = [
 app.use((req, res, next) => {
   // Remove problematic headers
   res.removeHeader('Origin-Agent-Cluster')
-  
+
   // Add security headers for cross-origin requests
   res.header('Cross-Origin-Embedder-Policy', 'unsafe-none')
   res.header('Cross-Origin-Opener-Policy', 'unsafe-none')
   res.header('Cross-Origin-Resource-Policy', 'cross-origin')
-  
+
   // Special handling for static file requests (images, uploads)
   if (req.path.startsWith('/uploads') || req.path.startsWith('/images')) {
     res.header('Access-Control-Allow-Origin', '*')
@@ -76,22 +76,29 @@ app.use((req, res, next) => {
     res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Last-Modified, ETag')
     res.header('Vary', 'Origin')
   }
-  
+
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
     const origin = req.headers.origin
-    if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+    // Always set Access-Control-Allow-Origin header
+    if (origin && (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development')) {
+      res.header('Access-Control-Allow-Origin', origin)
+      res.header('Access-Control-Allow-Credentials', 'true')
+    } else if (origin) {
+      // For any other origin, allow it (can be restricted later if needed)
       res.header('Access-Control-Allow-Origin', origin)
       res.header('Access-Control-Allow-Credentials', 'true')
     } else {
+      // No origin header (e.g., same-origin requests)
       res.header('Access-Control-Allow-Origin', '*')
       res.header('Access-Control-Allow-Credentials', 'false')
     }
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS')
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control')
-    return res.status(200).end()
+    res.header('Access-Control-Max-Age', '86400') // Cache preflight for 24 hours
+    return res.status(204).end()
   }
-  
+
   next()
 })
 
@@ -101,17 +108,17 @@ app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true)
-    
+
     // In development, allow all origins
     if (process.env.NODE_ENV === 'development') {
       return callback(null, true)
     }
-    
+
     // In production, check allowed origins
     if (allowedOrigins.includes(origin)) {
       return callback(null, true)
     }
-    
+
     // Fallback: allow all origins for now (can be restricted later)
     return callback(null, true)
   },
@@ -127,7 +134,7 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (r
     if (!stripe || !STRIPE_WEBHOOK_SECRET) return res.status(400).send('Stripe not configured')
     const sig = req.headers['stripe-signature']
     const event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET)
-    
+
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object
       const orderId = session.metadata?.orderId
@@ -178,16 +185,16 @@ app.use('/uploads', (req, res, next) => {
   res.header('Cross-Origin-Resource-Policy', 'cross-origin')
   res.header('Cross-Origin-Embedder-Policy', 'unsafe-none')
   res.header('Cross-Origin-Opener-Policy', 'unsafe-none')
-  
+
   // Cache headers for better performance
   res.header('Cache-Control', 'public, max-age=31536000') // 1 year cache
   res.header('Vary', 'Origin')
-  
+
   // Handle OPTIONS requests for CORS preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end()
   }
-  
+
   next()
 }, express.static(UPLOAD_DIR, {
   // Additional express.static options for better file serving
@@ -219,16 +226,16 @@ app.use('/images', (req, res, next) => {
   res.header('Cross-Origin-Resource-Policy', 'cross-origin')
   res.header('Cross-Origin-Embedder-Policy', 'unsafe-none')
   res.header('Cross-Origin-Opener-Policy', 'unsafe-none')
-  
+
   // Cache headers for better performance
   res.header('Cache-Control', 'public, max-age=31536000') // 1 year cache
   res.header('Vary', 'Origin')
-  
+
   // Handle OPTIONS requests for CORS preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end()
   }
-  
+
   next()
 }, express.static(path.join(process.cwd(), 'public', 'images'), {
   // Additional express.static options for better file serving
@@ -261,12 +268,12 @@ app.get('/uploads/*', (req, res, next) => {
   res.header('Cross-Origin-Resource-Policy', 'cross-origin')
   res.header('Cross-Origin-Embedder-Policy', 'unsafe-none')
   res.header('Cross-Origin-Opener-Policy', 'unsafe-none')
-  
+
   // Handle OPTIONS preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end()
   }
-  
+
   next()
 })
 
@@ -280,12 +287,12 @@ app.get('/images/*', (req, res, next) => {
   res.header('Cross-Origin-Resource-Policy', 'cross-origin')
   res.header('Cross-Origin-Embedder-Policy', 'unsafe-none')
   res.header('Cross-Origin-Opener-Policy', 'unsafe-none')
-  
+
   // Handle OPTIONS preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end()
   }
-  
+
   next()
 })
 
@@ -303,6 +310,20 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     status: 'Active'
   })
+})
+
+// Middleware to ensure CORS headers for all API routes
+app.use('/api/*', (req, res, next) => {
+  const origin = req.headers.origin
+  if (origin) {
+    res.header('Access-Control-Allow-Origin', origin)
+    res.header('Access-Control-Allow-Credentials', 'true')
+  } else {
+    res.header('Access-Control-Allow-Origin', '*')
+  }
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control')
+  next()
 })
 
 // API Routes
@@ -345,7 +366,7 @@ app.use((err, req, res, next) => {
       message: 'The uploaded file exceeds the maximum allowed size'
     });
   }
-  
+
   if (err.code === 'LIMIT_FILE_COUNT') {
     return res.status(400).json({
       success: false,
@@ -353,7 +374,7 @@ app.use((err, req, res, next) => {
       message: 'Maximum number of files exceeded'
     });
   }
-  
+
   if (err.message && err.message.includes('Only image files are allowed')) {
     return res.status(400).json({
       success: false,
@@ -361,7 +382,7 @@ app.use((err, req, res, next) => {
       message: 'Only image files are allowed'
     });
   }
-  
+
   // General error handler
   console.error('Error occurred:', err)
   res.status(err.status || 500).json({
@@ -376,10 +397,10 @@ const seedDefaultAdmin = async () => {
   try {
     // Only create admin user if none exists
     const adminCount = await User.countDocuments({ role: { $in: ['admin', 'super_admin'] } })
-    
+
     if (adminCount === 0) {
       console.log('📝 No admin users found. Creating default admin users...')
-      
+
       // Create both mainadmin and admin users
       const defaultAdmins = [
         {
