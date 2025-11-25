@@ -80,23 +80,16 @@ app.use((req, res, next) => {
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
     const origin = req.headers.origin
-    // Always set Access-Control-Allow-Origin header
-    if (origin && (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development')) {
-      res.header('Access-Control-Allow-Origin', origin)
-      res.header('Access-Control-Allow-Credentials', 'true')
-    } else if (origin) {
-      // For any other origin, allow it (can be restricted later if needed)
+    if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
       res.header('Access-Control-Allow-Origin', origin)
       res.header('Access-Control-Allow-Credentials', 'true')
     } else {
-      // No origin header (e.g., same-origin requests)
       res.header('Access-Control-Allow-Origin', '*')
       res.header('Access-Control-Allow-Credentials', 'false')
     }
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS')
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control')
-    res.header('Access-Control-Max-Age', '86400') // Cache preflight for 24 hours
-    return res.status(204).end()
+    return res.status(200).end()
   }
 
   next()
@@ -310,20 +303,6 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     status: 'Active'
   })
-})
-
-// Middleware to ensure CORS headers for all API routes
-app.use('/api/*', (req, res, next) => {
-  const origin = req.headers.origin
-  if (origin) {
-    res.header('Access-Control-Allow-Origin', origin)
-    res.header('Access-Control-Allow-Credentials', 'true')
-  } else {
-    res.header('Access-Control-Allow-Origin', '*')
-  }
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control')
-  next()
 })
 
 // API Routes
