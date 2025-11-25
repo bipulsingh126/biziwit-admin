@@ -565,19 +565,23 @@ router.get('/', async (req, res, next) => {
     // Get total count for pagination
     const total = await Report.countDocuments(filter)
 
-    // Get all reports without pagination limits
+    // Apply pagination with limit
+    const limitNum = parseInt(limit) || 10
+    const offsetNum = parseInt(offset) || 0
+
     const reports = await Report.find(filter)
       .sort({ createdAt: -1 })
-      .skip(parseInt(offset))
+      .skip(offsetNum)
+      .limit(limitNum)
       .lean()
 
     res.json({
       success: true,
       items: reports,
       total,
-      limit: reports.length, // Return actual number of items fetched
-      offset: parseInt(offset),
-      hasMore: false // No pagination, so no more items
+      limit: limitNum,
+      offset: offsetNum,
+      hasMore: offsetNum + reports.length < total
     })
   } catch (error) {
     console.error('Error fetching reports:', error)
@@ -816,14 +820,15 @@ router.get('/', async (req, res, next) => {
         sortOption = { createdAt: -1 }
     }
 
-    // Execute query without pagination limits (fetch all data)
+    // Execute query with pagination
     const offsetNum = parseInt(offset) || 0
+    const limitNum = parseInt(limit) || 10
 
-    // Remove limit to fetch all data
     const [items, total] = await Promise.all([
       Report.find(findCondition, projection)
         .sort(sortOption)
         .skip(offsetNum)
+        .limit(limitNum)
         .lean(),
       Report.countDocuments(findCondition)
     ])
@@ -831,9 +836,9 @@ router.get('/', async (req, res, next) => {
     res.json({
       items,
       total,
-      limit: items.length, // Return actual number of items fetched
+      limit: limitNum,
       offset: offsetNum,
-      hasMore: false // No pagination, so no more items
+      hasMore: offsetNum + items.length < total
     })
   } catch (error) {
     console.error('Error fetching reports:', error)
