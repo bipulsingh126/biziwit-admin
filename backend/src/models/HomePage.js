@@ -98,6 +98,14 @@ const homePageSchema = new mongoose.Schema({
     keywords: {
       type: String,
       default: 'market research, business intelligence, industry analysis, reports'
+    },
+    author: {
+      type: String,
+      default: 'Bizwit Research'
+    },
+    publisher: {
+      type: String,
+      default: 'Bizwit Research & Consulting LLP'
     }
   },
   isActive: {
@@ -126,17 +134,17 @@ homePageSchema.index({
 })
 
 // Virtual for active banners
-homePageSchema.virtual('activeBanners').get(function() {
+homePageSchema.virtual('activeBanners').get(function () {
   return this.banners.filter(banner => banner.isActive)
 })
 
 // Virtual for active megatrends
-homePageSchema.virtual('activeMegatrends').get(function() {
+homePageSchema.virtual('activeMegatrends').get(function () {
   return this.megatrends.filter(megatrend => megatrend.isActive)
 })
 
 // Pre-save middleware to generate slugs
-homePageSchema.pre('save', function(next) {
+homePageSchema.pre('save', function (next) {
   // Generate banner slugs
   this.banners.forEach(banner => {
     if (!banner.slug || banner.isModified('title')) {
@@ -155,7 +163,7 @@ homePageSchema.pre('save', function(next) {
 })
 
 // Instance methods for banner management
-homePageSchema.methods.addBanner = function(bannerData) {
+homePageSchema.methods.addBanner = function (bannerData) {
   const slug = generateSlug(bannerData.title)
   const banner = {
     ...bannerData,
@@ -166,7 +174,7 @@ homePageSchema.methods.addBanner = function(bannerData) {
   return banner
 }
 
-homePageSchema.methods.updateBannerBySlug = function(slug, updateData) {
+homePageSchema.methods.updateBannerBySlug = function (slug, updateData) {
   const banner = this.banners.find(b => b.slug === slug)
   if (banner) {
     Object.assign(banner, updateData)
@@ -178,7 +186,7 @@ homePageSchema.methods.updateBannerBySlug = function(slug, updateData) {
   return null
 }
 
-homePageSchema.methods.removeBannerBySlug = function(slug) {
+homePageSchema.methods.removeBannerBySlug = function (slug) {
   const index = this.banners.findIndex(b => b.slug === slug)
   if (index > -1) {
     return this.banners.splice(index, 1)[0]
@@ -187,7 +195,7 @@ homePageSchema.methods.removeBannerBySlug = function(slug) {
 }
 
 // Instance methods for megatrend management
-homePageSchema.methods.addMegatrend = function(megatrendData) {
+homePageSchema.methods.addMegatrend = function (megatrendData) {
   const slug = generateSlug(megatrendData.heading)
   const megatrend = {
     ...megatrendData,
@@ -198,7 +206,7 @@ homePageSchema.methods.addMegatrend = function(megatrendData) {
   return megatrend
 }
 
-homePageSchema.methods.updateMegatrendBySlug = function(slug, updateData) {
+homePageSchema.methods.updateMegatrendBySlug = function (slug, updateData) {
   const megatrend = this.megatrends.find(m => m.slug === slug)
   if (megatrend) {
     Object.assign(megatrend, updateData)
@@ -210,7 +218,7 @@ homePageSchema.methods.updateMegatrendBySlug = function(slug, updateData) {
   return null
 }
 
-homePageSchema.methods.removeMegatrendBySlug = function(slug) {
+homePageSchema.methods.removeMegatrendBySlug = function (slug) {
   const index = this.megatrends.findIndex(m => m.slug === slug)
   if (index > -1) {
     return this.megatrends.splice(index, 1)[0]
@@ -219,7 +227,7 @@ homePageSchema.methods.removeMegatrendBySlug = function(slug) {
 }
 
 // Static method to create default homepage data
-homePageSchema.statics.createDefault = async function() {
+homePageSchema.statics.createDefault = async function () {
   const defaultData = {
     pageTitle: 'BiziWit - Market Research & Business Intelligence',
     pageSubtitle: 'Comprehensive market research reports and industry analysis',

@@ -468,10 +468,10 @@ const ReportCreate = () => {
         // Backend-compatible fields
         reportDescription: formData.reportDescription || formData.content || '',
         segmentCompanies: formData.segmentCompanies || formData.segment || formData.segmentationContent || '',
-        // Legacy fields for backward compatibility
-        segment: formData.segment || formData.segmentationContent || '',
+        // Legacy fields for backward compatibility - ensure they get the updated content
+        segment: formData.segmentCompanies || formData.segment || formData.segmentationContent || '',
         companies: formData.companies || '',
-        segmentationContent: formData.segment || formData.segmentationContent || '',
+        segmentationContent: formData.segmentCompanies || formData.segment || formData.segmentationContent || '',
         // SEO fields
         titleTag: (formData.titleTag || '').trim(),
         slug: (formData.slug || '').trim() || generateSlug((formData.title || '').trim()) || `report-${Date.now()}`, // Use slug field for URL slug

@@ -2,12 +2,12 @@ import express from 'express';
 import Blog from '../models/Blog.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import XLSX from 'xlsx';
-import { 
-  blogUpload, 
-  handleImageUploadResponse, 
+import {
+  blogUpload,
+  handleImageUploadResponse,
   handleUploadError,
   deleteImageFile,
-  generateImageUrl 
+  generateImageUrl
 } from '../utils/imageUpload.js';
 
 const router = express.Router();
@@ -28,6 +28,14 @@ router.get('/', async (req, res) => {
     // Build search query
     let searchQuery = {};
 
+    // For public access (non-authenticated), only show published blogs
+    // Check if user is authenticated by looking for authorization header
+    const isAuthenticated = req.headers.authorization;
+    if (!isAuthenticated && !status) {
+      // If not authenticated and no specific status filter, only show published
+      searchQuery.status = 'published';
+    }
+
     // Text search
     if (q.trim()) {
       searchQuery.$or = [
@@ -44,7 +52,7 @@ router.get('/', async (req, res) => {
       searchQuery.slug = { $regex: slug, $options: 'i' };
     }
 
-    // Status filter
+    // Status filter (overrides default published filter if specified)
     if (status) {
       searchQuery.status = status;
     }
@@ -113,8 +121,12 @@ router.get('/', async (req, res) => {
 // Get single blog by slug (public access)
 router.get('/by-slug/:slug', async (req, res) => {
   try {
-    const blog = await Blog.findOne({ slug: req.params.slug });
-    
+    // Only return published blogs for public access
+    const blog = await Blog.findOne({
+      slug: req.params.slug,
+      status: 'published'
+    });
+
     if (!blog) {
       return res.status(404).json({
         success: false,
@@ -139,11 +151,11 @@ router.get('/by-slug/:slug', async (req, res) => {
 // Public blog access by slug (SEO-friendly URL)
 router.get('/slug/:slug', async (req, res) => {
   try {
-    const blog = await Blog.findOne({ 
+    const blog = await Blog.findOne({
       slug: req.params.slug,
       status: 'published' // Only show published blogs for public access
     });
-    
+
     if (!blog) {
       return res.status(404).json({
         success: false,
@@ -175,7 +187,7 @@ router.get('/stats/overview', authenticate, async (req, res) => {
     const publishedBlogs = await Blog.countDocuments({ status: 'published' });
     const draftBlogs = await Blog.countDocuments({ status: 'draft' });
     const scheduledBlogs = await Blog.countDocuments({ status: 'scheduled' });
-    
+
     const totalViews = await Blog.aggregate([
       { $group: { _id: null, totalViews: { $sum: '$views' } } }
     ]);
@@ -211,7 +223,7 @@ router.get('/stats/overview', authenticate, async (req, res) => {
 router.post('/utils/populate-slugs', authenticate, requireRole('super_admin', 'admin'), async (req, res) => {
   try {
     const updatedCount = await Blog.populateSlugs();
-    
+
     res.json({
       success: true,
       message: `Successfully populated slugs for ${updatedCount} blogs`,
@@ -228,18 +240,18 @@ router.post('/utils/populate-slugs', authenticate, requireRole('super_admin', 'a
 });
 
 // Get single blog by slug or ID (with slug priority) - MUST be after specific routes
-router.get('/:identifier' , async (req, res) => {
+router.get('/:identifier', async (req, res) => {
   try {
     const { identifier } = req.params;
-    
+
     // Try to find by slug first, then by ID for backward compatibility
     let blog = await Blog.findOne({ slug: identifier });
-    
+
     if (!blog && identifier.match(/^[0-9a-fA-F]{24}$/)) {
       // If it looks like a MongoDB ObjectId, try finding by ID
       blog = await Blog.findById(identifier);
     }
-    
+
     if (!blog) {
       return res.status(404).json({
         success: false,
@@ -279,7 +291,7 @@ router.post('/', authenticate, requireRole('super_admin', 'admin', 'editor'), as
     });
   } catch (error) {
     console.error('Error creating blog:', error);
-    
+
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
@@ -318,7 +330,7 @@ router.put('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin', '
     });
   } catch (error) {
     console.error('Error updating blog:', error);
-    
+
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
@@ -338,21 +350,21 @@ router.put('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin', '
 router.put('/:id', authenticate, requireRole('super_admin', 'admin', 'editor'), async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Try to find by slug first, then by ID
     let blog = await Blog.findOne({ slug: id });
-    
+
     if (!blog && id.match(/^[0-9a-fA-F]{24}$/)) {
       blog = await Blog.findById(id);
     }
-    
+
     if (!blog) {
       return res.status(404).json({
         success: false,
         message: 'Blog not found'
       });
     }
-    
+
     // Update the blog
     Object.assign(blog, req.body);
     blog.updatedAt = new Date();
@@ -365,7 +377,7 @@ router.put('/:id', authenticate, requireRole('super_admin', 'admin', 'editor'), 
     });
   } catch (error) {
     console.error('Error updating blog:', error);
-    
+
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
@@ -417,21 +429,21 @@ router.delete('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin'
 router.delete('/:id', authenticate, requireRole('super_admin', 'admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Try to find by slug first, then by ID
     let blog = await Blog.findOne({ slug: id });
-    
+
     if (!blog && id.match(/^[0-9a-fA-F]{24}$/)) {
       blog = await Blog.findById(id);
     }
-    
+
     if (!blog) {
       return res.status(404).json({
         success: false,
         message: 'Blog not found'
       });
     }
-    
+
     // Delete the blog
     await Blog.findByIdAndDelete(blog._id);
 
@@ -459,46 +471,46 @@ router.delete('/:id', authenticate, requireRole('super_admin', 'admin'), async (
 router.post('/by-slug/:slug/cover', authenticate, requireRole('super_admin', 'admin', 'editor'), blogUpload.single('file'), async (req, res) => {
   try {
     console.log('🚀 Starting blog cover image upload for slug:', req.params.slug)
-    
+
     const blog = await Blog.findOne({ slug: req.params.slug })
     if (!blog) {
       console.log('❌ Blog not found')
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        error: 'Blog not found' 
+        error: 'Blog not found'
       })
     }
-    
+
     // Delete old image if exists
     if (blog.mainImage) {
       const oldFilename = blog.mainImage.split('/').pop();
       deleteImageFile('blogs', oldFilename);
     }
-    
+
     // Generate new image URL
     const imageUrl = generateImageUrl('blogs', req.file.filename);
-    
+
     // Update mainImage in database
     blog.mainImage = imageUrl;
     await blog.save();
-    
+
     console.log('💾 Updated blog with image URL:', imageUrl)
     console.log('✅ Image upload completed successfully')
-    
+
     // Use centralized response handler
     handleImageUploadResponse(req, res, 'blogs');
   } catch (error) {
     console.error('❌ Error uploading blog image:', error)
-    
+
     // Clean up uploaded file if database save fails
     if (req.file) {
       deleteImageFile('blogs', req.file.filename);
     }
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       success: false,
       error: 'Failed to upload image',
-      details: error.message 
+      details: error.message
     })
   }
 });
@@ -507,7 +519,7 @@ router.post('/by-slug/:slug/cover', authenticate, requireRole('super_admin', 'ad
 router.get('/export/:format', authenticate, requireRole('super_admin', 'admin'), async (req, res) => {
   try {
     const { format } = req.params;
-    
+
     if (!['csv', 'excel'].includes(format)) {
       return res.status(400).json({
         success: false,
@@ -540,7 +552,7 @@ router.get('/export/:format', authenticate, requireRole('super_admin', 'admin'),
       const headers = Object.keys(exportData[0] || {});
       const csvContent = [
         headers.join(','),
-        ...exportData.map(row => 
+        ...exportData.map(row =>
           headers.map(header => `"${(row[header] || '').toString().replace(/"/g, '""')}"`).join(',')
         )
       ].join('\n');
@@ -552,7 +564,7 @@ router.get('/export/:format', authenticate, requireRole('super_admin', 'admin'),
       // Generate Excel
       const workbook = XLSX.utils.book_new();
       const worksheet = XLSX.utils.json_to_sheet(exportData);
-      
+
       // Set column widths
       const colWidths = [
         { wch: 30 }, // Blog Title
@@ -573,9 +585,9 @@ router.get('/export/:format', authenticate, requireRole('super_admin', 'admin'),
       worksheet['!cols'] = colWidths;
 
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Blogs');
-      
+
       const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-      
+
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename=blogs-export-${Date.now()}.xlsx`);
       res.send(excelBuffer);
@@ -594,54 +606,54 @@ router.get('/export/:format', authenticate, requireRole('super_admin', 'admin'),
 router.post('/:id/cover', authenticate, requireRole('super_admin', 'admin', 'editor'), blogUpload.single('file'), async (req, res) => {
   try {
     console.log('🚀 Starting blog cover image upload for ID:', req.params.id)
-    
+
     const { id } = req.params;
-    
+
     // Try to find by slug first, then by ID
     let blog = await Blog.findOne({ slug: id });
-    
+
     if (!blog && id.match(/^[0-9a-fA-F]{24}$/)) {
       blog = await Blog.findById(id);
     }
-    
+
     if (!blog) {
       console.log('❌ Blog not found')
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        error: 'Blog not found' 
+        error: 'Blog not found'
       })
     }
-    
+
     // Delete old image if exists
     if (blog.mainImage) {
       const oldFilename = blog.mainImage.split('/').pop();
       deleteImageFile('blogs', oldFilename);
     }
-    
+
     // Generate new image URL
     const imageUrl = generateImageUrl('blogs', req.file.filename);
-    
+
     // Update mainImage in database
     blog.mainImage = imageUrl;
     await blog.save();
-    
+
     console.log('💾 Updated blog with image URL:', imageUrl)
     console.log('✅ Image upload completed successfully')
-    
+
     // Use centralized response handler
     handleImageUploadResponse(req, res, 'blogs');
   } catch (error) {
     console.error('❌ Error uploading blog image:', error)
-    
+
     // Clean up uploaded file if database save fails
     if (req.file) {
       deleteImageFile('blogs', req.file.filename);
     }
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       success: false,
       error: 'Failed to upload image',
-      details: error.message 
+      details: error.message
     })
   }
 })
@@ -651,7 +663,7 @@ router.get('/test/debug-slugs', async (req, res) => {
   try {
     const blogs = await Blog.find({}).limit(5).select('title slug url _id');
     const totalBlogs = await Blog.countDocuments();
-    
+
     res.json({
       success: true,
       message: 'Blog slug debug information',

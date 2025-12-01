@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, Filter, Trash2, Edit3, Clock, Mail, CheckCircle, RefreshCw } from 'lucide-react'
+import { Search, Filter, Trash2, Eye, Clock, Mail, CheckCircle, RefreshCw, X, Phone, Building, User, MessageSquare, Calendar } from 'lucide-react'
 import api from '../utils/api'
 
 const Inquiries = () => {
@@ -11,6 +11,7 @@ const Inquiries = () => {
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [selectedInquiries, setSelectedInquiries] = useState([])
   const [metadata, setMetadata] = useState({ inquiryTypes: [], statuses: [], priorities: [] })
+  const [viewingInquiry, setViewingInquiry] = useState(null)
 
   useEffect(() => {
     loadMetadata()
@@ -53,7 +54,7 @@ const Inquiries = () => {
     try {
       setLoading(true)
       setError('') // Clear previous errors
-      
+
       // Clean up parameters - remove undefined values
       const params = {}
       if (searchTerm && searchTerm.trim()) {
@@ -65,11 +66,11 @@ const Inquiries = () => {
       if (priorityFilter && priorityFilter !== 'all') {
         params.priority = priorityFilter
       }
-      
+
       console.log('Loading inquiries with params:', params)
       const result = await api.getInquiries(params)
       console.log('API response:', result)
-      
+
       if (result && result.items) {
         setInquiries(result.items)
         console.log(`Loaded ${result.items.length} inquiries`)
@@ -95,7 +96,7 @@ const Inquiries = () => {
   }
 
   const handleSelectInquiry = (id, checked) => {
-    setSelectedInquiries(prev => 
+    setSelectedInquiries(prev =>
       checked ? [...prev, id] : prev.filter(i => i !== id)
     )
   }
@@ -109,6 +110,25 @@ const Inquiries = () => {
     }
   }
 
+  const handleViewInquiry = (inquiry) => {
+    setViewingInquiry(inquiry)
+  }
+
+  const closeModal = () => {
+    setViewingInquiry(null)
+  }
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A'
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
 
   const getStatusBadge = (status) => {
     const styles = {
@@ -276,17 +296,18 @@ const Inquiries = () => {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <button
+                          onClick={() => handleViewInquiry(inquiry)}
+                          className="p-1 text-blue-600 hover:text-blue-800"
+                          title="View Full Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => updateStatus(inquiry._id, inquiry.status === 'resolved' ? 'open' : 'resolved')}
                           className="p-1 text-gray-400 hover:text-gray-600"
                           title="Toggle Status"
                         >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          className="p-1 text-gray-400 hover:text-gray-600"
-                          title="View Details"
-                        >
-                          <Clock className="w-4 h-4" />
+                          <CheckCircle className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
@@ -297,6 +318,160 @@ const Inquiries = () => {
           </table>
         </div>
       </div>
+
+      {/* View Inquiry Modal */}
+      {viewingInquiry && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">
+                Inquiry Details - {viewingInquiry.inquiryNumber || `INQ-${viewingInquiry._id.slice(-6)}`}
+              </h2>
+              <button
+                onClick={closeModal}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-6">
+              {/* Inquiry Type and Status */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Inquiry Type</label>
+                  <p className="text-gray-900 font-medium">{viewingInquiry.inquiryType || 'General Inquiry'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Status</label>
+                  <span className={`inline-block px-3 py-1 text-sm rounded-full ${getStatusBadge(viewingInquiry.status)}`}>
+                    {viewingInquiry.status?.replace('_', ' ').toUpperCase() || 'NEW'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Page/Report Title */}
+              {viewingInquiry.pageReportTitle && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Page/Report Title</label>
+                  <p className="text-gray-900">{viewingInquiry.pageReportTitle}</p>
+                </div>
+              )}
+
+              {/* Contact Information */}
+              <div className="border-t pt-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-start gap-3">
+                    <User className="w-5 h-5 text-gray-400 mt-0.5" />
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">Name</label>
+                      <p className="text-gray-900">{viewingInquiry.name}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <Mail className="w-5 h-5 text-gray-400 mt-0.5" />
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">Email</label>
+                      <a href={`mailto:${viewingInquiry.email}`} className="text-blue-600 hover:text-blue-800">
+                        {viewingInquiry.email}
+                      </a>
+                    </div>
+                  </div>
+
+                  {viewingInquiry.phone && (
+                    <div className="flex items-start gap-3">
+                      <Phone className="w-5 h-5 text-gray-400 mt-0.5" />
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Phone Number</label>
+                        <a href={`tel:${viewingInquiry.phone}`} className="text-blue-600 hover:text-blue-800">
+                          {viewingInquiry.phone}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {viewingInquiry.company && (
+                    <div className="flex items-start gap-3">
+                      <Building className="w-5 h-5 text-gray-400 mt-0.5" />
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Company</label>
+                        <p className="text-gray-900">{viewingInquiry.company}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {viewingInquiry.country && (
+                    <div className="flex items-start gap-3">
+                      <Building className="w-5 h-5 text-gray-400 mt-0.5" />
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Country</label>
+                        <p className="text-gray-900">{viewingInquiry.country}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Message */}
+              {viewingInquiry.message && (
+                <div className="border-t pt-4">
+                  <div className="flex items-start gap-3">
+                    <MessageSquare className="w-5 h-5 text-gray-400 mt-0.5" />
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-500 mb-2">Message</label>
+                      <div className="bg-gray-50 rounded-lg p-4 text-gray-900 whitespace-pre-wrap">
+                        {viewingInquiry.message}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Additional Information */}
+              {viewingInquiry.jobTitle && (
+                <div className="border-t pt-4">
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Job Title</label>
+                  <p className="text-gray-900">{viewingInquiry.jobTitle}</p>
+                </div>
+              )}
+
+              {/* Timestamps */}
+              <div className="border-t pt-4">
+                <div className="flex items-start gap-3">
+                  <Calendar className="w-5 h-5 text-gray-400 mt-0.5" />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">Submitted On</label>
+                    <p className="text-gray-900">{formatDate(viewingInquiry.createdAt)}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="sticky bottom-0 bg-gray-50 border-t px-6 py-4 flex items-center justify-between">
+              <button
+                onClick={() => {
+                  updateStatus(viewingInquiry._id, viewingInquiry.status === 'resolved' ? 'open' : 'resolved')
+                  closeModal()
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Mark as {viewingInquiry.status === 'resolved' ? 'Open' : 'Resolved'}
+              </button>
+              <button
+                onClick={closeModal}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

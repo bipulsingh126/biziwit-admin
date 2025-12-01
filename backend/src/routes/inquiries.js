@@ -1,4 +1,4 @@
-import { Router } from 'express'
+  import { Router } from 'express'
 import nodemailer from 'nodemailer'
 import Inquiry from '../models/Inquiry.js'
 import { authenticate, requireRole } from '../middleware/auth.js'

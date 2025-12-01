@@ -3,12 +3,12 @@ import CaseStudy from '../models/CaseStudy.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
 import path from 'path'
 import fs from 'fs'
-import { 
-  caseStudyUpload, 
-  handleImageUploadResponse, 
+import {
+  caseStudyUpload,
+  handleImageUploadResponse,
   handleUploadError,
   deleteImageFile,
-  generateImageUrl 
+  generateImageUrl
 } from '../utils/imageUpload.js'
 
 const router = express.Router()
@@ -28,7 +28,15 @@ router.get('/', async (req, res) => {
 
     // Build query
     const query = {}
-    
+
+    // For public access (non-authenticated), only show published case studies
+    // Check if user is authenticated by looking for authorization header
+    const isAuthenticated = req.headers.authorization;
+    if (!isAuthenticated && !status) {
+      // If not authenticated and no specific status filter, only show published
+      query.status = 'published';
+    }
+
     // Text search
     if (search.trim()) {
       query.$or = [
@@ -39,27 +47,27 @@ router.get('/', async (req, res) => {
         { keywords: { $regex: search, $options: 'i' } }
       ];
     }
-    
+
     // Slug filter
     if (slug.trim()) {
       query.slug = { $regex: slug, $options: 'i' };
     }
-    
-    // Status filter
+
+    // Status filter (overrides default published filter if specified)
     if (status) {
       query.status = status
     }
-    
+
     // Author filter
     if (author && author.trim()) {
       query.authorName = { $regex: author, $options: 'i' };
     }
-    
+
     // Date range filter
     if (dateRange) {
       const now = new Date()
       let startDate
-      
+
       switch (dateRange) {
         case 'today':
           startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -74,7 +82,7 @@ router.get('/', async (req, res) => {
           startDate = new Date(now.getFullYear(), 0, 1)
           break
       }
-      
+
       if (startDate) {
         query.createdAt = { $gte: startDate }
       }
@@ -87,15 +95,15 @@ router.get('/', async (req, res) => {
 
     // Get total count for pagination
     const total = await CaseStudy.countDocuments(query)
-    
+
     // Get paginated results
     const caseStudies = await CaseStudy.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum)
-    
+
     const totalPages = Math.ceil(total / limitNum)
-    
+
     res.json({
       data: caseStudies,
       total: total,
@@ -113,7 +121,11 @@ router.get('/', async (req, res) => {
 // Get single case study by slug
 router.get('/by-slug/:slug', async (req, res) => {
   try {
-    const caseStudy = await CaseStudy.findOne({ slug: req.params.slug })
+    // Only return published case studies for public access
+    const caseStudy = await CaseStudy.findOne({
+      slug: req.params.slug,
+      status: 'published'
+    })
     if (!caseStudy) {
       return res.status(404).json({ error: 'Case study not found' })
     }
@@ -131,7 +143,7 @@ router.get('/stats/overview', authenticate, async (req, res) => {
     const publishedCaseStudies = await CaseStudy.countDocuments({ status: 'published' })
     const draftCaseStudies = await CaseStudy.countDocuments({ status: 'draft' })
     const featuredCaseStudies = await CaseStudy.countDocuments({ featured: true })
-    
+
     // Get case studies by author
     const caseStudiesByAuthor = await CaseStudy.aggregate([
       {
@@ -143,7 +155,7 @@ router.get('/stats/overview', authenticate, async (req, res) => {
       { $sort: { count: -1 } },
       { $limit: 10 }
     ])
-    
+
     res.json({
       total: totalCaseStudies,
       published: publishedCaseStudies,
@@ -161,7 +173,7 @@ router.get('/stats/overview', authenticate, async (req, res) => {
 router.post('/utils/populate-slugs', authenticate, requireRole('super_admin', 'admin'), async (req, res) => {
   try {
     const updatedCount = await CaseStudy.populateSlugs();
-    
+
     res.json({
       success: true,
       message: `Successfully populated slugs for ${updatedCount} case studies`,
@@ -181,15 +193,15 @@ router.post('/utils/populate-slugs', authenticate, requireRole('super_admin', 'a
 router.get('/:identifier', async (req, res) => {
   try {
     const { identifier } = req.params
-    
+
     // Try to find by slug first, then by ID for backward compatibility
     let caseStudy = await CaseStudy.findOne({ slug: identifier })
-    
+
     if (!caseStudy && identifier.match(/^[0-9a-fA-F]{24}$/)) {
       // If it looks like a MongoDB ObjectId, try finding by ID
       caseStudy = await CaseStudy.findById(identifier)
     }
-    
+
     if (!caseStudy) {
       return res.status(404).json({ error: 'Case study not found' })
     }
@@ -207,10 +219,10 @@ router.post('/', authenticate, requireRole('super_admin', 'admin', 'editor'), as
       ...req.body,
       authorName: req.body.authorName || req.user.name
     }
-    
+
     const caseStudy = new CaseStudy(caseStudyData)
     await caseStudy.save()
-    
+
     res.status(201).json(caseStudy)
   } catch (error) {
     console.error('Error creating case study:', error)
@@ -229,11 +241,11 @@ router.patch('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin',
       req.body,
       { new: true, runValidators: true }
     )
-    
+
     if (!caseStudy) {
       return res.status(404).json({ error: 'Case study not found' })
     }
-    
+
     res.json(caseStudy)
   } catch (error) {
     console.error('Error updating case study:', error)
@@ -248,22 +260,22 @@ router.patch('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin',
 router.patch('/:id', authenticate, requireRole('super_admin', 'admin', 'editor'), async (req, res) => {
   try {
     const { id } = req.params
-    
+
     // Try to find by slug first, then by ID
     let caseStudy = await CaseStudy.findOne({ slug: id })
-    
+
     if (!caseStudy && id.match(/^[0-9a-fA-F]{24}$/)) {
       caseStudy = await CaseStudy.findById(id)
     }
-    
+
     if (!caseStudy) {
       return res.status(404).json({ error: 'Case study not found' })
     }
-    
+
     // Update the case study
     Object.assign(caseStudy, req.body)
     await caseStudy.save()
-    
+
     res.json(caseStudy)
   } catch (error) {
     console.error('Error updating case study:', error)
@@ -281,7 +293,7 @@ router.delete('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin'
     if (!caseStudy) {
       return res.status(404).json({ error: 'Case study not found' })
     }
-    
+
     // Delete associated image file if exists
     if (caseStudy.mainImage && !caseStudy.mainImage.startsWith('http')) {
       const imagePath = path.join(process.cwd(), caseStudy.mainImage)
@@ -289,7 +301,7 @@ router.delete('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin'
         fs.unlinkSync(imagePath)
       }
     }
-    
+
     res.json({ message: 'Case study deleted successfully' })
   } catch (error) {
     console.error('Error deleting case study:', error)
@@ -301,18 +313,18 @@ router.delete('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin'
 router.delete('/:id', authenticate, requireRole('super_admin', 'admin'), async (req, res) => {
   try {
     const { id } = req.params
-    
+
     // Try to find by slug first, then by ID
     let caseStudy = await CaseStudy.findOne({ slug: id })
-    
+
     if (!caseStudy && id.match(/^[0-9a-fA-F]{24}$/)) {
       caseStudy = await CaseStudy.findById(id)
     }
-    
+
     if (!caseStudy) {
       return res.status(404).json({ error: 'Case study not found' })
     }
-    
+
     // Delete associated image file if exists
     if (caseStudy.mainImage) {
       const imagePath = path.join(process.cwd(), 'uploads', 'case-studies', path.basename(caseStudy.mainImage))
@@ -320,7 +332,7 @@ router.delete('/:id', authenticate, requireRole('super_admin', 'admin'), async (
         fs.unlinkSync(imagePath)
       }
     }
-    
+
     // Delete the case study
     await CaseStudy.findByIdAndDelete(caseStudy._id)
     res.json({ message: 'Case study deleted successfully' })
@@ -334,46 +346,46 @@ router.delete('/:id', authenticate, requireRole('super_admin', 'admin'), async (
 router.post('/by-slug/:slug/image', authenticate, requireRole('super_admin', 'admin', 'editor'), caseStudyUpload.single('file'), async (req, res) => {
   try {
     console.log('🚀 Starting case study image upload for slug:', req.params.slug)
-    
+
     const caseStudy = await CaseStudy.findOne({ slug: req.params.slug })
     if (!caseStudy) {
       console.log('❌ Case study not found')
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        error: 'Case study not found' 
+        error: 'Case study not found'
       })
     }
-    
+
     // Delete old image if exists
     if (caseStudy.mainImage) {
       const oldFilename = caseStudy.mainImage.split('/').pop();
       deleteImageFile('case-studies', oldFilename);
     }
-    
+
     // Generate new image URL
     const imageUrl = generateImageUrl('case-studies', req.file.filename);
-    
+
     // Update mainImage in database
     caseStudy.mainImage = imageUrl;
     await caseStudy.save();
-    
+
     console.log('💾 Updated case study with image URL:', imageUrl)
     console.log('✅ Image upload completed successfully')
-    
+
     // Use centralized response handler
     handleImageUploadResponse(req, res, 'case-studies');
   } catch (error) {
     console.error('❌ Error uploading case study image:', error)
-    
+
     // Clean up uploaded file if database save fails
     if (req.file) {
       deleteImageFile('case-studies', req.file.filename);
     }
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       success: false,
       error: 'Failed to upload image',
-      details: error.message 
+      details: error.message
     })
   }
 })
@@ -382,53 +394,53 @@ router.post('/by-slug/:slug/image', authenticate, requireRole('super_admin', 'ad
 router.post('/:id/image', authenticate, requireRole('super_admin', 'admin', 'editor'), caseStudyUpload.single('file'), async (req, res) => {
   try {
     console.log('🚀 Starting case study image upload for ID:', req.params.id)
-    
+
     const { id } = req.params
-    
+
     // Try to find by slug first, then by ID
     let caseStudy = await CaseStudy.findOne({ slug: id })
-    
+
     if (!caseStudy && id.match(/^[0-9a-fA-F]{24}$/)) {
       caseStudy = await CaseStudy.findById(id)
     }
     if (!caseStudy) {
       console.log('❌ Case study not found')
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        error: 'Case study not found' 
+        error: 'Case study not found'
       })
     }
-    
+
     // Delete old image if exists
     if (caseStudy.mainImage) {
       const oldFilename = caseStudy.mainImage.split('/').pop();
       deleteImageFile('case-studies', oldFilename);
     }
-    
+
     // Generate new image URL
     const imageUrl = generateImageUrl('case-studies', req.file.filename);
-    
+
     // Update mainImage in database
     caseStudy.mainImage = imageUrl;
     await caseStudy.save();
-    
+
     console.log('💾 Updated case study with image URL:', imageUrl)
     console.log('✅ Image upload completed successfully')
-    
+
     // Use centralized response handler
     handleImageUploadResponse(req, res, 'case-studies');
   } catch (error) {
     console.error('❌ Error uploading case study image:', error)
-    
+
     // Clean up uploaded file if database save fails
     if (req.file) {
       deleteImageFile('case-studies', req.file.filename);
     }
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       success: false,
       error: 'Failed to upload image',
-      details: error.message 
+      details: error.message
     })
   }
 })
@@ -439,7 +451,7 @@ router.get('/test/debug-slugs', async (req, res) => {
   try {
     const caseStudies = await CaseStudy.find({}).limit(5).select('title slug url _id');
     const totalCaseStudies = await CaseStudy.countDocuments();
-    
+
     res.json({
       success: true,
       message: 'Case Study slug debug information',

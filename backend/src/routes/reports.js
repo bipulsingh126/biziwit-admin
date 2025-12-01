@@ -531,6 +531,21 @@ router.get('/', async (req, res, next) => {
     // Build query filter
     const filter = {}
 
+    // Check if request is authenticated (has valid JWT token)
+    const authHeader = req.headers.authorization
+    const isAuthenticated = authHeader && authHeader.startsWith('Bearer ')
+
+    // For unauthenticated requests (public frontend), only show published reports
+    // For authenticated requests (admin panel), respect the status query parameter
+    if (!isAuthenticated) {
+      // Public request - only show published reports
+      filter.status = 'published'
+    } else if (status && status.trim()) {
+      // Authenticated request with status filter
+      filter.status = status.trim()
+    }
+    // If authenticated but no status specified, show all reports
+
     // Text search across multiple fields
     if (q && q.trim()) {
       filter.$or = [
@@ -538,7 +553,9 @@ router.get('/', async (req, res, next) => {
         { summary: { $regex: q.trim(), $options: 'i' } },
         { reportDescription: { $regex: q.trim(), $options: 'i' } },
         { author: { $regex: q.trim(), $options: 'i' } },
-        { reportCode: { $regex: q.trim(), $options: 'i' } }
+        { reportCode: { $regex: q.trim(), $options: 'i' } },
+        { category: { $regex: q.trim(), $options: 'i' } },
+        { subCategory: { $regex: q.trim(), $options: 'i' } }
       ]
     }
 
@@ -550,11 +567,6 @@ router.get('/', async (req, res, next) => {
     // Subcategory filtering
     if (subCategory && subCategory.trim()) {
       filter.subCategory = { $regex: new RegExp(`^${subCategory.trim()}$`, 'i') }
-    }
-
-    // Status filtering
-    if (status && status.trim()) {
-      filter.status = status.trim()
     }
 
     // Author filtering
@@ -585,6 +597,62 @@ router.get('/', async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error fetching reports:', error)
+    next(error)
+  }
+})
+
+// GET /api/reports/suggestions - Get search suggestions
+router.get('/suggestions', async (req, res, next) => {
+  try {
+    const { q = '' } = req.query
+
+    if (!q || q.trim().length < 2) {
+      return res.json({
+        success: true,
+        suggestions: []
+      })
+    }
+
+    const searchRegex = new RegExp(q.trim(), 'i')
+
+    // Find reports matching title or category
+    const reports = await Report.find({
+      $or: [
+        { title: searchRegex },
+        { category: searchRegex },
+        { subCategory: searchRegex }
+      ],
+      status: 'published' // Only suggest published reports
+    })
+      .select('title category subCategory slug')
+      .limit(10)
+      .lean()
+
+    const suggestions = reports.map(report => ({
+      title: report.title,
+      category: report.category,
+      slug: report.slug,
+      type: 'report'
+    }))
+
+    // Also find matching categories directly
+    const categories = await (await import('../models/Category.js')).default.find({
+      name: searchRegex,
+      isActive: true
+    }).limit(5).lean()
+
+    const categorySuggestions = categories.map(cat => ({
+      title: cat.name,
+      type: 'category',
+      slug: cat.slug
+    }))
+
+    res.json({
+      success: true,
+      suggestions: [...categorySuggestions, ...suggestions].slice(0, 10)
+    })
+  } catch (error) {
+    console.error('Error fetching suggestions:', error)
     next(error)
   }
 })
@@ -777,6 +845,11 @@ router.get('/', async (req, res, next) => {
       query.popular = popular === 'true'
     }
 
+    // Trending on Home Page filter
+    if (req.query.trendingReportForHomePage !== undefined) {
+      query.trendingReportForHomePage = req.query.trendingReportForHomePage === 'true'
+    }
+
     // Date range filter
     if (from || to) {
       query.createdAt = {}
@@ -907,7 +980,9 @@ router.post('/', async (req, res, next) => {
       'author', 'publishDate', 'reportCode', 'numberOfPages',
       // Pricing fields
       'excelDatapackPrice', 'singleUserPrice', 'enterprisePrice', 'internetHandlingCharges',
-      'enterpriseLicensePrice'
+      'enterpriseLicensePrice',
+      // Status and flags
+      'trendingReportForHomePage'
     ]
 
     allowedFields.forEach(field => {

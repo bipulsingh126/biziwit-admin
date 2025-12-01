@@ -58,6 +58,11 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
       const isHTML = /<[a-z][\s\S]*>/i.test(newValue);
       const hasStyleAttr = /style=/i.test(newValue);
 
+      // Prevent cursor jump when typing: don't update innerHTML if the editor is focused
+      if (document.activeElement === editorRef.current) {
+        return;
+      }
+
       console.log(`🔍 RichTextEditor - Content Update:`, {
         isHTML,
         hasStyleAttr,
@@ -1033,8 +1038,8 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
                       <button
                         onClick={() => item.action ? item.action() : executeCommand(item.command)}
                         className={`p-1 hover:bg-gray-200 rounded transition-colors ${(item.type === 'color' && showColorPicker) ||
-                            (item.type === 'highlight' && showHighlightPicker) ||
-                            (item.type === 'table' && showTableOptions) ? 'bg-blue-100' : ''
+                          (item.type === 'highlight' && showHighlightPicker) ||
+                          (item.type === 'table' && showTableOptions) ? 'bg-blue-100' : ''
                           }`}
                         title={item.title}
                         type="button"

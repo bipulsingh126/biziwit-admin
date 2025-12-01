@@ -29,6 +29,7 @@ const Categories = () => {
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [selectedCategories, setSelectedCategories] = useState([])
   const [selectAll, setSelectAll] = useState(false)
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
 
   // Form states
   const [categoryForm, setCategoryForm] = useState({
@@ -64,7 +65,7 @@ const Categories = () => {
         loadTrendingIndustries()
       }
     }
-    
+
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [])
@@ -115,7 +116,7 @@ const Categories = () => {
       setShowAddModal(false)
       setCategoryForm({ name: '', description: '', subcategories: [] })
       loadCategories()
-      
+
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.message || 'Failed to create category')
@@ -135,7 +136,7 @@ const Categories = () => {
       setEditingCategory(null)
       setCategoryForm({ name: '', description: '', subcategories: [] })
       loadCategories()
-      
+
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.message || 'Failed to update category')
@@ -151,7 +152,7 @@ const Categories = () => {
       await api.deleteCategory(category._id)
       setSuccess('Category deleted successfully')
       loadCategories()
-      
+
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.message || 'Failed to delete category')
@@ -171,7 +172,7 @@ const Categories = () => {
       setSubcategoryForm({ name: '', description: '' })
       setSelectedCategory(null)
       loadCategories()
-      
+
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.message || 'Failed to add subcategory')
@@ -187,7 +188,7 @@ const Categories = () => {
       await api.deleteSubcategory(category._id, subcategory._id)
       setSuccess('Subcategory deleted successfully')
       loadCategories()
-      
+
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.message || 'Failed to delete subcategory')
@@ -219,11 +220,11 @@ const Categories = () => {
   const filteredCategories = categories.filter(category => {
     const matchesSearch = category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       category.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      category.subcategories?.some(sub => 
+      category.subcategories?.some(sub =>
         sub.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         sub.description?.toLowerCase().includes(searchTerm.toLowerCase())
       )
-    
+
     return matchesSearch
   })
 
@@ -252,7 +253,7 @@ const Categories = () => {
       setQuickCategoryForm({ name: '', description: '' })
       loadCategories()
       loadTrendingIndustries()
-      
+
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.message || 'Failed to create category')
@@ -274,7 +275,7 @@ const Categories = () => {
       setShowQuickAddSubcategory(false)
       setQuickSubcategoryForm({ name: '', description: '', categoryId: '' })
       loadCategories()
-      
+
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.message || 'Failed to add subcategory')
@@ -380,7 +381,7 @@ const Categories = () => {
 
       // Bulk update trending status
       const response = await api.bulkUpdateSubcategoriesTrending(subcategoryUpdates, isTopTrending)
-      
+
       // Show success message
       setSuccess(response.message || `${selectedTrendingSubcategories.length} subcategories ${isTopTrending ? 'marked as' : 'unmarked from'} trending`)
       setTimeout(() => setSuccess(''), 3000)
@@ -404,19 +405,19 @@ const Categories = () => {
       // Update the category with new trending status
       const result = await api.updateCategory(categoryId, { isTopTrending: newTrendingStatus })
       console.log('✅ Update result:', result)
-      
+
       // Update local state
-      setCategories(prev => prev.map(cat => 
-        cat._id === categoryId 
+      setCategories(prev => prev.map(cat =>
+        cat._id === categoryId
           ? { ...cat, isTopTrending: newTrendingStatus }
           : cat
       ))
-      
+
       // Show success message
       const statusText = newTrendingStatus ? 'added to' : 'removed from'
       setSuccess(`Category ${statusText} Top 10 Trending successfully`)
       setTimeout(() => setSuccess(''), 3000)
-      
+
       // Refresh trending data
       loadTrendingIndustries()
     } catch (err) {
@@ -431,7 +432,7 @@ const Categories = () => {
       const newSelected = prev.includes(categoryId)
         ? prev.filter(id => id !== categoryId)
         : [...prev, categoryId]
-      
+
       // Update select all state
       setSelectAll(newSelected.length === filteredCategories.length && filteredCategories.length > 0)
       return newSelected
@@ -462,13 +463,13 @@ const Categories = () => {
     try {
       setLoading(true)
       setError('')
-      
+
       const result = await api.syncReportsWithCategories()
-      
+
       if (result.success) {
         const { categoriesUpdated, subcategoriesUpdated } = result.stats
         setSuccess(`Successfully synced reports: ${categoriesUpdated} categories and ${subcategoriesUpdated} subcategories updated`)
-        
+
         // Refresh categories to show updated counts
         loadCategories()
       } else {
@@ -492,14 +493,14 @@ const Categories = () => {
     try {
       console.log('🔄 Bulk updating trending status:', { selectedCategories, newTrendingStatus })
       // Update all selected categories
-      const updatePromises = selectedCategories.map(categoryId => 
+      const updatePromises = selectedCategories.map(categoryId =>
         api.updateCategory(categoryId, { isTopTrending: newTrendingStatus })
       )
       const results = await Promise.all(updatePromises)
       console.log('✅ Bulk update results:', results)
 
       // Update local state
-      setCategories(prev => prev.map(cat => 
+      setCategories(prev => prev.map(cat =>
         selectedCategories.includes(cat._id)
           ? { ...cat, isTopTrending: newTrendingStatus }
           : cat
@@ -520,6 +521,27 @@ const Categories = () => {
       setError(err.message || 'Failed to update trending status')
       setTimeout(() => setError(''), 3000)
     }
+  }
+
+  // Bulk delete selected categories
+  const handleBulkDeleteCategories = async () => {
+    if (selectedCategories.length === 0) return
+    try {
+      // Delete each selected category
+      const deletePromises = selectedCategories.map(id => api.deleteCategory(id))
+      await Promise.all(deletePromises)
+      setSuccess(`${selectedCategories.length} categories deleted successfully`)
+      setTimeout(() => setSuccess(''), 3000)
+      // Refresh list
+      loadCategories()
+      // Clear selection
+      setSelectedCategories([])
+      setSelectAll(false)
+    } catch (err) {
+      setError(err.message || 'Failed to delete selected categories')
+      setTimeout(() => setError(''), 3000)
+    }
+    setShowBulkDeleteModal(false)
   }
 
   return (
@@ -579,6 +601,18 @@ const Categories = () => {
         </div>
       </div>
 
+      {/* Bulk Delete Button */}
+      {selectedCategories.length > 0 && (
+        <div className="flex items-center mb-4">
+          <button
+            onClick={() => setShowBulkDeleteModal(true)}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Delete Selected ({selectedCategories.length})
+          </button>
+        </div>
+      )}
+
       {/* Success/Error Messages */}
       {success && (
         <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
@@ -603,7 +637,7 @@ const Categories = () => {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        
+
         {/* Category Count */}
         <div className="mb-6">
           <div className="flex items-center gap-2">
@@ -612,7 +646,7 @@ const Categories = () => {
             </span>
           </div>
         </div>
-        
+
       </div>
 
       {/* Categories Table */}
@@ -797,6 +831,30 @@ const Categories = () => {
         </div>
       </div>
 
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-xl font-bold mb-4">Confirm Deletion</h2>
+            <p className="mb-4">Are you sure you want to delete {selectedCategories.length} selected categor{selectedCategories.length === 1 ? 'y' : 'ies'}? This action cannot be undone.</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowBulkDeleteModal(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkDeleteCategories}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add Category Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -827,7 +885,7 @@ const Categories = () => {
                   placeholder="Enter category description"
                 />
               </div>
-              
+
               {/* Top 10 Trending Option */}
             </div>
             <div className="flex justify-end gap-3 mt-6">
@@ -881,7 +939,7 @@ const Categories = () => {
                   placeholder="Enter category description"
                 />
               </div>
-              
+
               {/* Top 10 Trending Option */}
             </div>
             <div className="flex justify-end gap-3 mt-6">
@@ -1139,7 +1197,7 @@ const Categories = () => {
                 </svg>
               </button>
             </div>
-            
+
             <div className="space-y-3">
               {trendingIndustries.length === 0 ? (
                 <div className="text-center py-8">
@@ -1168,7 +1226,7 @@ const Categories = () => {
                 ))
               )}
             </div>
-            
+
             <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => {
@@ -1226,7 +1284,7 @@ const Categories = () => {
                 </span>
               </label>
             </div>
-            
+
             <div className="space-y-3">
               {trendingIndustries.length === 0 ? (
                 <div className="text-center py-12">
@@ -1249,11 +1307,10 @@ const Categories = () => {
                 trendingIndustries.map((industry, index) => (
                   <label
                     key={industry._id}
-                    className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
-                      selectedTop10Categories.includes(industry._id)
-                        ? 'bg-gradient-to-r from-indigo-50 via-purple-50 to-blue-50 border-indigo-400 shadow-md'
-                        : 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-sm'
-                    }`}
+                    className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${selectedTop10Categories.includes(industry._id)
+                      ? 'bg-gradient-to-r from-indigo-50 via-purple-50 to-blue-50 border-indigo-400 shadow-md'
+                      : 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-sm'
+                      }`}
                   >
                     <input
                       type="checkbox"
@@ -1261,11 +1318,11 @@ const Categories = () => {
                       onChange={() => handleTop10CheckboxToggle(industry._id)}
                       className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer flex-shrink-0"
                     />
-                    
+
                     <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-md flex-shrink-0">
                       {index + 1}
                     </div>
-                    
+
                     <div className="flex-1 min-w-0">
                       <h3 className="font-bold text-gray-900 text-lg truncate">
                         {industry.name}
@@ -1274,7 +1331,7 @@ const Categories = () => {
                         {industry.description || 'No description available'}
                       </p>
                     </div>
-                    
+
                     <div className="text-right flex-shrink-0">
                       <div className="flex items-center gap-2 mb-1">
                         <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1291,7 +1348,7 @@ const Categories = () => {
                 ))
               )}
             </div>
-            
+
             <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center">
               <div className="text-sm">
                 <span className="font-semibold text-indigo-600 text-lg">{selectedTop10Categories.length}</span>
@@ -1310,11 +1367,10 @@ const Categories = () => {
                 <button
                   onClick={handleSelectTop10Categories}
                   disabled={selectedTop10Categories.length === 0}
-                  className={`px-6 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
-                    selectedTop10Categories.length === 0
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-md hover:shadow-lg'
-                  }`}
+                  className={`px-6 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${selectedTop10Categories.length === 0
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-md hover:shadow-lg'
+                    }`}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1348,7 +1404,7 @@ const Categories = () => {
                 </span>
               </div>
             </div>
-            
+
             <div className="space-y-3 mb-6">
               {trendingSubcategories.length === 0 ? (
                 <div className="text-center py-8">
@@ -1367,11 +1423,10 @@ const Categories = () => {
                 trendingSubcategories.map((subcategory, index) => (
                   <label
                     key={subcategory._id}
-                    className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
-                      selectedTrendingSubcategories.includes(subcategory._id)
-                        ? 'bg-gradient-to-r from-indigo-50 via-purple-50 to-blue-50 border-indigo-400 shadow-md'
-                        : 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-sm'
-                    }`}
+                    className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${selectedTrendingSubcategories.includes(subcategory._id)
+                      ? 'bg-gradient-to-r from-indigo-50 via-purple-50 to-blue-50 border-indigo-400 shadow-md'
+                      : 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-sm'
+                      }`}
                   >
                     <input
                       type="checkbox"
@@ -1416,7 +1471,7 @@ const Categories = () => {
                 ))
               )}
             </div>
-            
+
             <div className="flex justify-between items-center pt-4 border-t">
               <div className="text-sm text-gray-600">
                 Select subcategories to mark/unmark as trending. This will save to database.
@@ -1453,8 +1508,8 @@ const Categories = () => {
 
       {/* Click outside handler for trending menu */}
       {showTrendingMenu && (
-        <div 
-          className="fixed inset-0 z-40" 
+        <div
+          className="fixed inset-0 z-40"
           onClick={() => setShowTrendingMenu(false)}
         />
       )}
