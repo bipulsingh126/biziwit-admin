@@ -6,12 +6,23 @@ const UserPermissions = ({ user, onSave, onCancel }) => {
   const [permissions, setPermissions] = useState({
     reports: { view: false, create: false, edit: false, delete: false },
     posts: { view: false, create: false, edit: false, delete: false },
-    users: { view: false, create: false, edit: false, delete: false }
+    users: { view: false, create: false, edit: false, delete: false },
+    caseStudies: { view: false, create: false, edit: false, delete: false },
+    megatrends: { view: false, create: false, edit: false, delete: false }
   })
 
   useEffect(() => {
     if (user?.permissions) {
       setPermissions(user.permissions)
+    } else {
+      // Default permissions for new users or if missing
+      setPermissions({
+        reports: { view: false, create: false, edit: false, delete: false },
+        posts: { view: false, create: false, edit: false, delete: false },
+        users: { view: false, create: false, edit: false, delete: false },
+        caseStudies: { view: false, create: false, edit: false, delete: false },
+        megatrends: { view: false, create: false, edit: false, delete: false }
+      })
     }
     setRole(user?.role || 'editor')
   }, [user])
@@ -49,6 +60,16 @@ const UserPermissions = ({ user, onSave, onCancel }) => {
     {
       name: 'users',
       label: 'User Management',
+      actions: ['view', 'create', 'edit', 'delete']
+    },
+    {
+      name: 'caseStudies',
+      label: 'Case Studies',
+      actions: ['view', 'create', 'edit', 'delete']
+    },
+    {
+      name: 'megatrends',
+      label: 'Megatrends',
       actions: ['view', 'create', 'edit', 'delete']
     }
   ]
@@ -163,8 +184,8 @@ const UserPermissions = ({ user, onSave, onCancel }) => {
           <p className="text-sm text-yellow-800">
             <strong>Note:</strong> {
               role === 'super_admin' ? 'Super Admin users have full access to all features including user management.' :
-              role === 'admin' ? 'Admin users have full access to content management but cannot manage users or permissions.' :
-              'Editor users can access modules based on assigned permissions below.'
+                role === 'admin' ? 'Admin users have full access to content management but cannot manage users or permissions.' :
+                  'Editor users can access modules based on assigned permissions below.'
             }
           </p>
         </div>

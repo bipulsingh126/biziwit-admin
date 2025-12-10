@@ -455,7 +455,7 @@ const upload = multer({
   storage: storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|pdf|xlsx|xls|docx|doc/
+    const allowedTypes = /jpeg|jpg|png|gif|webp|pdf|xlsx|xls|docx|doc/
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase())
     const mimetype = allowedTypes.test(file.mimetype)
 
@@ -548,15 +548,25 @@ router.get('/', async (req, res, next) => {
 
     // Text search across multiple fields
     if (q && q.trim()) {
-      filter.$or = [
-        { title: { $regex: q.trim(), $options: 'i' } },
-        { summary: { $regex: q.trim(), $options: 'i' } },
-        { reportDescription: { $regex: q.trim(), $options: 'i' } },
-        { author: { $regex: q.trim(), $options: 'i' } },
-        { reportCode: { $regex: q.trim(), $options: 'i' } },
-        { category: { $regex: q.trim(), $options: 'i' } },
-        { subCategory: { $regex: q.trim(), $options: 'i' } }
-      ]
+      const searchTerms = q.trim().split(/\s+/);
+      const regexConditions = searchTerms.map(term => {
+        const regex = new RegExp(term, 'i');
+        return {
+          $or: [
+            { title: { $regex: regex } },
+            { summary: { $regex: regex } },
+            { reportDescription: { $regex: regex } },
+            { author: { $regex: regex } },
+            { reportCode: { $regex: regex } },
+            { category: { $regex: regex } },
+            { subCategory: { $regex: regex } }
+          ]
+        };
+      });
+
+      if (regexConditions.length > 0) {
+        filter.$and = regexConditions;
+      }
     }
 
     // Category filtering
@@ -572,6 +582,11 @@ router.get('/', async (req, res, next) => {
     // Author filtering
     if (author && author.trim()) {
       filter.author = { $regex: author.trim(), $options: 'i' }
+    }
+
+    // Trending on Home Page filter
+    if (req.query.trendingReportForHomePage !== undefined) {
+      filter.trendingReportForHomePage = req.query.trendingReportForHomePage === 'true'
     }
 
     // Get total count for pagination
@@ -614,15 +629,24 @@ router.get('/suggestions', async (req, res, next) => {
     }
 
     const searchRegex = new RegExp(q.trim(), 'i')
+    const searchTerms = q.trim().split(/\s+/);
+    const regexConditions = searchTerms.map(term => {
+      const regex = new RegExp(term, 'i');
+      return {
+        $or: [
+          { title: regex },
+          { category: regex },
+          { subCategory: regex }
+        ]
+      };
+    });
 
     // Find reports matching title or category
     const reports = await Report.find({
-      $or: [
-        { title: searchRegex },
-        { category: searchRegex },
-        { subCategory: searchRegex }
-      ],
-      status: 'published' // Only suggest published reports
+      $and: [
+        ...regexConditions,
+        { status: 'published' }
+      ]
     })
       .select('title category subCategory slug')
       .limit(10)
@@ -1049,10 +1073,33 @@ router.post('/', async (req, res, next) => {
 router.get('/by-slug/:slug', async (req, res, next) => {
   try {
     const { slug } = req.params
+    console.log(`🔍 Fetching report for slug: "${slug}"`);
 
-    const report = await Report.findOne({ slug }).lean()
+    // 1. Exact match
+    let report = await Report.findOne({ slug }).lean()
+
+    // 2. Case-insensitive match (if exact failed)
+    if (!report) {
+      report = await Report.findOne({ slug: { $regex: new RegExp(`^${slug}$`, 'i') } }).lean();
+      if (report) console.log(`✅ Found report via case-insensitive slug: "${report.slug}"`);
+    }
+
+    // 3. Fallback: If not found and slug has hyphens, try replacing hyphens with spaces (legacy format)
+    if (!report && slug.includes('-')) {
+      const fallbackSlug = slug.replace(/-/g, ' ');
+      // Try exact fallback
+      report = await Report.findOne({ slug: fallbackSlug }).lean();
+      if (report) {
+         console.log(`✅ Recovered report via legacy-space slug (exact): "${fallbackSlug}"`);
+      } else {
+         // Try case-insensitive fallback
+         report = await Report.findOne({ slug: { $regex: new RegExp(`^${fallbackSlug}$`, 'i') } }).lean();
+         if (report) console.log(`✅ Recovered report via legacy-space slug (case-insensitive): "${report.slug}"`);
+      }
+    }
 
     if (!report) {
+       console.log(`❌ Report NOT found for slug: "${slug}" (checked strict, case-insensitive, and legacy formats)`);
       return res.status(404).json({
         error: 'Not Found',
         message: 'Report not found'

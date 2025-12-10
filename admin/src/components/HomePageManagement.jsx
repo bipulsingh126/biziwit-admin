@@ -48,7 +48,9 @@ const HomePageManagement = () => {
       setSaving(true)
       const response = await api.updateBannerBySlug(banner.slug, {
         title: banner.title,
-        isActive: banner.isActive
+        isActive: banner.isActive,
+        button1: banner.button1,
+        button2: banner.button2
       })
 
       if (response.success) {
@@ -339,8 +341,114 @@ const HomePageManagement = () => {
                       ))
                     }}
                     disabled={saving}
-                    className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-50"
+                    className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-50"
                     placeholder="Enter banner title..."
+                  />
+                </div>
+
+                {/* Button 1 Settings */}
+                <div className="space-y-2 pt-2 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-semibold text-gray-700">Button 1 (Primary)</label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={banner.button1?.enabled ?? true}
+                        onChange={(e) => {
+                          setBanners(prev => prev.map(b =>
+                            b.slug === banner.slug ? {
+                              ...b,
+                              button1: { ...b.button1, enabled: e.target.checked }
+                            } : b
+                          ))
+                        }}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-xs text-gray-600">Enabled</span>
+                    </label>
+                  </div>
+                  <input
+                    type="text"
+                    value={banner.button1?.text || ''}
+                    onChange={(e) => {
+                      setBanners(prev => prev.map(b =>
+                        b.slug === banner.slug ? {
+                          ...b,
+                          button1: { ...b.button1, text: e.target.value }
+                        } : b
+                      ))
+                    }}
+                    disabled={saving}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-50"
+                    placeholder="Button 1 text..."
+                  />
+                  <input
+                    type="text"
+                    value={banner.button1?.link || '#'}
+                    onChange={(e) => {
+                      setBanners(prev => prev.map(b =>
+                        b.slug === banner.slug ? {
+                          ...b,
+                          button1: { ...b.button1, link: e.target.value }
+                        } : b
+                      ))
+                    }}
+                    disabled={saving}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-50"
+                    placeholder="Button 1 link..."
+                  />
+                </div>
+
+                {/* Button 2 Settings */}
+                <div className="space-y-2 pt-2 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-semibold text-gray-700">Button 2 (Secondary)</label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={banner.button2?.enabled ?? true}
+                        onChange={(e) => {
+                          setBanners(prev => prev.map(b =>
+                            b.slug === banner.slug ? {
+                              ...b,
+                              button2: { ...b.button2, enabled: e.target.checked }
+                            } : b
+                          ))
+                        }}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-xs text-gray-600">Enabled</span>
+                    </label>
+                  </div>
+                  <input
+                    type="text"
+                    value={banner.button2?.text || ''}
+                    onChange={(e) => {
+                      setBanners(prev => prev.map(b =>
+                        b.slug === banner.slug ? {
+                          ...b,
+                          button2: { ...b.button2, text: e.target.value }
+                        } : b
+                      ))
+                    }}
+                    disabled={saving}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-50"
+                    placeholder="Button 2 text..."
+                  />
+                  <input
+                    type="text"
+                    value={banner.button2?.link || '#'}
+                    onChange={(e) => {
+                      setBanners(prev => prev.map(b =>
+                        b.slug === banner.slug ? {
+                          ...b,
+                          button2: { ...b.button2, link: e.target.value }
+                        } : b
+                      ))
+                    }}
+                    disabled={saving}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-50"
+                    placeholder="Button 2 link..."
                   />
                 </div>
 

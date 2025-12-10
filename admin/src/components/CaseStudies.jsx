@@ -6,7 +6,7 @@ import { Link, useNavigate } from 'react-router-dom'
 
 const CaseStudies = () => {
   const navigate = useNavigate()
-  
+
   // Search and Filter States
   const [searchTerm, setSearchTerm] = useState('')
   const [showFilters, setShowFilters] = useState(false)
@@ -15,23 +15,23 @@ const CaseStudies = () => {
     status: '',
     author: ''
   })
-  
+
   // Data States
   const [caseStudies, setCaseStudies] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  
+
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [totalItems, setTotalItems] = useState(0)
-  
+
   // Selection States
   const [selectedCaseStudies, setSelectedCaseStudies] = useState([])
   const [selectAll, setSelectAll] = useState(false)
   const [bulkOperating, setBulkOperating] = useState(false)
-  
+
   useEffect(() => {
     loadCaseStudies()
   }, [])
@@ -55,7 +55,7 @@ const CaseStudies = () => {
     try {
       setLoading(true)
       setError('')
-      
+
       const params = {
         page: currentPage,
         limit: itemsPerPage,
@@ -64,11 +64,11 @@ const CaseStudies = () => {
           Object.entries(filters).filter(([_, value]) => value !== '')
         )
       }
-      
+
       const response = await api.getCaseStudies(params)
       setCaseStudies(response.data || [])
       setTotalItems(response.total || 0)
-      
+
       // Reset selections when data changes
       setSelectedCaseStudies([])
       setSelectAll(false)
@@ -79,12 +79,12 @@ const CaseStudies = () => {
     }
   }
 
-  
+
   // Pagination calculations
   const totalPages = Math.ceil(totalItems / itemsPerPage)
   const startItem = (currentPage - 1) * itemsPerPage + 1
   const endItem = Math.min(currentPage * itemsPerPage, totalItems)
-  
+
   const goToPage = (page) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page)
@@ -115,7 +115,7 @@ const CaseStudies = () => {
       const newSelected = prev.includes(caseStudyId)
         ? prev.filter(id => id !== caseStudyId)
         : [...prev, caseStudyId]
-      
+
       setSelectAll(newSelected.length === caseStudies.length && caseStudies.length > 0)
       return newSelected
     })
@@ -123,7 +123,7 @@ const CaseStudies = () => {
 
   const handleBulkDelete = async () => {
     if (!confirm(`Are you sure you want to delete ${selectedCaseStudies.length} case studies?`)) return
-    
+
     try {
       setBulkOperating(true)
       await Promise.all(selectedCaseStudies.map(id => api.deleteCaseStudy(id)))
@@ -141,7 +141,7 @@ const CaseStudies = () => {
   const handleBulkStatusChange = async (newStatus) => {
     try {
       setBulkOperating(true)
-      await Promise.all(selectedCaseStudies.map(id => 
+      await Promise.all(selectedCaseStudies.map(id =>
         api.updateCaseStudy(id, { status: newStatus })
       ))
       setSuccess(`${selectedCaseStudies.length} case studies updated successfully!`)
@@ -157,7 +157,7 @@ const CaseStudies = () => {
 
   const deleteCaseStudy = async (id) => {
     if (!confirm('Are you sure you want to delete this case study?')) return
-    
+
     try {
       await api.deleteCaseStudy(id)
       setSuccess('Case study deleted successfully!')
@@ -172,7 +172,7 @@ const CaseStudies = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Case Studies</h1>
-        <button 
+        <button
           onClick={openNew}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
@@ -195,7 +195,7 @@ const CaseStudies = () => {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
-          
+
           {/* Filter Toggle */}
           <button
             onClick={() => setShowFilters(!showFilters)}
@@ -223,7 +223,7 @@ const CaseStudies = () => {
                 <option value="year">This Year</option>
               </select>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
               <select
@@ -237,21 +237,12 @@ const CaseStudies = () => {
                 <option value="scheduled">Scheduled</option>
               </select>
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Author</label>
-              <input
-                type="text"
-                placeholder="Filter by author"
-                value={filters.author}
-                onChange={(e) => setFilters(prev => ({ ...prev, author: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            
+
+
+
             <div className="md:col-span-3 flex gap-2">
               <button
-                onClick={() => setFilters({ dateRange: '', status: '', author: '' })}
+                onClick={() => setFilters({ dateRange: '', status: '' })}
                 className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 Clear Filters
@@ -345,11 +336,12 @@ const CaseStudies = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Case Study Title
                 </th>
+
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Author Name
+                  Category
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Publish Date
+                  Home
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Modified Date
@@ -403,7 +395,7 @@ const CaseStudies = () => {
                           />
                         ) : null}
                         {/* Fallback placeholder when no image or image fails to load */}
-                        <div 
+                        <div
                           className={`w-12 h-12 rounded-lg bg-gray-100 border-2 border-dashed border-gray-300 mr-3 flex items-center justify-center ${caseStudy.mainImage ? 'hidden' : 'flex'}`}
                         >
                           <ImageIcon className="w-6 h-6 text-gray-400" />
@@ -420,23 +412,29 @@ const CaseStudies = () => {
                         </div>
                       </div>
                     </td>
+
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {caseStudy.authorName || 'N/A'}
+                      {caseStudy.category || 'N/A'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {caseStudy.publishDate ? new Date(caseStudy.publishDate).toLocaleDateString() : 'N/A'}
+                      {caseStudy.homePageVisibility ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                          Yes
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {caseStudy.updatedAt ? new Date(caseStudy.updatedAt).toLocaleDateString() : 'N/A'}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        caseStudy.status === 'published' 
-                          ? 'bg-green-100 text-green-800'
-                          : caseStudy.status === 'draft'
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${caseStudy.status === 'published'
+                        ? 'bg-green-100 text-green-800'
+                        : caseStudy.status === 'draft'
                           ? 'bg-yellow-100 text-yellow-800'
                           : 'bg-gray-100 text-gray-800'
-                      }`}>
+                        }`}>
                         {caseStudy.status || 'draft'}
                       </span>
                     </td>
@@ -499,7 +497,7 @@ const CaseStudies = () => {
                   </select>
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => goToPage(currentPage - 1)}
@@ -508,24 +506,23 @@ const CaseStudies = () => {
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                
+
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   const page = i + 1
                   return (
                     <button
                       key={page}
                       onClick={() => goToPage(page)}
-                      className={`px-3 py-1 text-sm border rounded ${
-                        currentPage === page
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'border-gray-300 hover:bg-gray-50'
-                      }`}
+                      className={`px-3 py-1 text-sm border rounded ${currentPage === page
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'border-gray-300 hover:bg-gray-50'
+                        }`}
                     >
                       {page}
                     </button>
                   )
                 })}
-                
+
                 <button
                   onClick={() => goToPage(currentPage + 1)}
                   disabled={currentPage === totalPages}

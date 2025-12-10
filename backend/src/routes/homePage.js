@@ -52,7 +52,7 @@ const upload = multer({
 router.get('/', async (req, res) => {
   try {
     let homepage = await HomePage.findOne({ slug: 'homepage' })
-    
+
     // If no homepage exists, create default one
     if (!homepage) {
       homepage = await HomePage.createDefault()
@@ -78,7 +78,7 @@ router.put('/', authenticate, requireRole('super_admin', 'admin', 'editor'), asy
     const { pageTitle, pageSubtitle, seoData, banners, megatrends } = req.body
 
     let homepage = await HomePage.findOne({ slug: 'homepage' })
-    
+
     if (!homepage) {
       homepage = await HomePage.createDefault()
     }
@@ -123,7 +123,7 @@ router.put('/banner/:slug', authenticate, requireRole('super_admin', 'admin', 'e
     const updateData = req.body
 
     let homepage = await HomePage.findOne({ slug: 'homepage' })
-    
+
     if (!homepage) {
       return res.status(404).json({
         success: false,
@@ -132,7 +132,7 @@ router.put('/banner/:slug', authenticate, requireRole('super_admin', 'admin', 'e
     }
 
     const banner = homepage.updateBannerBySlug(slug, updateData)
-    
+
     if (!banner) {
       return res.status(404).json({
         success: false,
@@ -181,7 +181,7 @@ router.post('/banner/:slug/image', authenticate, requireRole('super_admin', 'adm
       const imageUrl = `/images/homepage/${req.file.filename}`
 
       let homepage = await HomePage.findOne({ slug: 'homepage' })
-      
+
       if (!homepage) {
         // Clean up uploaded file
         fs.unlinkSync(req.file.path)
@@ -192,7 +192,7 @@ router.post('/banner/:slug/image', authenticate, requireRole('super_admin', 'adm
       }
 
       const banner = homepage.banners.find(b => b.slug === slug)
-      
+
       if (!banner) {
         // Clean up uploaded file
         fs.unlinkSync(req.file.path)
@@ -225,7 +225,7 @@ router.post('/banner/:slug/image', authenticate, requireRole('super_admin', 'adm
       if (req.file && fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path)
       }
-      
+
       console.error('Error uploading banner image:', error)
       res.status(500).json({
         success: false,
@@ -242,7 +242,7 @@ router.delete('/banner/:slug/image', authenticate, requireRole('super_admin', 'a
     const { slug } = req.params
 
     let homepage = await HomePage.findOne({ slug: 'homepage' })
-    
+
     if (!homepage) {
       return res.status(404).json({
         success: false,
@@ -251,7 +251,7 @@ router.delete('/banner/:slug/image', authenticate, requireRole('super_admin', 'a
     }
 
     const banner = homepage.banners.find(b => b.slug === slug)
-    
+
     if (!banner) {
       return res.status(404).json({
         success: false,
@@ -265,7 +265,7 @@ router.delete('/banner/:slug/image', authenticate, requireRole('super_admin', 'a
       if (fs.existsSync(imagePath)) {
         fs.unlinkSync(imagePath)
       }
-      
+
       banner.image = ''
       homepage.lastUpdatedBy = req.user.id
       await homepage.save()
@@ -293,7 +293,7 @@ router.put('/megatrend/:slug', authenticate, requireRole('super_admin', 'admin',
     const updateData = req.body
 
     let homepage = await HomePage.findOne({ slug: 'homepage' })
-    
+
     if (!homepage) {
       return res.status(404).json({
         success: false,
@@ -302,7 +302,7 @@ router.put('/megatrend/:slug', authenticate, requireRole('super_admin', 'admin',
     }
 
     const megatrend = homepage.updateMegatrendBySlug(slug, updateData)
-    
+
     if (!megatrend) {
       return res.status(404).json({
         success: false,
@@ -351,7 +351,7 @@ router.post('/megatrend/:slug/image', authenticate, requireRole('super_admin', '
       const imageUrl = `/images/homepage/${req.file.filename}`
 
       let homepage = await HomePage.findOne({ slug: 'homepage' })
-      
+
       if (!homepage) {
         // Clean up uploaded file
         fs.unlinkSync(req.file.path)
@@ -362,7 +362,7 @@ router.post('/megatrend/:slug/image', authenticate, requireRole('super_admin', '
       }
 
       const megatrend = homepage.megatrends.find(m => m.slug === slug)
-      
+
       if (!megatrend) {
         // Clean up uploaded file
         fs.unlinkSync(req.file.path)
@@ -395,7 +395,7 @@ router.post('/megatrend/:slug/image', authenticate, requireRole('super_admin', '
       if (req.file && fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path)
       }
-      
+
       console.error('Error uploading megatrend image:', error)
       res.status(500).json({
         success: false,
@@ -412,7 +412,7 @@ router.delete('/megatrend/:slug/image', authenticate, requireRole('super_admin',
     const { slug } = req.params
 
     let homepage = await HomePage.findOne({ slug: 'homepage' })
-    
+
     if (!homepage) {
       return res.status(404).json({
         success: false,
@@ -421,7 +421,7 @@ router.delete('/megatrend/:slug/image', authenticate, requireRole('super_admin',
     }
 
     const megatrend = homepage.megatrends.find(m => m.slug === slug)
-    
+
     if (!megatrend) {
       return res.status(404).json({
         success: false,
@@ -435,7 +435,7 @@ router.delete('/megatrend/:slug/image', authenticate, requireRole('super_admin',
       if (fs.existsSync(imagePath)) {
         fs.unlinkSync(imagePath)
       }
-      
+
       megatrend.image = ''
       homepage.lastUpdatedBy = req.user.id
       await homepage.save()
@@ -460,7 +460,7 @@ router.delete('/megatrend/:slug/image', authenticate, requireRole('super_admin',
 router.get('/analytics', authenticate, requireRole('super_admin', 'admin', 'editor'), async (req, res) => {
   try {
     const homepage = await HomePage.findOne({ slug: 'homepage' })
-    
+
     if (!homepage) {
       return res.status(404).json({
         success: false,

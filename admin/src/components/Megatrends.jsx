@@ -6,7 +6,7 @@ import { getImageUrl } from '../utils/imageUtils'
 
 const Megatrends = () => {
   const navigate = useNavigate()
-  
+
   // Search and Filter States
   const [searchTerm, setSearchTerm] = useState('')
   const [showFilters, setShowFilters] = useState(false)
@@ -15,24 +15,24 @@ const Megatrends = () => {
     status: '',
     author: ''
   })
-  
+
   // Data States
   const [megatrends, setMegatrends] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [uploading, setUploading] = useState(false)
-  
+
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [totalItems, setTotalItems] = useState(0)
-  
+
   // Selection States
   const [selectedMegatrends, setSelectedMegatrends] = useState([])
   const [selectAll, setSelectAll] = useState(false)
   const [bulkOperating, setBulkOperating] = useState(false)
-  
+
 
   useEffect(() => {
     loadMegatrends()
@@ -57,25 +57,25 @@ const Megatrends = () => {
     try {
       setLoading(true)
       setError('')
-      
+
       const params = {
         q: searchTerm.trim(),
         limit: itemsPerPage,
         offset: (currentPage - 1) * itemsPerPage,
         ...filters
       }
-      
+
       // Remove empty values
       Object.keys(params).forEach(key => {
         if (params[key] === '' || params[key] === null || params[key] === undefined) {
           delete params[key]
         }
       })
-      
+
       const result = await api.getMegatrends(params)
       setMegatrends(result.data || result.items || [])
       setTotalItems(result.total || result.count || 0)
-      
+
       // Reset selections when data changes
       setSelectedMegatrends([])
       setSelectAll(false)
@@ -86,7 +86,7 @@ const Megatrends = () => {
     }
   }
 
-  
+
   // Selection handlers
   const handleSelectAll = () => {
     if (selectAll) {
@@ -97,27 +97,27 @@ const Megatrends = () => {
       setSelectAll(true)
     }
   }
-  
+
   const handleSelectMegatrend = (megatrendId) => {
     setSelectedMegatrends(prev => {
       const newSelected = prev.includes(megatrendId)
         ? prev.filter(id => id !== megatrendId)
         : [...prev, megatrendId]
-      
+
       setSelectAll(newSelected.length === megatrends.length && megatrends.length > 0)
       return newSelected
     })
   }
-  
+
   // Bulk operations
   const handleBulkDelete = async () => {
     if (!confirm(`Are you sure you want to delete ${selectedMegatrends.length} megatrends?`)) return
-    
+
     setBulkOperating(true)
     try {
       const deletePromises = selectedMegatrends.map(id => api.deleteMegatrend(id))
       await Promise.all(deletePromises)
-      
+
       setSuccess(`Successfully deleted ${selectedMegatrends.length} megatrends`)
       setSelectedMegatrends([])
       setSelectAll(false)
@@ -128,15 +128,15 @@ const Megatrends = () => {
       setBulkOperating(false)
     }
   }
-  
+
   const handleBulkStatusChange = async (newStatus) => {
     setBulkOperating(true)
     try {
-      const updatePromises = selectedMegatrends.map(id => 
+      const updatePromises = selectedMegatrends.map(id =>
         api.updateMegatrend(id, { status: newStatus })
       )
       await Promise.all(updatePromises)
-      
+
       setSuccess(`Successfully updated ${selectedMegatrends.length} megatrends to ${newStatus}`)
       setSelectedMegatrends([])
       setSelectAll(false)
@@ -147,12 +147,12 @@ const Megatrends = () => {
       setBulkOperating(false)
     }
   }
-  
+
   // Pagination
   const totalPages = Math.ceil(totalItems / itemsPerPage)
   const startItem = (currentPage - 1) * itemsPerPage + 1
   const endItem = Math.min(currentPage * itemsPerPage, totalItems)
-  
+
   const goToPage = (page) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page)
@@ -170,7 +170,7 @@ const Megatrends = () => {
 
   const deleteMegatrend = async (id) => {
     if (!confirm('Are you sure you want to delete this megatrend?')) return
-    
+
     try {
       await api.deleteMegatrend(id)
       setSuccess('Megatrend deleted successfully!')
@@ -186,7 +186,7 @@ const Megatrends = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Megatrends</h1>
-        <button 
+        <button
           onClick={openNew}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
@@ -209,7 +209,7 @@ const Megatrends = () => {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
-          
+
           {/* Filter Toggle */}
           <button
             onClick={() => setShowFilters(!showFilters)}
@@ -237,7 +237,7 @@ const Megatrends = () => {
                 <option value="year">This Year</option>
               </select>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
               <select
@@ -251,7 +251,7 @@ const Megatrends = () => {
                 <option value="scheduled">Scheduled</option>
               </select>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Author</label>
               <input
@@ -262,7 +262,7 @@ const Megatrends = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            
+
             <div className="md:col-span-3 flex gap-2">
               <button
                 onClick={() => setFilters({ dateRange: '', status: '', author: '' })}
@@ -369,6 +369,9 @@ const Megatrends = () => {
                   Modified Date
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Home
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -379,7 +382,7 @@ const Megatrends = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-12 text-center">
+                  <td colSpan="8" className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center">
                       <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mb-4"></div>
                       <p className="text-gray-600">Loading megatrends...</p>
@@ -388,7 +391,7 @@ const Megatrends = () => {
                 </tr>
               ) : megatrends.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan="8" className="px-6 py-12 text-center text-gray-500">
                     No megatrends found
                   </td>
                 </tr>
@@ -417,7 +420,7 @@ const Megatrends = () => {
                           />
                         ) : null}
                         {/* Fallback placeholder when no image or image fails to load */}
-                        <div 
+                        <div
                           className={`w-12 h-12 rounded-lg bg-gray-100 border-2 border-dashed border-gray-300 mr-3 flex items-center justify-center ${(megatrend.mainImage || megatrend.heroImage?.url) ? 'hidden' : 'flex'}`}
                         >
                           <Image className="w-6 h-6 text-gray-400" />
@@ -444,13 +447,38 @@ const Megatrends = () => {
                       {megatrend.updatedAt ? new Date(megatrend.updatedAt).toLocaleDateString() : 'N/A'}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        megatrend.status === 'published' 
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await api.updateMegatrend(megatrend._id, { isHome: !megatrend.isHome });
+
+                            // Optimistic update
+                            setMegatrends(prev => prev.map(m =>
+                              m._id === megatrend._id ? { ...m, isHome: !m.isHome } : m
+                            ));
+
+                            setSuccess(`Megatrend ${!megatrend.isHome ? 'added to' : 'removed from'} Home`);
+                          } catch (err) {
+                            setError('Failed to update home status');
+                          }
+                        }}
+                        className={`p-2 rounded-full transition-colors ${megatrend.isHome
+                            ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                          }`}
+                        title={megatrend.isHome ? "Remove from Home" : "Add to Home"}
+                      >
+                        <Globe className="w-4 h-4" />
+                      </button>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${megatrend.status === 'published'
                           ? 'bg-green-100 text-green-800'
                           : megatrend.status === 'draft'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
                         {megatrend.status || 'draft'}
                       </span>
                     </td>
@@ -513,7 +541,7 @@ const Megatrends = () => {
                   </select>
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => goToPage(currentPage - 1)}
@@ -522,24 +550,23 @@ const Megatrends = () => {
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                
+
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   const page = i + 1
                   return (
                     <button
                       key={page}
                       onClick={() => goToPage(page)}
-                      className={`px-3 py-1 text-sm border rounded ${
-                        currentPage === page
+                      className={`px-3 py-1 text-sm border rounded ${currentPage === page
                           ? 'bg-blue-600 text-white border-blue-600'
                           : 'border-gray-300 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       {page}
                     </button>
                   )
                 })}
-                
+
                 <button
                   onClick={() => goToPage(currentPage + 1)}
                   disabled={currentPage === totalPages}

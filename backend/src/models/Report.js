@@ -88,16 +88,7 @@ const reportSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
-  region: {
-    type: String,
-    trim: true,
-    default: ''
-  },
-  subRegions: {
-    type: String,
-    trim: true,
-    default: ''
-  },
+
 
   // Segmentation and Companies fields
   segmentCompanies: {
@@ -126,7 +117,7 @@ const reportSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
-  
+
   // Tags as simple string array
   tags: [String],
 
@@ -168,7 +159,7 @@ const reportSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
-  
+
 
   // Pricing fields
   excelDatapackPrice: {
@@ -283,12 +274,11 @@ reportSchema.index({
 // Basic indexes (category and subCategory indexes are defined in schema with index: true)
 reportSchema.index({ status: 1 })
 reportSchema.index({ domain: 1 })
-reportSchema.index({ region: 1 })
-reportSchema.index({ subRegions: 1 })
+
 // Note: slug and reportCode indexes are automatically created by unique: true constraints
 reportSchema.index({ trendingReportForHomePage: 1 })
 
-  // Auto-generate slug and searchTitle from title
+// Auto-generate slug and searchTitle from title
 reportSchema.pre('save', function (next) {
   if (this.isModified('title')) {
     this.searchTitle = this.title.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -318,16 +308,16 @@ reportSchema.pre('save', function (next) {
 })
 
 // Middleware to update category references when report is saved
-reportSchema.post('save', async function(doc) {
+reportSchema.post('save', async function (doc) {
   try {
     const Category = mongoose.model('Category')
-    
+
     // Update category references if category is specified
     if (doc.category && doc.category.trim()) {
-      const category = await Category.findOne({ 
+      const category = await Category.findOne({
         name: { $regex: new RegExp(`^${doc.category.trim()}$`, 'i') }
       })
-      
+
       if (category) {
         // Add report to category if not already present
         if (!category.reports.includes(doc._id)) {
@@ -335,13 +325,13 @@ reportSchema.post('save', async function(doc) {
           category.reportCount = category.reports.length
           await category.save()
         }
-        
+
         // Update subcategory references if subcategory is specified
         if (doc.subCategory && doc.subCategory.trim()) {
-          const subcategory = category.subcategories.find(sub => 
+          const subcategory = category.subcategories.find(sub =>
             sub.name.toLowerCase() === doc.subCategory.trim().toLowerCase()
           )
-          
+
           if (subcategory && !subcategory.reports.includes(doc._id)) {
             subcategory.reports.push(doc._id)
             subcategory.reportCount = subcategory.reports.length
@@ -356,12 +346,12 @@ reportSchema.post('save', async function(doc) {
 })
 
 // Middleware to remove category references when report is deleted
-reportSchema.post('findOneAndDelete', async function(doc) {
+reportSchema.post('findOneAndDelete', async function (doc) {
   if (!doc) return
-  
+
   try {
     const Category = mongoose.model('Category')
-    
+
     // Remove report from all categories and subcategories
     const categories = await Category.find({
       $or: [
@@ -369,18 +359,18 @@ reportSchema.post('findOneAndDelete', async function(doc) {
         { 'subcategories.reports': doc._id }
       ]
     })
-    
+
     for (const category of categories) {
       // Remove from category reports
       category.reports = category.reports.filter(id => !id.equals(doc._id))
       category.reportCount = category.reports.length
-      
+
       // Remove from subcategory reports
       category.subcategories.forEach(sub => {
         sub.reports = sub.reports.filter(id => !id.equals(doc._id))
         sub.reportCount = sub.reports.length
       })
-      
+
       await category.save()
     }
   } catch (error) {

@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { 
-  Settings as SettingsIcon, 
-  Calendar, 
-  User, 
-  Lock, 
-  Eye, 
-  EyeOff, 
+import {
+  Settings as SettingsIcon,
+  Calendar,
+  User,
+  Lock,
+  Eye,
+  EyeOff,
   Globe,
   Clock,
   Tag,
@@ -30,7 +30,6 @@ const ReportSettings = ({ formData, onUpdate }) => {
     socialSharing: true,
     printable: true,
     language: 'en',
-    region: 'global',
     industry: '',
     reportType: 'market-research',
     pages: '',
@@ -65,7 +64,6 @@ const ReportSettings = ({ formData, onUpdate }) => {
         socialSharing: formData.socialSharing !== false,
         printable: formData.printable !== false,
         language: formData.language || 'en',
-        region: formData.region || 'global',
         industry: formData.industry || '',
         reportType: formData.reportType || 'market-research',
         pages: formData.pages || '',
@@ -88,7 +86,7 @@ const ReportSettings = ({ formData, onUpdate }) => {
   const handleInputChange = (field, value) => {
     const newSettings = { ...settings, [field]: value }
     setSettings(newSettings)
-    
+
     // Update parent component
     if (onUpdate) {
       onUpdate(newSettings)
@@ -126,11 +124,7 @@ const ReportSettings = ({ formData, onUpdate }) => {
     { value: 'ko', label: 'Korean' }
   ]
 
-  const regions = [
-    'Global', 'North America', 'Europe', 'Asia Pacific', 'Latin America',
-    'Middle East & Africa', 'United States', 'Canada', 'United Kingdom',
-    'Germany', 'France', 'China', 'Japan', 'India', 'Australia'
-  ]
+
 
   return (
     <div className="space-y-6">
@@ -140,7 +134,7 @@ const ReportSettings = ({ formData, onUpdate }) => {
           <Calendar className="w-5 h-5" />
           Publishing Settings
         </h3>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -239,7 +233,7 @@ const ReportSettings = ({ formData, onUpdate }) => {
           <Lock className="w-5 h-5" />
           Access & Visibility
         </h3>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -321,7 +315,7 @@ const ReportSettings = ({ formData, onUpdate }) => {
           <FileText className="w-5 h-5" />
           Report Details
         </h3>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -369,20 +363,7 @@ const ReportSettings = ({ formData, onUpdate }) => {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Region
-            </label>
-            <select
-              value={settings.region}
-              onChange={(e) => handleInputChange('region', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              {regions.map(region => (
-                <option key={region} value={region}>{region}</option>
-              ))}
-            </select>
-          </div>
+
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -423,7 +404,7 @@ const ReportSettings = ({ formData, onUpdate }) => {
           <SettingsIcon className="w-5 h-5" />
           Features & Permissions
         </h3>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-3">
             <label className="flex items-center">
@@ -520,7 +501,7 @@ const ReportSettings = ({ formData, onUpdate }) => {
           <User className="w-5 h-5" />
           Review Information
         </h3>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">

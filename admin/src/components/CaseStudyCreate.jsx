@@ -14,8 +14,7 @@ const CaseStudyCreate = () => {
   const [formData, setFormData] = useState({
     title: '',
     subTitle: '',
-    authorName: '',
-    publishDate: new Date().toISOString().slice(0, 10),
+
     mainImage: '',
     homePageVisibility: false,
     titleTag: '',
@@ -23,7 +22,8 @@ const CaseStudyCreate = () => {
     metaDescription: '',
     keywords: '',
     content: '',
-    status: 'draft'
+    status: 'draft',
+    category: 'Market Intelligence'
   })
 
   const [imageFile, setImageFile] = useState(null)
@@ -61,8 +61,7 @@ const CaseStudyCreate = () => {
       setFormData({
         title: caseStudy.title || '',
         subTitle: caseStudy.subTitle || '',
-        authorName: caseStudy.authorName || '',
-        publishDate: caseStudy.publishDate ? new Date(caseStudy.publishDate).toISOString().slice(0, 10) : '',
+
         mainImage: caseStudy.mainImage || '',
         homePageVisibility: caseStudy.homePageVisibility || false,
         titleTag: caseStudy.titleTag || '',
@@ -70,9 +69,10 @@ const CaseStudyCreate = () => {
         metaDescription: caseStudy.metaDescription || '',
         keywords: caseStudy.keywords || '',
         content: caseStudy.content || '',
-        status: caseStudy.status || 'draft'
+        status: caseStudy.status || 'draft',
+        category: caseStudy.category || 'Market Intelligence'
       })
-      
+
       // Set image preview if mainImage exists
       if (caseStudy.mainImage) {
         const fullUrl = getImageUrl(caseStudy.mainImage)
@@ -97,7 +97,7 @@ const CaseStudyCreate = () => {
   // Handle input changes
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    
+
     // Auto-generate URL from title
     if (field === 'title' && !isEditing) {
       const slug = value.toLowerCase()
@@ -113,17 +113,17 @@ const CaseStudyCreate = () => {
   const handleImageChange = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    
+
     if (!file.type.startsWith('image/')) {
       setError('Please select a valid image file')
       return
     }
-    
+
     if (file.size > 5 * 1024 * 1024) {
       setError('Image file size must be less than 5MB')
       return
     }
-    
+
     setImageFile(file)
     const reader = new FileReader()
     reader.onload = () => setImagePreview(reader.result)
@@ -141,20 +141,20 @@ const CaseStudyCreate = () => {
   const uploadImage = async (caseStudyId) => {
     try {
       setUploadingImage(true)
-      
+
       const result = await api.uploadCaseStudyImage(caseStudyId, imageFile, `${formData.title || 'Case Study'} - Main Image`)
-      
+
       // Update form data with the image URL
       const imageUrl = result.imageUrl
       setFormData(prev => ({ ...prev, mainImage: imageUrl }))
-      
+
       // Update preview with full URL so it persists after reload
       const fullUrl = getImageUrl(imageUrl)
-      
+
       setImagePreview(fullUrl)
       setImageFile(null) // Clear file input after successful upload
       setSuccess('Image uploaded successfully!')
-      
+
       return imageUrl
     } catch (err) {
       setError('Failed to upload image: ' + err.message)
@@ -169,21 +169,18 @@ const CaseStudyCreate = () => {
     try {
       setSaving(true)
       setError('')
-      
+
       // Validate required fields
       if (!formData.title.trim()) {
         setError('Case study title is required')
         return
       }
-      
-      if (!formData.authorName.trim()) {
-        setError('Author name is required')
-        return
-      }
-      
+
+
+
       let savedCaseStudy
       let finalFormData = { ...formData }
-      
+
       // First save the case study
       if (isEditing) {
         savedCaseStudy = await api.updateCaseStudy(id, finalFormData)
@@ -192,7 +189,7 @@ const CaseStudyCreate = () => {
         savedCaseStudy = await api.createCaseStudy(finalFormData)
         setSuccess('Case study created successfully!')
       }
-      
+
       // Upload image if selected and update the case study with image URL
       if (imageFile && savedCaseStudy._id) {
         try {
@@ -204,12 +201,12 @@ const CaseStudyCreate = () => {
           // Don't fail the entire save if just image upload fails
         }
       }
-      
+
       // Navigate back after a short delay
       setTimeout(() => {
         navigate('/admin/case-studies')
       }, 1500)
-      
+
     } catch (err) {
       setError(err.message || 'Failed to save case study')
     } finally {
@@ -247,7 +244,7 @@ const CaseStudyCreate = () => {
                 {isEditing ? 'Edit Case Study' : 'Create New Case Study'}
               </h1>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">Status:</span>
@@ -261,7 +258,7 @@ const CaseStudyCreate = () => {
                   <option value="scheduled">Scheduled</option>
                 </select>
               </div>
-              
+
               <button
                 onClick={saveCaseStudy}
                 disabled={saving}
@@ -316,7 +313,7 @@ const CaseStudyCreate = () => {
             {/* Basic Information */}
             <section id="basic" className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-6">Basic Information</h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -345,30 +342,28 @@ const CaseStudyCreate = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Author Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.authorName}
-                    onChange={(e) => handleInputChange('authorName', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter author name"
-                    required
-                  />
-                </div>
+
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Publish Date
+                    Category (Service Page) <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="date"
-                    value={formData.publishDate}
-                    onChange={(e) => handleInputChange('publishDate', e.target.value)}
+                  <select
+                    value={formData.category}
+                    onChange={(e) => handleInputChange('category', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                    required
+                  >
+                    <option value="Market Intelligence">Market Intelligence</option>
+                    <option value="Competitive Intelligence">Competitive Intelligence</option>
+                    <option value="Sustainability">Sustainability</option>
+                    <option value="India Market Entry">India Market Entry</option>
+                    <option value="Voice of Customer">Voice of Customer</option>
+                    <option value="Market Share Gain">Market Share Gain</option>
+                    <option value="FTE">FTE</option>
+                    <option value="Content Lead">Content Lead</option>
+                    <option value="Home Page">Home Page</option>
+                  </select>
                 </div>
 
 
@@ -398,7 +393,7 @@ const CaseStudyCreate = () => {
                     </span>
                   )}
                 </div>
-                
+
                 <div className="max-w-md">
                   <div className="relative border-2 border-dashed border-gray-300 rounded-lg overflow-hidden hover:border-blue-400 transition-all">
                     {imagePreview ? (
@@ -431,7 +426,7 @@ const CaseStudyCreate = () => {
                       </label>
                     )}
                   </div>
-                  
+
                   {/* Upload button for selected image */}
                   {imageFile && !uploadingImage && (
                     <div className="mt-4 flex gap-2">
@@ -456,7 +451,7 @@ const CaseStudyCreate = () => {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg max-w-md">
                   <div className="flex items-start gap-2">
                     <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -480,7 +475,7 @@ const CaseStudyCreate = () => {
             {/* SEO Settings */}
             <section id="seo" className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-6">SEO Settings</h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -547,7 +542,7 @@ const CaseStudyCreate = () => {
             {/* Content */}
             <section id="content" className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-6">Content</h2>
-              
+
               <RichTextEditor
                 value={formData.content}
                 onChange={(content) => handleInputChange('content', content)}

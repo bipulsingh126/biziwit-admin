@@ -9,14 +9,14 @@ const InquirySchema = new mongoose.Schema({
   company: { type: String, trim: true },
   subject: { type: String, trim: true },
   message: { type: String, required: true },
-  inquiryType: { 
-    type: String, 
+  inquiryType: {
+    type: String,
     enum: [
-      'General Inquiry', 
-      'Report Request', 
-      'Custom Report', 
-      'Technical Support', 
-      'Partnership', 
+      'General Inquiry',
+      'Report Request',
+      'Custom Report',
+      'Technical Support',
+      'Partnership',
       'Media Inquiry',
       'Inquiry Before Buying',
       'Request for Sample',
@@ -26,29 +26,30 @@ const InquirySchema = new mongoose.Schema({
       'Submit Your Profile',
       'Download White Paper',
       'Individual Service Page',
+      'Subscription',
       'Other'
-    ], 
+    ],
     default: 'General Inquiry',
-    index: true 
+    index: true
   },
   pageReportTitle: { type: String, trim: true }, // The page or report they're inquiring about
   source: { type: String, trim: true, default: 'website' },
-  status: { 
-    type: String, 
-    enum: ['new', 'open', 'in_progress', 'resolved', 'closed'], 
-    default: 'new', 
-    index: true 
+  status: {
+    type: String,
+    enum: ['new', 'open', 'in_progress', 'resolved', 'closed'],
+    default: 'new',
+    index: true
   },
-  priority: { 
-    type: String, 
-    enum: ['low', 'medium', 'high', 'urgent'], 
+  priority: {
+    type: String,
+    enum: ['low', 'medium', 'high', 'urgent'],
     default: 'medium',
-    index: true 
+    index: true
   },
   assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   tags: [{ type: String, trim: true }],
-  notes: [{ 
-    content: String, 
+  notes: [{
+    content: String,
     author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     createdAt: { type: Date, default: Date.now }
   }],
@@ -58,7 +59,7 @@ const InquirySchema = new mongoose.Schema({
 }, { timestamps: true })
 
 // Helper function to generate slug
-InquirySchema.methods.generateSlug = function(baseText) {
+InquirySchema.methods.generateSlug = function (baseText) {
   return baseText
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
@@ -68,12 +69,12 @@ InquirySchema.methods.generateSlug = function(baseText) {
 };
 
 // Generate inquiry number and slug before saving
-InquirySchema.pre('save', async function(next) {
+InquirySchema.pre('save', async function (next) {
   if (!this.inquiryNumber) {
     const count = await mongoose.model('Inquiry').countDocuments()
     this.inquiryNumber = `INQ-${String(count + 1).padStart(6, '0')}`
   }
-  
+
   // Generate slug if not provided or if inquiry number/subject changed
   if (!this.slug || this.isModified('inquiryNumber') || this.isModified('subject')) {
     let baseSlug = this.inquiryNumber.toLowerCase()
@@ -81,28 +82,28 @@ InquirySchema.pre('save', async function(next) {
       const subjectSlug = this.generateSlug(this.subject)
       baseSlug = `${baseSlug}-${subjectSlug}`
     }
-    
+
     let slug = baseSlug
     let counter = 1
-    
+
     // Check for existing slugs and make unique
     while (await this.constructor.findOne({ slug: slug, _id: { $ne: this._id } })) {
       slug = `${baseSlug}-${counter}`
       counter++
     }
-    
+
     this.slug = slug
   }
-  
+
   next()
 })
 
 // Index for better search performance
-InquirySchema.index({ 
-  name: 'text', 
-  email: 'text', 
-  company: 'text', 
-  subject: 'text', 
+InquirySchema.index({
+  name: 'text',
+  email: 'text',
+  company: 'text',
+  subject: 'text',
   message: 'text',
   pageReportTitle: 'text'
 })

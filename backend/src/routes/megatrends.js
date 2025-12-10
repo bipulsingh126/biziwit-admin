@@ -69,8 +69,9 @@ async function notifySubmission(sub) {
 // Public: list published megatrends
 router.get('/public', async (req, res, next) => {
   try {
-    const { q = '', tags, tag, limit = 50, offset = 0 } = req.query
+    const { q = '', tags, tag, limit = 50, offset = 0, isHome } = req.query
     const query = { status: 'published' }
+    if (isHome === 'true') query.isHome = true
     if (q) {
       const rx = new RegExp(q, 'i')
       query.$or = [{ title: rx }, { summary: rx }, { content: rx }, { tags: rx }]
@@ -120,7 +121,7 @@ router.post('/public/:slug/whitepaper', async (req, res, next) => {
       agreed: !!agreed,
     })
 
-    notifySubmission(created).catch(() => {})
+    notifySubmission(created).catch(() => { })
 
     const token = jwt.sign(
       { sub: 'whitepaper', mg: String(mg._id), ts: Date.now() },

@@ -57,10 +57,10 @@ class ApiClient {
 
     try {
       const response = await fetch(url, config)
-      
+
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Request failed' }))
-        
+
         // Handle specific error cases
         if (response.status === 401) {
           // Token expired or invalid - clear auth state
@@ -68,20 +68,20 @@ class ApiClient {
           window.location.reload()
           throw new Error('Session expired. Please login again.')
         }
-        
+
         // Handle 404 errors for trending endpoints gracefully
         if (response.status === 404 && endpoint.includes('trending')) {
           console.warn(`Trending endpoint not found: ${endpoint}`)
           throw new Error('404')
         }
-        
+
         throw new Error(error.error || error.message || `HTTP ${response.status}`)
       }
 
       const contentType = response.headers.get('content-type')
       if (contentType?.includes('application/json')) {
         const jsonResponse = await response.json()
-        
+
         // Debug logging for API responses (only for report endpoints)
         if (endpoint.includes('/reports/')) {
           console.log('🔍 API Response Debug:', {
@@ -99,7 +99,7 @@ class ApiClient {
             isServerEnv: !window.location.hostname.includes('localhost')
           });
         }
-        
+
         return jsonResponse
       }
       return response
@@ -260,7 +260,7 @@ class ApiClient {
     const formData = new FormData()
     formData.append('file', file)
     return this.request('/api/posts/upload-image', {
-      method: 'POST', 
+      method: 'POST',
       body: formData,
       headers: {} // Let browser set Content-Type for FormData
     })
@@ -380,7 +380,7 @@ class ApiClient {
     })
   }
 
-  
+
 
 
   // Inquiries
@@ -605,11 +605,11 @@ class ApiClient {
         'Authorization': `Bearer ${this.token}`
       }
     })
-    
+
     if (!response.ok) {
       throw new Error('Export failed')
     }
-    
+
     return response.blob()
   }
 
@@ -640,7 +640,7 @@ class ApiClient {
   async uploadBannerImageBySlug(slug, file) {
     const formData = new FormData()
     formData.append('image', file)
-    
+
     return this.request(`/api/homepage/banner/${slug}/image`, {
       method: 'POST',
       body: formData
@@ -664,7 +664,7 @@ class ApiClient {
   async uploadMegatrendImageBySlug(slug, file) {
     const formData = new FormData()
     formData.append('image', file)
-    
+
     return this.request(`/api/homepage/megatrend/${slug}/image`, {
       method: 'POST',
       body: formData
@@ -725,7 +725,7 @@ class ApiClient {
   async uploadTestimonialImage(id, file) {
     const formData = new FormData()
     formData.append('image', file)
-    
+
     return this.request(`/api/testimonials/${id}/upload-image`, {
       method: 'POST',
       body: formData

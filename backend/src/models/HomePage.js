@@ -26,36 +26,33 @@ const bannerSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
-  isActive: {
-    type: Boolean,
-    default: true
+  button1: {
+    text: {
+      type: String,
+      default: 'Free Consultation'
+    },
+    link: {
+      type: String,
+      default: '#'
+    },
+    enabled: {
+      type: Boolean,
+      default: true
+    }
   },
-  sortOrder: {
-    type: Number,
-    default: 0
-  }
-}, { _id: true })
-
-// Megatrend Schema with slug
-const megatrendSchema = new mongoose.Schema({
-  heading: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  title: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  slug: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  image: {
-    type: String,
-    default: ''
+  button2: {
+    text: {
+      type: String,
+      default: 'Consultation'
+    },
+    link: {
+      type: String,
+      default: '#'
+    },
+    enabled: {
+      type: Boolean,
+      default: true
+    }
   },
   isActive: {
     type: Boolean,
@@ -85,7 +82,6 @@ const homePageSchema = new mongoose.Schema({
     default: 'homepage'
   },
   banners: [bannerSchema],
-  megatrends: [megatrendSchema],
   seoData: {
     title: {
       type: String,
@@ -145,19 +141,23 @@ homePageSchema.virtual('activeMegatrends').get(function () {
 
 // Pre-save middleware to generate slugs
 homePageSchema.pre('save', function (next) {
-  // Generate banner slugs
-  this.banners.forEach(banner => {
-    if (!banner.slug || banner.isModified('title')) {
-      banner.slug = generateSlug(banner.title)
-    }
-  })
+  // Generate banner slugs - check if banners array exists
+  if (this.banners && Array.isArray(this.banners)) {
+    this.banners.forEach(banner => {
+      if (!banner.slug || banner.isModified('title')) {
+        banner.slug = generateSlug(banner.title)
+      }
+    })
+  }
 
-  // Generate megatrend slugs
-  this.megatrends.forEach(megatrend => {
-    if (!megatrend.slug || megatrend.isModified('heading')) {
-      megatrend.slug = generateSlug(megatrend.heading)
-    }
-  })
+  // Generate megatrend slugs - check if megatrends array exists
+  if (this.megatrends && Array.isArray(this.megatrends)) {
+    this.megatrends.forEach(megatrend => {
+      if (!megatrend.slug || megatrend.isModified('heading')) {
+        megatrend.slug = generateSlug(megatrend.heading)
+      }
+    })
+  }
 
   next()
 })
@@ -177,10 +177,40 @@ homePageSchema.methods.addBanner = function (bannerData) {
 homePageSchema.methods.updateBannerBySlug = function (slug, updateData) {
   const banner = this.banners.find(b => b.slug === slug)
   if (banner) {
-    Object.assign(banner, updateData)
+    // Handle title update
     if (updateData.title) {
+      banner.title = updateData.title
       banner.slug = generateSlug(updateData.title)
     }
+
+    // Handle isActive update
+    if (updateData.isActive !== undefined) {
+      banner.isActive = updateData.isActive
+    }
+
+    // Handle button1 update - properly merge nested object
+    if (updateData.button1) {
+      if (!banner.button1) {
+        banner.button1 = {}
+      }
+      banner.button1.text = updateData.button1.text !== undefined ? updateData.button1.text : banner.button1.text
+      banner.button1.link = updateData.button1.link !== undefined ? updateData.button1.link : banner.button1.link
+      banner.button1.enabled = updateData.button1.enabled !== undefined ? updateData.button1.enabled : banner.button1.enabled
+    }
+
+    // Handle button2 update - properly merge nested object
+    if (updateData.button2) {
+      if (!banner.button2) {
+        banner.button2 = {}
+      }
+      banner.button2.text = updateData.button2.text !== undefined ? updateData.button2.text : banner.button2.text
+      banner.button2.link = updateData.button2.link !== undefined ? updateData.button2.link : banner.button2.link
+      banner.button2.enabled = updateData.button2.enabled !== undefined ? updateData.button2.enabled : banner.button2.enabled
+    }
+
+    // Mark the banners array as modified so Mongoose knows to save it
+    this.markModified('banners')
+
     return banner
   }
   return null
@@ -236,25 +266,65 @@ homePageSchema.statics.createDefault = async function () {
         title: 'Market Research Reports',
         slug: 'market-research-reports',
         isActive: true,
-        sortOrder: 0
+        sortOrder: 0,
+        button1: {
+          text: 'Free Consultation',
+          link: '/consultation',
+          enabled: true
+        },
+        button2: {
+          text: 'Consultation',
+          link: '/consultation',
+          enabled: true
+        }
       },
       {
         title: 'Industry Analysis',
         slug: 'industry-analysis',
         isActive: true,
-        sortOrder: 1
+        sortOrder: 1,
+        button1: {
+          text: 'Free Consultation',
+          link: '/consultation',
+          enabled: true
+        },
+        button2: {
+          text: 'Consultation',
+          link: '/consultation',
+          enabled: true
+        }
       },
       {
         title: 'Business Intelligence',
         slug: 'business-intelligence',
         isActive: true,
-        sortOrder: 2
+        sortOrder: 2,
+        button1: {
+          text: 'Free Consultation',
+          link: '/consultation',
+          enabled: true
+        },
+        button2: {
+          text: 'Consultation',
+          link: '/consultation',
+          enabled: true
+        }
       },
       {
         title: 'Custom Research',
         slug: 'custom-research',
         isActive: true,
-        sortOrder: 3
+        sortOrder: 3,
+        button1: {
+          text: 'Free Consultation',
+          link: '/consultation',
+          enabled: true
+        },
+        button2: {
+          text: 'Consultation',
+          link: '/consultation',
+          enabled: true
+        }
       }
     ],
     megatrends: [

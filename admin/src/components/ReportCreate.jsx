@@ -31,9 +31,7 @@ const ReportCreate = () => {
     // Legacy category fields
     category: '',
     subCategory: '',
-    // New region field
-    region: '',
-    subRegions: '',
+
     // Report details
     author: '',
     publishDate: new Date().toISOString().split('T')[0],
@@ -69,17 +67,7 @@ const ReportCreate = () => {
   const [categories, setCategories] = useState([])
   const [subCategories, setSubCategories] = useState({})
 
-  const regions = [
-    'Global', 'North America', 'Europe', 'Asia Pacific', 'Latin America',
-    'Middle East & Africa', 'United States', 'China', 'India', 'Japan'
-  ]
 
-  const subRegions = [
-    'North America', 'South America', 'Western Europe', 'Eastern Europe', 'Central Europe',
-    'East Asia', 'Southeast Asia', 'South Asia', 'Central Asia', 'Western Asia',
-    'North Africa', 'Sub-Saharan Africa', 'Middle East', 'Oceania', 'Caribbean',
-    'Central America', 'Scandinavia', 'Mediterranean', 'Baltic States', 'Balkans'
-  ]
 
   useEffect(() => {
     if (isEdit && id) {
@@ -222,9 +210,7 @@ const ReportCreate = () => {
         // Legacy category fields
         category: report.category || '',
         subCategory: report.subCategory || '',
-        // New region field
-        region: report.region || '',
-        subRegions: report.subRegions || '',
+
         // Report details
         author: report.author || '',
         publishDate: report.publishDate ? new Date(report.publishDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -431,7 +417,7 @@ const ReportCreate = () => {
     if (!(formData.title || '').trim()) errors.title = 'Title is required'
     if (!formData.category) errors.category = 'Report Category is required'
     if (!formData.subCategory) errors.subCategory = 'Report Sub Category is required'
-    if (!formData.region) errors.region = 'Region is required'
+
     if (!(formData.author || '').trim()) errors.author = 'Author Name is required'
     setValidationErrors(errors)
     return Object.keys(errors).length === 0
@@ -481,9 +467,7 @@ const ReportCreate = () => {
         // Legacy category fields
         category: formData.category,
         subCategory: formData.subCategory,
-        // New region field
-        region: formData.region,
-        subRegions: formData.subRegions,
+
         // Report details
         author: (formData.author || '').trim(),
         publishDate: formData.publishDate,
@@ -660,59 +644,79 @@ const ReportCreate = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => navigate('/reports')} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-              <ArrowLeft className="w-5 h-5" />
+      <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20 px-3 sm:px-6 py-3 sm:py-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
+            <button
+              onClick={() => navigate('/reports')}
+              className="p-2 sm:p-2.5 hover:bg-gray-100 rounded-xl transition-all hover:shadow-md flex-shrink-0"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-700" />
             </button>
-            <h1 className="text-xl font-semibold text-gray-900">
-              {isEdit ? 'Edit Report' : 'Create New Report'}
-            </h1>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 truncate">
+                {isEdit ? 'Edit Report' : 'Create New Report'}
+              </h1>
+              <p className="text-xs sm:text-sm text-gray-500 mt-0.5 hidden sm:block">
+                {isEdit ? 'Update report information and content' : 'Add a new report to your collection'}
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <button
               onClick={() => handleSave('draft')}
               disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-initial text-xs sm:text-sm"
             >
               <Save className="w-4 h-4" />
-              {saving ? 'Saving...' : 'Save as Draft'}
+              <span className="hidden xs:inline">{saving ? 'Saving...' : 'Save as Draft'}</span>
+              <span className="xs:hidden">Draft</span>
             </button>
 
             <button
               onClick={() => handleSave('published')}
               disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-initial text-xs sm:text-sm"
             >
               <CheckCircle className="w-4 h-4" />
-              {saving ? 'Publishing...' : 'Publish'}
+              <span className="hidden xs:inline">{saving ? 'Publishing...' : 'Publish'}</span>
+              <span className="xs:hidden">Publish</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6">
         {success && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 flex items-center gap-2">
-            <CheckCircle className="w-5 h-5" />
-            {success}
+          <div className="alert alert-success animate-fadeIn">
+            <CheckCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{success}</span>
           </div>
         )}
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5" />
-            {error}
+          <div className="alert alert-danger animate-fadeIn">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{error}</span>
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="card">
           {/* Form Section */}
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">Report Details</h2>
+          <div className="card-header">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <FileText className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Report Details</h2>
+                <p className="text-sm text-gray-500">Enter the basic information for your report</p>
+              </div>
+            </div>
+          </div>
+          <div className="card-body">
 
             <div className="grid grid-cols-1 gap-6">
               {/* Title */}
@@ -877,46 +881,10 @@ const ReportCreate = () => {
                 </div>
               </div>
 
-              {/* Region and Author */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Region <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.region}
-                    onChange={(e) => handleInputChange('region', e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${validationErrors.region ? 'border-red-300' : 'border-gray-300'
-                      }`}
-                    disabled={saving}
-                  >
-                    <option value="">Select region</option>
-                    {regions.map(region => (
-                      <option key={region} value={region}>{region}</option>
-                    ))}
-                  </select>
-                  {validationErrors.region && (
-                    <p className="mt-1 text-sm text-red-600">{validationErrors.region}</p>
-                  )}
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sub Regions
-                  </label>
-                  <select
-                    value={formData.subRegions}
-                    onChange={(e) => handleInputChange('subRegions', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    disabled={saving}
-                  >
-                    <option value="">Select sub region (optional)</option>
-                    {subRegions.map(subRegion => (
-                      <option key={subRegion} value={subRegion}>{subRegion}</option>
-                    ))}
-                  </select>
-                </div>
 
+              {/* Author */}
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Author Name <span className="text-red-500">*</span>
@@ -1072,7 +1040,7 @@ const ReportCreate = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Report Cover Image
                 </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                <div className="border-2 h-80 w-100 border-gray-300 rounded-lg p-6">
                   {coverImagePreview ? (
                     <div className="relative">
                       <img
@@ -1141,36 +1109,45 @@ const ReportCreate = () => {
           {/* Content Editor Section */}
           <div className="p-6">
             {/* Tabs */}
-            <div className="flex border-b border-gray-200 mb-6">
+            <div className="flex gap-2 border-b border-gray-200 mb-6">
               <button
                 onClick={() => setActiveTab('overview')}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'overview'
-                  ? 'border-blue-500 text-blue-600 bg-blue-50'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                className={`px-6 py-3 text-sm font-semibold rounded-t-lg transition-all ${activeTab === 'overview'
+                  ? 'bg-gradient-to-br from-blue-600 to-blue-500 text-white shadow-lg'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                 disabled={saving}
               >
-                REPORT OVERVIEW
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  <span>REPORT OVERVIEW</span>
+                </div>
               </button>
               <button
                 onClick={() => setActiveTab('contents')}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'contents'
-                  ? 'border-blue-500 text-blue-600 bg-blue-50'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                className={`px-6 py-3 text-sm font-semibold rounded-t-lg transition-all ${activeTab === 'contents'
+                  ? 'bg-gradient-to-br from-blue-600 to-blue-500 text-white shadow-lg'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                 disabled={saving}
               >
-                TABLE OF CONTENTS
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  <span>TABLE OF CONTENTS</span>
+                </div>
               </button>
               <button
                 onClick={() => setActiveTab('segmentation')}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'segmentation'
-                  ? 'border-blue-500 text-blue-600 bg-blue-50'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                className={`px-6 py-3 text-sm font-semibold rounded-t-lg transition-all ${activeTab === 'segmentation'
+                  ? 'bg-gradient-to-br from-blue-600 to-blue-500 text-white shadow-lg'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                 disabled={saving}
               >
-                Segment / Companies
+                <div className="flex items-center gap-2">
+                  <Target className="w-4 h-4" />
+                  <span>Segment / Companies</span>
+                </div>
               </button>
             </div>
 

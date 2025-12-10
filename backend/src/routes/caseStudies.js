@@ -22,7 +22,6 @@ router.get('/', async (req, res) => {
       search = '',
       slug = '',
       status,
-      author,
       dateRange
     } = req.query
 
@@ -43,7 +42,6 @@ router.get('/', async (req, res) => {
         { title: { $regex: search, $options: 'i' } },
         { slug: { $regex: search, $options: 'i' } },
         { content: { $regex: search, $options: 'i' } },
-        { authorName: { $regex: search, $options: 'i' } },
         { keywords: { $regex: search, $options: 'i' } }
       ];
     }
@@ -58,10 +56,7 @@ router.get('/', async (req, res) => {
       query.status = status
     }
 
-    // Author filter
-    if (author && author.trim()) {
-      query.authorName = { $regex: author, $options: 'i' };
-    }
+
 
     // Date range filter
     if (dateRange) {
@@ -144,24 +139,13 @@ router.get('/stats/overview', authenticate, async (req, res) => {
     const draftCaseStudies = await CaseStudy.countDocuments({ status: 'draft' })
     const featuredCaseStudies = await CaseStudy.countDocuments({ featured: true })
 
-    // Get case studies by author
-    const caseStudiesByAuthor = await CaseStudy.aggregate([
-      {
-        $group: {
-          _id: '$authorName',
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { count: -1 } },
-      { $limit: 10 }
-    ])
+
 
     res.json({
       total: totalCaseStudies,
       published: publishedCaseStudies,
       draft: draftCaseStudies,
-      featured: featuredCaseStudies,
-      byAuthor: caseStudiesByAuthor
+      featured: featuredCaseStudies
     })
   } catch (error) {
     console.error('Error fetching case study statistics:', error)
@@ -216,8 +200,7 @@ router.get('/:identifier', async (req, res) => {
 router.post('/', authenticate, requireRole('super_admin', 'admin', 'editor'), async (req, res) => {
   try {
     const caseStudyData = {
-      ...req.body,
-      authorName: req.body.authorName || req.user.name
+      ...req.body
     }
 
     const caseStudy = new CaseStudy(caseStudyData)

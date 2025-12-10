@@ -372,10 +372,7 @@ const Reports = () => {
           publishDate: report.publishDate ? new Date(report.publishDate).toLocaleString() : 'N/A',
           lastUpdated: report.lastUpdated ? new Date(report.lastUpdated).toLocaleString() : new Date(report.updatedAt).toLocaleString(),
           status: report.status === 'published' ? 'Active' : (report.status || 'draft'),
-          author: report.author || 'N/A',
           reportCode: report.reportCode || 'N/A',
-          region: report.region || 'Global',
-          subRegions: report.subRegions || 'N/A',
           pages: report.numberOfPages || 'N/A',
           price: report.price || 'N/A',
           excelPrice: report.excelDatapackPrice || 'N/A',
@@ -498,10 +495,32 @@ const Reports = () => {
     }
   }
 
+  /* 
+   * Slugify function to match frontend implementation
+   * This ensures the URL generated here matches what the frontend expects
+   */
+  const slugify = (text) => {
+    if (!text) return "";
+    return text
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')     // Replace spaces with -
+      .replace(/[^\w\-]+/g, '') // Remove all non-word chars
+      .replace(/\-\-+/g, '-');  // Replace multiple - with single -
+  };
+
   const handleView = (report) => {
-    // Always use ID for view navigation to ensure compatibility
-    // The backend route /api/reports/:id handles both slug and ID lookup
-    navigate(`/reports/${report._id}/edit`)
+    // Generate the correct slug just like the frontend
+    // Always slugify the source (whether it's report.slug or report.title) to ensure URL safety
+    const rawSlug = report.slug || report.title;
+    const slug = slugify(rawSlug);
+
+    // Get frontend URL from env or default to standard Vite port
+    const frontendUrl = import.meta.env.VITE_FRONTEND_URL || 'http://localhost:5173';
+
+    // Open in new tab
+    window.open(`${frontendUrl}/${slug}`, '_blank');
   }
 
   const handleCoverImageUpload = async (reportId, file) => {
@@ -705,7 +724,7 @@ const Reports = () => {
         'Category': 'ICT and Media',
         'Sub Category': 'Software and Services',
         'SEGMENT / COMPANIES': 'Enterprise Software Companies: Microsoft, Apple, Google, Amazon, IBM, Oracle, Salesforce',
-        'Region': 'Global',
+
         'Author Name': 'John Doe',
         'Report Code': 'RPT001',
         'Number of Page': '150',

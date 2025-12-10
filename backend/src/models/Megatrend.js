@@ -14,12 +14,14 @@ const FileSchema = new mongoose.Schema({
 
 const MegatrendSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
+  subTitle: { type: String, trim: true },
   slug: { type: String, required: true, unique: true, lowercase: true },
   summary: { type: String, trim: true },
   content: { type: String }, // HTML or rich text JSON string
   heroImage: ImageSchema,
   images: [ImageSchema],
   whitepaper: FileSchema, // downloadable file info
+  whitePaperUrl: { type: String, trim: true }, // External URL for white paper
   tags: [{ type: String, trim: true, lowercase: true, index: true }],
   // SEO
   metaTitle: { type: String, trim: true },
@@ -28,11 +30,12 @@ const MegatrendSchema = new mongoose.Schema({
   // Publishing
   status: { type: String, enum: ['draft', 'published'], default: 'draft', index: true },
   publishedAt: { type: Date },
+  isHome: { type: Boolean, default: false, index: true },
   author: { type: String, trim: true },
 }, { timestamps: true })
 
 // Pre-save middleware to generate slug
-MegatrendSchema.pre('save', function(next) {
+MegatrendSchema.pre('save', function (next) {
   // Generate slug if it's empty or if title changed and slug wasn't manually set
   if (!this.slug || (this.isModified('title') && !this.isModified('slug'))) {
     if (this.title) {

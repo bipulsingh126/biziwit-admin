@@ -1,5 +1,6 @@
-  import { Router } from 'express'
+import { Router } from 'express'
 import nodemailer from 'nodemailer'
+import axios from 'axios'
 import Inquiry from '../models/Inquiry.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
 
@@ -32,10 +33,31 @@ async function sendNotification(inquiry) {
   })
 }
 
+async function verifyCaptcha(token) {
+  if (!token) return false
+  const secret = process.env.RECAPTCHA_SECRET_KEY || "6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe" // Use env or test key
+  try {
+    const response = await axios.post(
+      `https://www.google.com/recaptcha/api/siteverify?secret=${secret}&response=${token}`
+    )
+    return response.data.success
+  } catch (error) {
+    console.error('Captcha verification error:', error)
+    return false
+  }
+}
+
 // Public submit
 router.post('/submit', async (req, res, next) => {
   try {
-    const { name, email, message } = req.body || {}
+    const { name, email, message, captchaToken } = req.body || {}
+    
+    // Verify Captcha
+    const isHuman = await verifyCaptcha(captchaToken)
+    if (!isHuman) {
+      return res.status(400).json({ error: 'Captcha verification failed' })
+    }
+
     if (!name || !email || !message) return res.status(400).json({ error: 'Name, email and message are required' })
     const doc = await Inquiry.create({
       name,
@@ -51,7 +73,7 @@ router.post('/submit', async (req, res, next) => {
       meta: req.body.meta || {},
     })
     // Send email notification (non-blocking)
-    sendNotification(doc).catch(() => {})
+    sendNotification(doc).catch(() => { })
     res.status(201).json({ ok: true, inquiry: doc })
   } catch (e) { next(e) }
 })
@@ -64,12 +86,12 @@ router.get('/', async (req, res, next) => {
   try {
     const { q = '', slug = '', status, inquiryType, priority, limit = 50, offset = 0, sortBy = 'createdAt', sortOrder = 'desc' } = req.query
     const query = {}
-    
+
     // Filters
     if (status && status !== 'all') query.status = status
     if (inquiryType && inquiryType !== 'all') query.inquiryType = inquiryType
     if (priority && priority !== 'all') query.priority = priority
-    
+
     // Text search
     if (q.trim()) {
       query.$or = [
@@ -84,37 +106,39 @@ router.get('/', async (req, res, next) => {
         { pageReportTitle: { $regex: q, $options: 'i' } }
       ]
     }
-    
+
     // Slug filter
     if (slug.trim()) {
       query.slug = { $regex: slug, $options: 'i' }
     }
-    
+
     // Sort
     const sortOptions = {}
     sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1
-    
+
     const items = await Inquiry.find(query)
       .populate('assignedTo', 'name email')
       .sort(sortOptions)
       .skip(Number(offset))
       .limit(Math.min(200, Number(limit)))
-      
+
     const total = await Inquiry.countDocuments(query)
-    
+
     // Get summary stats
     const stats = await Inquiry.aggregate([
-      { $group: { 
-        _id: '$status', 
-        count: { $sum: 1 } 
-      }}
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
     ])
-    
+
     const statusCounts = stats.reduce((acc, stat) => {
       acc[stat._id] = stat.count
       return acc
     }, {})
-    
+
     res.json({ items, total, statusCounts })
   } catch (e) { next(e) }
 })
@@ -133,11 +157,11 @@ router.get('/by-slug/:slug', async (req, res, next) => {
 router.get('/metadata', async (req, res, next) => {
   try {
     const inquiryTypes = [
-      'General Inquiry', 
-      'Report Request', 
-      'Custom Report', 
-      'Technical Support', 
-      'Partnership', 
+      'General Inquiry',
+      'Report Request',
+      'Custom Report',
+      'Technical Support',
+      'Partnership',
       'Media Inquiry',
       'Inquiry Before Buying',
       'Request for Sample',
@@ -147,11 +171,12 @@ router.get('/metadata', async (req, res, next) => {
       'Submit Your Profile',
       'Download White Paper',
       'Individual Service Page',
+      'Subscription',
       'Other'
     ]
     const priorities = ['low', 'medium', 'high', 'urgent']
     const statuses = ['new', 'open', 'in_progress', 'resolved', 'closed']
-    
+
     res.json({ inquiryTypes, priorities, statuses })
   } catch (e) { next(e) }
 })
@@ -160,17 +185,17 @@ router.get('/metadata', async (req, res, next) => {
 router.get('/:identifier', async (req, res, next) => {
   try {
     const { identifier } = req.params
-    
+
     // Try to find by slug first, then by ID for backward compatibility
     let doc = await Inquiry.findOne({ slug: identifier })
       .populate('assignedTo', 'name email')
-    
+
     if (!doc && identifier.match(/^[0-9a-fA-F]{24}$/)) {
       // If it looks like a MongoDB ObjectId, try finding by ID
       doc = await Inquiry.findById(identifier)
         .populate('assignedTo', 'name email')
     }
-    
+
     if (!doc) return res.status(404).json({ error: 'Inquiry not found' })
     res.json(doc)
   } catch (e) { next(e) }
@@ -193,20 +218,20 @@ router.patch('/by-slug/:slug', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const { id } = req.params
-    
+
     // Try to find by slug first, then by ID
     let inquiry = await Inquiry.findOne({ slug: id })
-    
+
     if (!inquiry && id.match(/^[0-9a-fA-F]{24}$/)) {
       inquiry = await Inquiry.findById(id)
     }
-    
+
     if (!inquiry) return res.status(404).json({ error: 'Inquiry not found' })
-    
+
     // Update the inquiry
     Object.assign(inquiry, req.body)
     await inquiry.save()
-    
+
     // Populate and return
     await inquiry.populate('assignedTo', 'name email')
     res.json(inquiry)
@@ -226,16 +251,16 @@ router.delete('/by-slug/:slug', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params
-    
+
     // Try to find by slug first, then by ID
     let inquiry = await Inquiry.findOne({ slug: id })
-    
+
     if (!inquiry && id.match(/^[0-9a-fA-F]{24}$/)) {
       inquiry = await Inquiry.findById(id)
     }
-    
+
     if (!inquiry) return res.status(404).json({ error: 'Inquiry not found' })
-    
+
     // Delete the inquiry
     await Inquiry.findByIdAndDelete(inquiry._id)
     res.json({ ok: true, message: 'Inquiry deleted successfully' })
@@ -258,7 +283,7 @@ router.post('/bulk', async (req, res, next) => {
       case 'update_status':
         if (!data?.status) return res.status(400).json({ error: 'Status is required' })
         result = await Inquiry.updateMany(
-          { _id: { $in: ids } }, 
+          { _id: { $in: ids } },
           { status: data.status, ...(data.status === 'resolved' ? { resolvedAt: new Date() } : {}) }
         )
         break
@@ -282,12 +307,12 @@ router.get('/export/csv', async (req, res, next) => {
   try {
     const { q = '', status, inquiryType, priority } = req.query
     const query = {}
-    
+
     // Apply same filters as list endpoint
     if (status && status !== 'all') query.status = status
     if (inquiryType && inquiryType !== 'all') query.inquiryType = inquiryType
     if (priority && priority !== 'all') query.priority = priority
-    
+
     if (q.trim()) {
       query.$or = [
         { name: { $regex: q, $options: 'i' } },
@@ -301,19 +326,19 @@ router.get('/export/csv', async (req, res, next) => {
         { pageReportTitle: { $regex: q, $options: 'i' } }
       ]
     }
-    
+
     const inquiries = await Inquiry.find(query)
       .populate('assignedTo', 'name email')
       .sort({ createdAt: -1 })
       .limit(1000) // Limit export to 1000 records
-    
+
     // Generate CSV
     const csvHeaders = [
-      'Inquiry Number', 'Slug', 'Date', 'Name', 'Email', 'Phone', 'Company', 
-      'Inquiry Type', 'Page/Report Title', 'Subject', 'Message', 
+      'Inquiry Number', 'Slug', 'Date', 'Name', 'Email', 'Phone', 'Company',
+      'Inquiry Type', 'Page/Report Title', 'Subject', 'Message',
       'Status', 'Priority', 'Assigned To', 'Source'
     ]
-    
+
     const csvRows = inquiries.map(inquiry => [
       inquiry.inquiryNumber || '',
       inquiry.slug || '',
@@ -331,11 +356,11 @@ router.get('/export/csv', async (req, res, next) => {
       inquiry.assignedTo?.name || '',
       inquiry.source || ''
     ])
-    
+
     const csvContent = [csvHeaders, ...csvRows]
       .map(row => row.join(','))
       .join('\n')
-    
+
     res.setHeader('Content-Type', 'text/csv')
     res.setHeader('Content-Disposition', `attachment; filename="inquiries-${new Date().toISOString().split('T')[0]}.csv"`)
     res.send(csvContent)
