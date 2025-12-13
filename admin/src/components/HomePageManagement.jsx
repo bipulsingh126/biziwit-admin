@@ -269,7 +269,7 @@ const HomePageManagement = () => {
                       <img
                         src={getImageUrl(banner.image)}
                         alt={banner.title}
-                        className="w-full h-36 object-cover rounded-lg border-2 border-gray-200"
+                        className="w-full h-36 object-contain rounded-lg border-2 border-gray-200"
                         onError={(e) => {
                           e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTgiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIiBmaWxsPSIjOTk5Ij5JbWFnZSBub3QgZm91bmQ8L3RleHQ+PC9zdmc+'
                         }}
@@ -384,7 +384,7 @@ const HomePageManagement = () => {
                   />
                   <input
                     type="text"
-                    value={banner.button1?.link || '#'}
+                    value={banner.button1?.link || ''}
                     onChange={(e) => {
                       setBanners(prev => prev.map(b =>
                         b.slug === banner.slug ? {
@@ -394,7 +394,7 @@ const HomePageManagement = () => {
                       ))
                     }}
                     disabled={saving}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-50"
+                    className="w-full px-3 py-2 mt-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-50"
                     placeholder="Button 1 link..."
                   />
                 </div>
@@ -434,21 +434,6 @@ const HomePageManagement = () => {
                     disabled={saving}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-50"
                     placeholder="Button 2 text..."
-                  />
-                  <input
-                    type="text"
-                    value={banner.button2?.link || '#'}
-                    onChange={(e) => {
-                      setBanners(prev => prev.map(b =>
-                        b.slug === banner.slug ? {
-                          ...b,
-                          button2: { ...b.button2, link: e.target.value }
-                        } : b
-                      ))
-                    }}
-                    disabled={saving}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-50"
-                    placeholder="Button 2 link..."
                   />
                 </div>
 

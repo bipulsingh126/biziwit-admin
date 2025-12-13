@@ -72,7 +72,7 @@ const MegatrendCreate = () => {
         content: megatrend.content || '',
         status: megatrend.status || 'draft'
       })
-      
+
       // Set image preview if mainImage or heroImage exists
       const imageUrl = megatrend.mainImage || megatrend.heroImage?.url
       if (imageUrl) {
@@ -89,7 +89,7 @@ const MegatrendCreate = () => {
   // Handle input changes
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    
+
     // Auto-generate URL from title
     if (field === 'title' && !isEditing) {
       const slug = value.toLowerCase()
@@ -105,17 +105,17 @@ const MegatrendCreate = () => {
   const handleImageChange = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    
+
     if (!file.type.startsWith('image/')) {
       setError('Please select a valid image file')
       return
     }
-    
+
     if (file.size > 5 * 1024 * 1024) {
       setError('Image file size must be less than 5MB')
       return
     }
-    
+
     setImageFile(file)
     const reader = new FileReader()
     reader.onload = () => setImagePreview(reader.result)
@@ -133,20 +133,20 @@ const MegatrendCreate = () => {
   const uploadImage = async (megatrendId) => {
     try {
       setUploadingImage(true)
-      
+
       const result = await api.uploadMegatrendHero(megatrendId, imageFile, `${formData.title || 'Megatrend'} - Hero Image`)
-      
+
       // Update form data with the image URL
       const imageUrl = result.heroImage?.url || result.imageUrl
       setFormData(prev => ({ ...prev, mainImage: imageUrl }))
-      
+
       // Update preview with full URL so it persists after reload
       const fullUrl = getImageUrl(imageUrl)
-      
+
       setImagePreview(fullUrl)
       setImageFile(null) // Clear file input after successful upload
       setSuccess('Image uploaded successfully!')
-      
+
       return imageUrl
     } catch (err) {
       setError('Failed to upload image: ' + err.message)
@@ -161,21 +161,21 @@ const MegatrendCreate = () => {
     try {
       setSaving(true)
       setError('')
-      
+
       // Validate required fields
       if (!formData.title.trim()) {
         setError('Megatrend title is required')
         return
       }
-      
+
       if (!formData.author.trim()) {
         setError('Author name is required')
         return
       }
-      
+
       let savedMegatrend
       let finalFormData = { ...formData }
-      
+
       // First save the megatrend
       if (isEditing) {
         savedMegatrend = await api.updateMegatrend(id, finalFormData)
@@ -184,7 +184,7 @@ const MegatrendCreate = () => {
         savedMegatrend = await api.createMegatrend(finalFormData)
         setSuccess('Megatrend created successfully!')
       }
-      
+
       // Upload image if selected and update the megatrend with image URL
       if (imageFile && savedMegatrend._id) {
         try {
@@ -196,12 +196,12 @@ const MegatrendCreate = () => {
           // Don't fail the entire save if just image upload fails
         }
       }
-      
+
       // Navigate back after a short delay
       setTimeout(() => {
         navigate('/admin/megatrends')
       }, 1500)
-      
+
     } catch (err) {
       setError(err.message || 'Failed to save megatrend')
     } finally {
@@ -239,7 +239,7 @@ const MegatrendCreate = () => {
                 {isEditing ? 'Edit Megatrend' : 'Create New Megatrend'}
               </h1>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">Status:</span>
@@ -253,7 +253,7 @@ const MegatrendCreate = () => {
                   <option value="scheduled">Scheduled</option>
                 </select>
               </div>
-              
+
               <button
                 onClick={saveMegatrend}
                 disabled={saving}
@@ -308,7 +308,7 @@ const MegatrendCreate = () => {
             {/* Basic Information */}
             <section id="basic" className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-6">Basic Information</h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -402,7 +402,7 @@ const MegatrendCreate = () => {
                     </span>
                   )}
                 </div>
-                
+
                 <div className="max-w-md">
                   <div className="relative border-2 border-dashed border-gray-300 rounded-lg overflow-hidden hover:border-blue-400 transition-all">
                     {imagePreview ? (
@@ -410,7 +410,7 @@ const MegatrendCreate = () => {
                         <img
                           src={imagePreview}
                           alt="Megatrend hero preview"
-                          className="w-full h-48 object-cover"
+                          className="w-full h-48 object-contain"
                         />
                         <div className="absolute top-2 right-2">
                           <button
@@ -435,7 +435,7 @@ const MegatrendCreate = () => {
                       </label>
                     )}
                   </div>
-                  
+
                   {/* Upload button for selected image */}
                   {imageFile && !uploadingImage && (
                     <div className="mt-4 flex gap-2">
@@ -460,7 +460,7 @@ const MegatrendCreate = () => {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg max-w-md">
                   <div className="flex items-start gap-2">
                     <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -484,7 +484,7 @@ const MegatrendCreate = () => {
             {/* SEO Settings */}
             <section id="seo" className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-6">SEO Settings</h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -551,7 +551,7 @@ const MegatrendCreate = () => {
             {/* Content */}
             <section id="content" className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-6">Content</h2>
-              
+
               <RichTextEditor
                 value={formData.content}
                 onChange={(content) => handleInputChange('content', content)}

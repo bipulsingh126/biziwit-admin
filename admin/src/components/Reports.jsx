@@ -2342,7 +2342,7 @@ const Reports = () => {
                         <img
                           src={getImageUrl(report.coverImage.url)}
                           alt={report.coverImage.alt || report.title}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain"
                           onError={(e) => {
                             console.error('Image failed to load:', getImageUrl(report.coverImage.url))
                             e.target.style.display = 'none'

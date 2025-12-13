@@ -412,7 +412,7 @@ const Megatrends = () => {
                           <img
                             src={getImageUrl(megatrend.mainImage || megatrend.heroImage?.url)}
                             alt={megatrend.title}
-                            className="w-12 h-12 rounded-lg object-cover mr-3"
+                            className="w-12 h-12 rounded-lg object-contain mr-3"
                             onError={(e) => {
                               e.target.style.display = 'none'
                               e.target.nextSibling.style.display = 'flex'
@@ -464,8 +464,8 @@ const Megatrends = () => {
                           }
                         }}
                         className={`p-2 rounded-full transition-colors ${megatrend.isHome
-                            ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
-                            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                          ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                          : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                           }`}
                         title={megatrend.isHome ? "Remove from Home" : "Add to Home"}
                       >
@@ -474,10 +474,10 @@ const Megatrends = () => {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${megatrend.status === 'published'
-                          ? 'bg-green-100 text-green-800'
-                          : megatrend.status === 'draft'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-gray-100 text-gray-800'
+                        ? 'bg-green-100 text-green-800'
+                        : megatrend.status === 'draft'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-gray-100 text-gray-800'
                         }`}>
                         {megatrend.status || 'draft'}
                       </span>
@@ -558,8 +558,8 @@ const Megatrends = () => {
                       key={page}
                       onClick={() => goToPage(page)}
                       className={`px-3 py-1 text-sm border rounded ${currentPage === page
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'border-gray-300 hover:bg-gray-50'
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'border-gray-300 hover:bg-gray-50'
                         }`}
                     >
                       {page}

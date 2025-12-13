@@ -50,12 +50,14 @@ async function verifyCaptcha(token) {
 // Public submit
 router.post('/submit', async (req, res, next) => {
   try {
-    const { name, email, message, captchaToken } = req.body || {}
-    
-    // Verify Captcha
-    const isHuman = await verifyCaptcha(captchaToken)
-    if (!isHuman) {
-      return res.status(400).json({ error: 'Captcha verification failed' })
+    const { name, email, message, captchaToken, inquiryType } = req.body || {}
+
+    // Verify Captcha (skip for Subscription and Download White Paper)
+    if (inquiryType !== 'Subscription' && inquiryType !== 'Download White Paper') {
+      const isHuman = await verifyCaptcha(captchaToken)
+      if (!isHuman) {
+        return res.status(400).json({ error: 'Captcha verification failed' })
+      }
     }
 
     if (!name || !email || !message) return res.status(400).json({ error: 'Name, email and message are required' })

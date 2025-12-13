@@ -401,7 +401,7 @@ const CaseStudyCreate = () => {
                         <img
                           src={imagePreview}
                           alt="Case study preview"
-                          className="w-full h-48 object-cover"
+                          className="w-full h-48 object-contain"
                         />
                         <div className="absolute top-2 right-2">
                           <button

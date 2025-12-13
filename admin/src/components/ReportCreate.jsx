@@ -1046,7 +1046,7 @@ const ReportCreate = () => {
                       <img
                         src={coverImagePreview}
                         alt="Cover preview"
-                        className="w-full h-48 object-cover rounded-lg"
+                        className="w-full h-48 object-contain rounded-lg"
                       />
                       <button
                         onClick={removeCoverImage}

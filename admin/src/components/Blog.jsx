@@ -772,7 +772,7 @@ const Blog = () => {
                             <img
                               src={getImageUrl(blog.mainImage)}
                               alt={blog.title}
-                              className="w-12 h-12 rounded-lg object-cover mr-3"
+                              className="w-12 h-12 rounded-lg object-contain mr-3"
                               onError={(e) => {
                                 e.target.style.display = 'none'
                                 e.target.nextSibling.style.display = 'flex'
@@ -832,10 +832,10 @@ const Blog = () => {
                       {/* Status */}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${blog.status === 'published'
-                            ? 'bg-green-100 text-green-800'
-                            : blog.status === 'scheduled'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-yellow-100 text-yellow-800'
+                          ? 'bg-green-100 text-green-800'
+                          : blog.status === 'scheduled'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-yellow-100 text-yellow-800'
                           }`}>
                           {blog.status === 'published' ? 'Published' : blog.status === 'scheduled' ? 'Scheduled' : 'Draft'}
                         </span>
@@ -952,8 +952,8 @@ const Blog = () => {
                         key={pageNum}
                         onClick={() => setCurrentPage(pageNum)}
                         className={`px-3 py-1 border rounded text-sm ${currentPage === pageNum
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'border-gray-300 hover:bg-gray-50'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'border-gray-300 hover:bg-gray-50'
                           }`}
                       >
                         {pageNum}

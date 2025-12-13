@@ -387,7 +387,7 @@ const CaseStudies = () => {
                           <img
                             src={getImageUrl(caseStudy.mainImage)}
                             alt={caseStudy.title}
-                            className="w-12 h-12 rounded-lg object-cover mr-3"
+                            className="w-12 h-12 rounded-lg object-contain mr-3"
                             onError={(e) => {
                               e.target.style.display = 'none'
                               e.target.nextSibling.style.display = 'flex'
