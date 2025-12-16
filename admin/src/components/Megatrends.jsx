@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Search, Plus, Edit, Trash2, Eye, Filter, Download, X, Calendar, User, Globe, FileText, Tag, Image, Link as LinkIcon, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Eye, Filter, Download, X, Calendar, User, Globe, FileText, Tag, Image, Link as LinkIcon, MoreHorizontal, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react'
 import api from '../utils/api'
 import { Link, useNavigate } from 'react-router-dom'
 import { getImageUrl } from '../utils/imageUtils'
@@ -33,6 +33,16 @@ const Megatrends = () => {
   const [selectAll, setSelectAll] = useState(false)
   const [bulkOperating, setBulkOperating] = useState(false)
 
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState({ key: 'createdAt', direction: 'desc' })
+  const [showSortMenu, setShowSortMenu] = useState(false)
+
+  const handleSortChange = (key, direction) => {
+    setSortConfig({ key, direction })
+    setShowSortMenu(false)
+    // The useEffect dependent on sortConfig will trigger reload
+  }
+
 
   useEffect(() => {
     loadMegatrends()
@@ -43,7 +53,7 @@ const Megatrends = () => {
       loadMegatrends()
     }, 300)
     return () => clearTimeout(timer)
-  }, [searchTerm, filters, currentPage, itemsPerPage])
+  }, [searchTerm, filters, currentPage, itemsPerPage, sortConfig])
 
   // Auto-hide success messages
   useEffect(() => {
@@ -62,6 +72,8 @@ const Megatrends = () => {
         q: searchTerm.trim(),
         limit: itemsPerPage,
         offset: (currentPage - 1) * itemsPerPage,
+        sortBy: sortConfig.key,
+        order: sortConfig.direction,
         ...filters
       }
 
@@ -218,6 +230,47 @@ const Megatrends = () => {
             <Filter className="w-4 h-4" />
             Filters
           </button>
+
+          {/* Sort Menu */}
+          <div className="relative">
+            <button
+              onClick={() => setShowSortMenu(!showSortMenu)}
+              className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg transition-colors ${showSortMenu ? 'bg-blue-50 border-blue-300 text-blue-700' : 'hover:bg-gray-50'
+                }`}
+            >
+              <ArrowUpDown className="w-4 h-4" />
+              Sort
+            </button>
+
+            {showSortMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-1">
+                <button
+                  onClick={() => handleSortChange('createdAt', 'desc')}
+                  className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${sortConfig.key === 'createdAt' && sortConfig.direction === 'desc' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
+                >
+                  Newest First
+                </button>
+                <button
+                  onClick={() => handleSortChange('createdAt', 'asc')}
+                  className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${sortConfig.key === 'createdAt' && sortConfig.direction === 'asc' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
+                >
+                  Oldest First
+                </button>
+                <button
+                  onClick={() => handleSortChange('title', 'asc')}
+                  className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${sortConfig.key === 'title' && sortConfig.direction === 'asc' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
+                >
+                  Title (A-Z)
+                </button>
+                <button
+                  onClick={() => handleSortChange('title', 'desc')}
+                  className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${sortConfig.key === 'title' && sortConfig.direction === 'desc' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
+                >
+                  Title (Z-A)
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Filter Panel */}

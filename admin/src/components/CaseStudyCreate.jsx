@@ -14,7 +14,8 @@ const CaseStudyCreate = () => {
   const [formData, setFormData] = useState({
     title: '',
     subTitle: '',
-
+    reportCategory: '',
+    reportSubCategory: '',
     mainImage: '',
     homePageVisibility: false,
     titleTag: '',
@@ -26,6 +27,8 @@ const CaseStudyCreate = () => {
     category: 'Market Intelligence'
   })
 
+  const [categories, setCategories] = useState([])
+  const [subcategories, setSubcategories] = useState([])
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState('')
   const [loading, setLoading] = useState(false)
@@ -37,6 +40,7 @@ const CaseStudyCreate = () => {
 
   // Load case study data if editing
   useEffect(() => {
+    loadCategories()
     if (isEditing) {
       loadCaseStudy()
     }
@@ -70,7 +74,9 @@ const CaseStudyCreate = () => {
         keywords: caseStudy.keywords || '',
         content: caseStudy.content || '',
         status: caseStudy.status || 'draft',
-        category: caseStudy.category || 'Market Intelligence'
+        category: caseStudy.category || 'Market Intelligence',
+        reportCategory: caseStudy.reportCategory || '',
+        reportSubCategory: caseStudy.reportSubCategory || ''
       })
 
       // Set image preview if mainImage exists
@@ -92,6 +98,35 @@ const CaseStudyCreate = () => {
     } catch (err) {
       console.error('Failed to load service pages:', err)
     }
+  }
+
+  const loadCategories = async () => {
+    try {
+      const result = await api.getCategories()
+      setCategories(result.data || [])
+    } catch (err) {
+      console.error('Failed to load categories:', err)
+      setError('Failed to load categories')
+    }
+  }
+
+  // Update subcategories when reportCategory changes
+  useEffect(() => {
+    if (formData.reportCategory && categories.length > 0) {
+      const category = categories.find(cat => cat.name === formData.reportCategory)
+      setSubcategories(category?.subcategories || [])
+    } else {
+      setSubcategories([])
+    }
+  }, [formData.reportCategory, categories])
+
+  const handleReportCategoryChange = (e) => {
+    const selectedCategory = e.target.value
+    setFormData(prev => ({
+      ...prev,
+      reportCategory: selectedCategory,
+      reportSubCategory: '' // Reset subcategory
+    }))
   }
 
   // Handle input changes
@@ -366,6 +401,40 @@ const CaseStudyCreate = () => {
                   </select>
                 </div>
 
+
+                {/* Report Related Categories */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Related Report Category
+                  </label>
+                  <select
+                    value={formData.reportCategory}
+                    onChange={handleReportCategoryChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select Category</option>
+                    {categories.map(cat => (
+                      <option key={cat._id} value={cat.name}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Related Report Sub Category
+                  </label>
+                  <select
+                    value={formData.reportSubCategory}
+                    onChange={(e) => handleInputChange('reportSubCategory', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={!formData.reportCategory}
+                  >
+                    <option value="">Select Sub Category</option>
+                    {subcategories.map((sub, index) => (
+                      <option key={sub._id || index} value={sub.name}>{sub.name}</option>
+                    ))}
+                  </select>
+                </div>
 
                 <div className="flex items-center">
                   <label className="flex items-center">

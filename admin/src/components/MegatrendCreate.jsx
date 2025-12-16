@@ -24,8 +24,13 @@ const MegatrendCreate = () => {
     metaDescription: '',
     keywords: '',
     content: '',
-    status: 'draft'
+    status: 'draft',
+    category: '',
+    subCategory: ''
   })
+
+  const [categories, setCategories] = useState([])
+  const [subcategories, setSubcategories] = useState([])
 
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState('')
@@ -37,6 +42,7 @@ const MegatrendCreate = () => {
 
   // Load megatrend data if editing
   useEffect(() => {
+    loadCategories()
     if (isEditing) {
       loadMegatrend()
     }
@@ -70,8 +76,22 @@ const MegatrendCreate = () => {
         metaDescription: megatrend.metaDescription || '',
         keywords: megatrend.keywords || '',
         content: megatrend.content || '',
-        status: megatrend.status || 'draft'
+        content: megatrend.content || '',
+        status: megatrend.status || 'draft',
+        category: megatrend.category || '',
+        subCategory: megatrend.subCategory || ''
       })
+
+      // If there's a category, set subcategories
+      if (megatrend.category) {
+        // We need wait for categories to load or do this after loading categories
+        // But since we load categories in parallel, we can try to set it here
+        // or effectively the handleCategoryChange logic needs to run.
+        // Actually, we can just set the subCategory, and when categories load, the user can change it.
+        // But to populate the subcategory dropdown correctly *if the user opens the dropdown*, 
+        // we need the list.
+        // Let's rely on loadCategories completing or add a useEffect dependency.
+      }
 
       // Set image preview if mainImage or heroImage exists
       const imageUrl = megatrend.mainImage || megatrend.heroImage?.url
@@ -84,6 +104,38 @@ const MegatrendCreate = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  const loadCategories = async () => {
+    try {
+      const result = await api.getCategories()
+      setCategories(result.data || [])
+
+      // If editing and we have a category, we need to populate subcategories
+      // This might happen after loadMegatrend sets formData
+    } catch (err) {
+      console.error('Failed to load categories:', err)
+      setError('Failed to load categories')
+    }
+  }
+
+  // Update subcategories when category changes or when data loads
+  useEffect(() => {
+    if (formData.category && categories.length > 0) {
+      const category = categories.find(cat => cat.name === formData.category)
+      setSubcategories(category?.subcategories || [])
+    } else {
+      setSubcategories([])
+    }
+  }, [formData.category, categories])
+
+  const handleCategoryChange = (e) => {
+    const selectedCategory = e.target.value
+    setFormData(prev => ({
+      ...prev,
+      category: selectedCategory,
+      subCategory: '' // Reset subcategory when category changes
+    }))
   }
 
   // Handle input changes
@@ -349,6 +401,41 @@ const MegatrendCreate = () => {
                     placeholder="Enter author name"
                     required
                   />
+                </div>
+
+                {/* Category Dropdowns */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Category <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={handleCategoryChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select Category</option>
+                    {categories.map(cat => (
+                      <option key={cat._id} value={cat.name}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Sub Category
+                  </label>
+                  <select
+                    value={formData.subCategory}
+                    onChange={(e) => handleInputChange('subCategory', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={!formData.category}
+                  >
+                    <option value="">Select Sub Category</option>
+                    {subcategories.map((sub, index) => (
+                      <option key={sub._id || index} value={sub.name}>{sub.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Search, Plus, Edit, Trash2, Eye, ChevronDown, ChevronUp, Filter, Calendar, Share, X, Check } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Eye, ChevronDown, ChevronUp, Filter, Calendar, Share, X, Check, ArrowUpDown } from 'lucide-react'
 import api from '../utils/api'
 import RichTextEditor from './RichTextEditor'
 import { getImageUrl } from '../utils/imageUtils'
@@ -31,11 +31,21 @@ const Blog = () => {
   const [selectAll, setSelectAll] = useState(false)
   const [bulkOperating, setBulkOperating] = useState(false)
 
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState({ key: 'createdAt', direction: 'desc' })
+  const [showSortMenu, setShowSortMenu] = useState(false)
+
+  const handleSortChange = (key, direction) => {
+    setSortConfig({ key, direction })
+    setShowSortMenu(false)
+    // The useEffect dependent on sortConfig will trigger reload
+  }
+
 
   // Load blogs with pagination and filters
   useEffect(() => {
     loadBlogs()
-  }, [currentPage, itemsPerPage])
+  }, [currentPage, itemsPerPage, sortConfig])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -55,6 +65,8 @@ const Blog = () => {
         q: searchTerm.trim(),
         limit: itemsPerPage,
         offset: (currentPage - 1) * itemsPerPage,
+        sortBy: sortConfig.key,
+        order: sortConfig.direction,
         ...filters
       }
 
@@ -92,7 +104,9 @@ const Blog = () => {
     url: '',
     metaDescription: '',
     keywords: '',
-    status: 'draft'
+    status: 'draft',
+    category: '',
+    subCategory: ''
   })
   const [mainImageFile, setMainImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState('')
@@ -101,6 +115,41 @@ const Blog = () => {
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  const [categories, setCategories] = useState([])
+  const [subcategories, setSubcategories] = useState([])
+
+  // Load categories
+  useEffect(() => {
+    loadCategories()
+  }, [])
+
+  // Update subcategories when category changes
+  useEffect(() => {
+    if (formData.category && categories.length > 0) {
+      const category = categories.find(cat => cat.name === formData.category)
+      setSubcategories(category?.subcategories || [])
+    } else {
+      setSubcategories([])
+    }
+  }, [formData.category, categories])
+
+  const loadCategories = async () => {
+    try {
+      const result = await api.getCategories()
+      setCategories(result.data || [])
+    } catch (err) {
+      console.error('Failed to load categories:', err)
+    }
+  }
+
+  const handleCategoryChange = (e) => {
+    const selectedCategory = e.target.value
+    setFormData(prev => ({
+      ...prev,
+      category: selectedCategory,
+      subCategory: '' // Reset subcategory when category changes
+    }))
+  }
 
   // Form handlers
   const openNew = () => {
@@ -116,7 +165,9 @@ const Blog = () => {
       url: '',
       metaDescription: '',
       keywords: '',
-      status: 'draft'
+      status: 'draft',
+      category: '',
+      subCategory: ''
     })
     setMainImageFile(null)
     setImagePreview('')
@@ -136,7 +187,9 @@ const Blog = () => {
       url: blog.url || '',
       metaDescription: blog.metaDescription || '',
       keywords: blog.keywords || '',
-      status: blog.status || 'draft'
+      status: blog.status || 'draft',
+      category: blog.category || '',
+      subCategory: blog.subCategory || ''
     })
     setMainImageFile(null)
 
@@ -540,6 +593,47 @@ const Blog = () => {
               FILTER
               <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
             </button>
+
+            {/* Sort Menu */}
+            <div className="relative">
+              <button
+                onClick={() => setShowSortMenu(!showSortMenu)}
+                className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors ${showSortMenu ? 'bg-blue-50 border-blue-300 text-blue-700' : 'hover:bg-gray-50'
+                  }`}
+              >
+                <ArrowUpDown className="w-4 h-4" />
+                Sort
+              </button>
+
+              {showSortMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-1">
+                  <button
+                    onClick={() => handleSortChange('createdAt', 'desc')}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${sortConfig.key === 'createdAt' && sortConfig.direction === 'desc' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
+                  >
+                    Newest First
+                  </button>
+                  <button
+                    onClick={() => handleSortChange('createdAt', 'asc')}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${sortConfig.key === 'createdAt' && sortConfig.direction === 'asc' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
+                  >
+                    Oldest First
+                  </button>
+                  <button
+                    onClick={() => handleSortChange('title', 'asc')}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${sortConfig.key === 'title' && sortConfig.direction === 'asc' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
+                  >
+                    Title (A-Z)
+                  </button>
+                  <button
+                    onClick={() => handleSortChange('title', 'desc')}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${sortConfig.key === 'title' && sortConfig.direction === 'desc' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
+                  >
+                    Title (Z-A)
+                  </button>
+                </div>
+              )}
+            </div>
 
 
             {/* Clear All */}
@@ -1018,6 +1112,40 @@ const Blog = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Enter blog subtitle"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Category <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.category}
+                      onChange={handleCategoryChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="">Select Category</option>
+                      {categories.map(cat => (
+                        <option key={cat._id} value={cat.name}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Sub Category
+                    </label>
+                    <select
+                      value={formData.subCategory}
+                      onChange={(e) => handleInputChange('subCategory', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={!formData.category}
+                    >
+                      <option value="">Select Sub Category</option>
+                      {subcategories.map((sub, index) => (
+                        <option key={sub._id || index} value={sub.name}>{sub.name}</option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>

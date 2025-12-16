@@ -158,7 +158,7 @@ router.get('/public/:slug/whitepaper/download', async (req, res, next) => {
 // List (all)
 router.get('/', async (req, res, next) => {
   try {
-    const { q = '', status, tags, tag, limit = 50, offset = 0 } = req.query
+    const { q = '', status, tags, tag, limit = 50, offset = 0, sortBy = 'createdAt', order = 'desc' } = req.query
     const query = {}
     if (status) query.status = status
     if (q) {
@@ -170,8 +170,12 @@ router.get('/', async (req, res, next) => {
     if (tag) tagList.push(String(tag).toLowerCase())
     if (tagList.length) query.tags = { $all: tagList }
 
+    // Build sort object
+    const sort = {}
+    sort[sortBy] = order === 'asc' ? 1 : -1
+
     const items = await Megatrend.find(query)
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .skip(Number(offset))
       .limit(Math.min(200, Number(limit)))
     const total = await Megatrend.countDocuments(query)

@@ -27,6 +27,8 @@ const MegatrendSchema = new mongoose.Schema({
   metaTitle: { type: String, trim: true },
   metaDescription: { type: String, trim: true },
   metaKeywords: [{ type: String, trim: true, lowercase: true }],
+  category: { type: String, trim: true, index: true },
+  subCategory: { type: String, trim: true },
   // Publishing
   status: { type: String, enum: ['draft', 'published'], default: 'draft', index: true },
   publishedAt: { type: Date },

@@ -12,8 +12,13 @@ import { JSDOM } from 'jsdom';
 const router = Router()
 
 const sanitizeOptions = {
-  allowedTags: sanitizeHtml.defaults.allowedTags.concat(['h1', 'h2', 'img', 'span', 'div']),
-  allowedAttributes: { ...sanitizeHtml.defaults.allowedAttributes, '*': ['style'] },
+  allowedTags: sanitizeHtml.defaults.allowedTags.concat(['h1', 'h2', 'img', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'u', 's', 'strike']),
+  allowedAttributes: {
+    ...sanitizeHtml.defaults.allowedAttributes,
+    '*': ['style', 'class', 'width', 'height', 'align', 'valign', 'border', 'cellpadding', 'cellspacing'],
+    'img': ['src', 'alt', 'width', 'height'],
+    'a': ['href', 'target', 'name']
+  },
 };
 
 // Enhanced helper function to format imported Excel data with better formatting preservation
@@ -23,6 +28,15 @@ function formatImportedContent(rawText, contentType = 'general') {
   }
 
   let text = rawText.trim();
+
+  // CHECK IF CONTENT IS ALREADY HTML
+  // If it contains HTML tags like <p>, <div>, <table>, <ul>, <ol>, assume it's already formatted
+  // and just sanitize it to be safe
+  const hasHtmlTags = /<(p|div|table|ul|ol|h[1-6]|span|br|tr|td|th|thead|tbody)[^>]*>/i.test(text);
+
+  if (hasHtmlTags) {
+    return sanitizeHtml(text, sanitizeOptions);
+  }
 
   // General cleanup - preserve line breaks and structure
   text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -116,6 +130,16 @@ function formatReportOverview(rawText) {
 
   let text = rawText.trim();
 
+  // CHECK IF CONTENT IS ALREADY HTML (e.g. from RichTextEditor)
+  // If it contains HTML tags, assume it's already formatted and just sanitize it
+  const hasHtmlTags = /<(p|div|table|ul|ol|h[1-6]|span|br|tr|td|th|thead|tbody)[^>]*>/i.test(text);
+
+  if (hasHtmlTags) {
+    // Just sanitize but preserve the structure
+    return sanitizeHtml(text, sanitizeOptions);
+  }
+
+  // Fallback for plain text content (legacy or import)
   // Normalize line breaks
   text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   text = text.replace(/\t/g, '    ');
@@ -174,10 +198,7 @@ function formatReportOverview(rawText) {
       // Detect headings in overview
       const isHeading = detectHeading(trimmedLine, 'reportOverview');
       if (isHeading) {
-        const headingText = sanitizeHtml(trimmedLine.replace(/:$/, ''), {
-          allowedTags: sanitizeHtml.defaults.allowedTags.concat(['h1', 'h2', 'img', 'span', 'div']),
-          allowedAttributes: { ...sanitizeHtml.defaults.allowedAttributes, '*': ['style'] },
-        });
+        const headingText = sanitizeHtml(trimmedLine.replace(/:$/, ''), sanitizeOptions);
         html += `<h3 style="margin: 14px 0 8px 0; font-weight: 700; color: #1f2937; font-size: 1.15em; line-height: 1.4;">${headingText}</h3>\n`;
       } else {
         // Regular paragraph
@@ -525,7 +546,9 @@ router.get('/', async (req, res, next) => {
       status = '',
       author = '',
       limit = 10,
-      offset = 0
+      offset = 0,
+      sortBy = 'createdAt',
+      order = 'desc'
     } = req.query
 
     // Build query filter
@@ -596,8 +619,12 @@ router.get('/', async (req, res, next) => {
     const limitNum = parseInt(limit) || 10
     const offsetNum = parseInt(offset) || 0
 
+    // Build sort object
+    const sort = {}
+    sort[sortBy] = order === 'asc' ? 1 : -1
+
     const reports = await Report.find(filter)
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .skip(offsetNum)
       .limit(limitNum)
       .lean()
@@ -1090,16 +1117,16 @@ router.get('/by-slug/:slug', async (req, res, next) => {
       // Try exact fallback
       report = await Report.findOne({ slug: fallbackSlug }).lean();
       if (report) {
-         console.log(`✅ Recovered report via legacy-space slug (exact): "${fallbackSlug}"`);
+        console.log(`✅ Recovered report via legacy-space slug (exact): "${fallbackSlug}"`);
       } else {
-         // Try case-insensitive fallback
-         report = await Report.findOne({ slug: { $regex: new RegExp(`^${fallbackSlug}$`, 'i') } }).lean();
-         if (report) console.log(`✅ Recovered report via legacy-space slug (case-insensitive): "${report.slug}"`);
+        // Try case-insensitive fallback
+        report = await Report.findOne({ slug: { $regex: new RegExp(`^${fallbackSlug}$`, 'i') } }).lean();
+        if (report) console.log(`✅ Recovered report via legacy-space slug (case-insensitive): "${report.slug}"`);
       }
     }
 
     if (!report) {
-       console.log(`❌ Report NOT found for slug: "${slug}" (checked strict, case-insensitive, and legacy formats)`);
+      console.log(`❌ Report NOT found for slug: "${slug}" (checked strict, case-insensitive, and legacy formats)`);
       return res.status(404).json({
         error: 'Not Found',
         message: 'Report not found'

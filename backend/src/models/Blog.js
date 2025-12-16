@@ -30,7 +30,7 @@ const blogSchema = new mongoose.Schema({
     enum: ['draft', 'published', 'scheduled'],
     default: 'draft'
   },
-  
+
   // SEO Fields
   titleTag: {
     type: String,
@@ -58,13 +58,24 @@ const blogSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  
+
+  // Categorization
+  category: {
+    type: String,
+    trim: true,
+    index: true
+  },
+  subCategory: {
+    type: String,
+    trim: true
+  },
+
   // Image
   mainImage: {
     type: String,
     trim: true
   },
-  
+
   // Metadata
   views: {
     type: Number,
@@ -78,7 +89,7 @@ const blogSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
-  
+
   // Timestamps
   createdAt: {
     type: Date,
@@ -101,7 +112,7 @@ blogSchema.index({ authorName: 1 });
 blogSchema.index({ createdAt: -1 });
 
 // Helper function to generate slug
-blogSchema.methods.generateSlug = function(baseTitle) {
+blogSchema.methods.generateSlug = function (baseTitle) {
   return baseTitle
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
@@ -111,35 +122,35 @@ blogSchema.methods.generateSlug = function(baseTitle) {
 };
 
 // Pre-save middleware to generate slug and URL if not provided
-blogSchema.pre('save', async function(next) {
+blogSchema.pre('save', async function (next) {
   // Generate slug if not provided or if title changed
   if (!this.slug || (this.isModified('title') && this.title)) {
     let baseSlug = this.generateSlug(this.title);
     let slug = baseSlug;
     let counter = 1;
-    
+
     // Check for existing slugs and make unique
     while (await this.constructor.findOne({ slug: slug, _id: { $ne: this._id } })) {
       slug = `${baseSlug}-${counter}`;
       counter++;
     }
-    
+
     this.slug = slug;
   }
-  
+
   // Generate URL from slug if not provided
   if (!this.url && this.slug) {
     this.url = this.slug;
   }
-  
+
   // Update the updatedAt field
   this.updatedAt = new Date();
-  
+
   next();
 });
 
 // Virtual for formatted publish date
-blogSchema.virtual('formattedPublishDate').get(function() {
+blogSchema.virtual('formattedPublishDate').get(function () {
   return this.publishDate ? this.publishDate.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
@@ -148,7 +159,7 @@ blogSchema.virtual('formattedPublishDate').get(function() {
 });
 
 // Virtual for reading time estimate (based on content length)
-blogSchema.virtual('readingTime').get(function() {
+blogSchema.virtual('readingTime').get(function () {
   if (!this.content) return 0;
   const wordsPerMinute = 200;
   const wordCount = this.content.replace(/<[^>]*>/g, '').split(/\s+/).length;
@@ -156,16 +167,16 @@ blogSchema.virtual('readingTime').get(function() {
 });
 
 // Virtual for excerpt
-blogSchema.virtual('excerpt').get(function() {
+blogSchema.virtual('excerpt').get(function () {
   if (!this.content) return '';
   const plainText = this.content.replace(/<[^>]*>/g, '');
   return plainText.length > 150 ? plainText.substring(0, 150) + '...' : plainText;
 });
 
 // Ensure virtual fields are serialized and slug is always included
-blogSchema.set('toJSON', { 
+blogSchema.set('toJSON', {
   virtuals: true,
-  transform: function(doc, ret) {
+  transform: function (doc, ret) {
     // Ensure slug is always present in JSON response
     if (!ret.slug && ret.title) {
       ret.slug = doc.generateSlug(ret.title);
@@ -176,21 +187,21 @@ blogSchema.set('toJSON', {
 blogSchema.set('toObject', { virtuals: true });
 
 // Static method to populate slugs for existing records
-blogSchema.statics.populateSlugs = async function() {
+blogSchema.statics.populateSlugs = async function () {
   const blogs = await this.find({ $or: [{ slug: null }, { slug: { $exists: false } }] });
-  
+
   for (const blog of blogs) {
     if (blog.title) {
       let baseSlug = blog.generateSlug(blog.title);
       let slug = baseSlug;
       let counter = 1;
-      
+
       // Check for existing slugs and make unique
       while (await this.findOne({ slug: slug, _id: { $ne: blog._id } })) {
         slug = `${baseSlug}-${counter}`;
         counter++;
       }
-      
+
       blog.slug = slug;
       if (!blog.url) {
         blog.url = slug;
@@ -198,7 +209,7 @@ blogSchema.statics.populateSlugs = async function() {
       await blog.save();
     }
   }
-  
+
   return blogs.length;
 };
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { Search, Filter, Download, Upload, FileText, Table, Plus, Eye, Edit, Trash2, MoreVertical, Share, X, Camera, Image, ExternalLink, CheckCircle, AlertCircle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react'
+import { Search, Filter, Download, Upload, FileText, Table, Plus, Eye, Edit, Trash2, MoreVertical, Share, X, Camera, Image, ExternalLink, CheckCircle, AlertCircle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, ArrowUpDown } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
 // Removed sanitize-html import (not browser compatible)
@@ -228,13 +228,24 @@ const Reports = () => {
   const [columnMapping, setColumnMapping] = useState({})
   const [showPreview, setShowPreview] = useState(false)
   const [isMigrating, setIsMigrating] = useState(false)
+
   const searchTimeoutRef = useRef(null)
+
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState({ key: 'createdAt', direction: 'desc' })
+  const [showSortMenu, setShowSortMenu] = useState(false)
+
+  const handleSortChange = (key, direction) => {
+    setSortConfig({ key, direction })
+    setShowSortMenu(false)
+    // The useEffect dependent on sortConfig will trigger reload
+  }
 
 
   useEffect(() => {
     loadReports()
     loadCategories()
-  }, [currentPage, itemsPerPage])
+  }, [currentPage, itemsPerPage, sortConfig])
 
   // Refresh data when user returns to this page
   useEffect(() => {
@@ -322,6 +333,8 @@ const Reports = () => {
           q: searchTerm.trim(),
           limit: itemsPerPage,
           offset: (currentPage - 1) * itemsPerPage,
+          sortBy: sortConfig.key,
+          order: sortConfig.direction,
           ...filters
         }
 

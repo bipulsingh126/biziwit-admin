@@ -381,12 +381,34 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
             }
 
             if (node.nodeType === Node.ELEMENT_NODE) {
-              const clone = document.createElement(node.tagName);
+              // Normalize tag names for better compatibility
+              let tagName = node.tagName.toLowerCase();
+
+              // Convert deprecated tags to modern equivalents
+              if (tagName === 'b') tagName = 'strong';
+              if (tagName === 'i') tagName = 'em';
+              if (tagName === 'strike') tagName = 's';
+
+              const clone = document.createElement(tagName);
 
               // Copy all attributes including style, class, align, etc.
               Array.from(node.attributes).forEach(attr => {
                 clone.setAttribute(attr.name, attr.value);
               });
+
+              // Ensure font-weight is preserved for bold text
+              if (node.style.fontWeight === 'bold' || node.style.fontWeight >= 600) {
+                if (tagName !== 'strong') {
+                  clone.style.fontWeight = 'bold';
+                }
+              }
+
+              // Ensure font-style is preserved for italic text
+              if (node.style.fontStyle === 'italic') {
+                if (tagName !== 'em') {
+                  clone.style.fontStyle = 'italic';
+                }
+              }
 
               // Recursively clone children
               Array.from(node.childNodes).forEach(child => {

@@ -22,7 +22,9 @@ router.get('/', async (req, res) => {
       offset = 0,
       status = '',
       author = '',
-      dateRange = ''
+      dateRange = '',
+      sortBy = 'createdAt',
+      order = 'desc'
     } = req.query;
 
     // Build search query
@@ -94,9 +96,13 @@ router.get('/', async (req, res) => {
     // Get total count
     const total = await Blog.countDocuments(searchQuery);
 
+    // Build sort object
+    const sort = {};
+    sort[sortBy] = order === 'asc' ? 1 : -1;
+
     // Get blogs with pagination
     const blogs = await Blog.find(searchQuery)
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .limit(parseInt(limit))
       .skip(parseInt(offset))
       .lean();

@@ -42,6 +42,15 @@ const caseStudySchema = new mongoose.Schema({
     required: true,
     default: 'Market Intelligence'
   },
+  reportCategory: {
+    type: String,
+    trim: true,
+    index: true
+  },
+  reportSubCategory: {
+    type: String,
+    trim: true
+  },
   slug: {
     type: String,
     trim: true,

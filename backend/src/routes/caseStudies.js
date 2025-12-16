@@ -22,7 +22,9 @@ router.get('/', async (req, res) => {
       search = '',
       slug = '',
       status,
-      dateRange
+      dateRange,
+      sortBy = 'createdAt',
+      order = 'desc'
     } = req.query
 
     // Build query
@@ -91,9 +93,13 @@ router.get('/', async (req, res) => {
     // Get total count for pagination
     const total = await CaseStudy.countDocuments(query)
 
+    // Build sort object
+    const sort = {}
+    sort[sortBy] = order === 'asc' ? 1 : -1
+
     // Get paginated results
     const caseStudies = await CaseStudy.find(query)
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .skip(skip)
       .limit(limitNum)
 
