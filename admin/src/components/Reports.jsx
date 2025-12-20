@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { Search, Filter, Download, Upload, FileText, Table, Plus, Eye, Edit, Trash2, MoreVertical, Share, X, Camera, Image, ExternalLink, CheckCircle, AlertCircle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, ArrowUpDown } from 'lucide-react'
+import { Search, Filter, Download, Upload, FileText, Table, Plus, Eye, Edit, Trash2, MoreVertical, Share, X, Camera, Image, ExternalLink, CheckCircle, AlertCircle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
 // Removed sanitize-html import (not browser compatible)
@@ -317,10 +317,13 @@ const Reports = () => {
       if (showExportMenu && !event.target.closest('.export-menu-container')) {
         setShowExportMenu(false)
       }
+      if (showSortMenu && !event.target.closest('.sort-menu-container')) {
+        setShowSortMenu(false)
+      }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showExportMenu])
+  }, [showExportMenu, showSortMenu])
 
   const loadReports = async () => {
     try {
@@ -330,7 +333,6 @@ const Reports = () => {
       // Try to load from API first, fallback to sample data if API fails
       try {
         const params = {
-          q: searchTerm.trim(),
           limit: itemsPerPage,
           offset: (currentPage - 1) * itemsPerPage,
           sortBy: sortConfig.key,
@@ -338,13 +340,26 @@ const Reports = () => {
           ...filters
         }
 
-        // Remove empty filter values
+        // Add search term if present
+        if (searchTerm && searchTerm.trim()) {
+          params.q = searchTerm.trim()
+          console.log('🔍 Search Query:', searchTerm.trim())
+        }
+
+        // Remove empty filter values (but keep 'q' if it was added above)
         Object.keys(params).forEach(key => {
-          if (params[key] === '' || params[key] === null || params[key] === undefined) {
+          if (key !== 'q' && (params[key] === '' || params[key] === null || params[key] === undefined)) {
             delete params[key]
           }
         })
+
+        console.log('📤 API Request Params:', params)
         const result = await api.getReports(params)
+        console.log('📥 API Response:', {
+          total: result.total,
+          itemsCount: result.items?.length,
+          hasResults: result.items && result.items.length > 0
+        })
 
         // Debug: Log the first report to see what data we're getting
         if (result.items && result.items.length > 0) {
@@ -1664,6 +1679,98 @@ const Reports = () => {
               <span className="hidden sm:inline">Filter</span>
             </button>
 
+            {/* Sort Button */}
+            <div className="relative sort-menu-container">
+              <button
+                onClick={() => setShowSortMenu(!showSortMenu)}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2 border rounded-md transition-colors whitespace-nowrap text-sm ${showSortMenu
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-gray-300 hover:bg-gray-50'
+                  }`}
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Sort</span>
+              </button>
+              {showSortMenu && (
+                <div className="absolute left-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10 border border-gray-200">
+                  <div className="py-1">
+                    <button
+                      onClick={() => handleSortChange('title', 'asc')}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      Title (A-Z)
+                    </button>
+                    <button
+                      onClick={() => handleSortChange('title', 'desc')}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      Title (Z-A)
+                    </button>
+                    <button
+                      onClick={() => handleSortChange('reportCode', 'asc')}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      Report Code (A-Z)
+                    </button>
+                    <button
+                      onClick={() => handleSortChange('reportCode', 'desc')}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      Report Code (Z-A)
+                    </button>
+                    <button
+                      onClick={() => handleSortChange('author', 'asc')}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      Author (A-Z)
+                    </button>
+                    <button
+                      onClick={() => handleSortChange('author', 'desc')}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      Author (Z-A)
+                    </button>
+                    <button
+                      onClick={() => handleSortChange('reportDate', 'desc')}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      Date (Newest First)
+                    </button>
+                    <button
+                      onClick={() => handleSortChange('reportDate', 'asc')}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      Date (Oldest First)
+                    </button>
+                    <button
+                      onClick={() => handleSortChange('category', 'asc')}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      Category (A-Z)
+                    </button>
+                    <button
+                      onClick={() => handleSortChange('category', 'desc')}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      Category (Z-A)
+                    </button>
+                    <button
+                      onClick={() => handleSortChange('status', 'asc')}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      Status (A-Z)
+                    </button>
+                    <button
+                      onClick={() => handleSortChange('status', 'desc')}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      Status (Z-A)
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Template & Import Buttons */}
             <div className="flex items-center gap-1.5">
               <button
@@ -2315,23 +2422,83 @@ const Reports = () => {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Cover Image
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Report Title
+                <th
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSortChange('title', sortConfig.key === 'title' && sortConfig.direction === 'asc' ? 'desc' : 'asc')}
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Report Title</span>
+                    {sortConfig.key === 'title' && (
+                      sortConfig.direction === 'asc' ?
+                        <ArrowUp className="w-3.5 h-3.5 text-blue-600" /> :
+                        <ArrowDown className="w-3.5 h-3.5 text-blue-600" />
+                    )}
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Report Code
+                <th
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSortChange('reportCode', sortConfig.key === 'reportCode' && sortConfig.direction === 'asc' ? 'desc' : 'asc')}
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Report Code</span>
+                    {sortConfig.key === 'reportCode' && (
+                      sortConfig.direction === 'asc' ?
+                        <ArrowUp className="w-3.5 h-3.5 text-blue-600" /> :
+                        <ArrowDown className="w-3.5 h-3.5 text-blue-600" />
+                    )}
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Author
+                <th
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSortChange('author', sortConfig.key === 'author' && sortConfig.direction === 'asc' ? 'desc' : 'asc')}
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Author</span>
+                    {sortConfig.key === 'author' && (
+                      sortConfig.direction === 'asc' ?
+                        <ArrowUp className="w-3.5 h-3.5 text-blue-600" /> :
+                        <ArrowDown className="w-3.5 h-3.5 text-blue-600" />
+                    )}
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Report Date
+                <th
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSortChange('reportDate', sortConfig.key === 'reportDate' && sortConfig.direction === 'asc' ? 'desc' : 'asc')}
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Report Date</span>
+                    {sortConfig.key === 'reportDate' && (
+                      sortConfig.direction === 'asc' ?
+                        <ArrowUp className="w-3.5 h-3.5 text-blue-600" /> :
+                        <ArrowDown className="w-3.5 h-3.5 text-blue-600" />
+                    )}
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Report Category
+                <th
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSortChange('category', sortConfig.key === 'category' && sortConfig.direction === 'asc' ? 'desc' : 'asc')}
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Report Category</span>
+                    {sortConfig.key === 'category' && (
+                      sortConfig.direction === 'asc' ?
+                        <ArrowUp className="w-3.5 h-3.5 text-blue-600" /> :
+                        <ArrowDown className="w-3.5 h-3.5 text-blue-600" />
+                    )}
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                <th
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSortChange('status', sortConfig.key === 'status' && sortConfig.direction === 'asc' ? 'desc' : 'asc')}
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Status</span>
+                    {sortConfig.key === 'status' && (
+                      sortConfig.direction === 'asc' ?
+                        <ArrowUp className="w-3.5 h-3.5 text-blue-600" /> :
+                        <ArrowDown className="w-3.5 h-3.5 text-blue-600" />
+                    )}
+                  </div>
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
