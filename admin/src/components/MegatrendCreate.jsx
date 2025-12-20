@@ -76,7 +76,6 @@ const MegatrendCreate = () => {
         metaDescription: megatrend.metaDescription || '',
         keywords: megatrend.keywords || '',
         content: megatrend.content || '',
-        content: megatrend.content || '',
         status: megatrend.status || 'draft',
         category: megatrend.category || '',
         subCategory: megatrend.subCategory || ''
