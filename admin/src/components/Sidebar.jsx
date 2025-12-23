@@ -14,6 +14,7 @@ import {
   Sparkles
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import logo from '../assets/logo.svg'
 
 const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
   const location = useLocation()
@@ -54,10 +55,8 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
         {/* Header */}
         <div className="flex items-center justify-between h-16 px-6 border-b border-gray-700 bg-gray-900/50 backdrop-blur-sm">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <h1 className="font-bold text-xl text-white tracking-tight">BiziWit</h1>
+          
+            <img src={logo} alt="Biziwit" className="h-36 w-auto" />
           </div>
           <button
             onClick={() => setSidebarOpen(false)}

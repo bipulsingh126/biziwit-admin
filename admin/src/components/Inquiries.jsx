@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'react-toastify'
 import { Search, Filter, Trash2, Eye, Clock, Mail, CheckCircle, RefreshCw, X, Phone, Building, User, MessageSquare, Calendar } from 'lucide-react'
 import api from '../utils/api'
 
@@ -110,6 +111,42 @@ const Inquiries = () => {
     }
   }
 
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedInquiries.length} inquiries? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      setLoading(true)
+      await api.bulkUpdateInquiries('delete', selectedInquiries)
+      setSelectedInquiries([])
+      loadInquiries()
+      toast.success('Selected inquiries have been deleted.')
+    } catch (err) {
+      console.error('Bulk delete failed:', err)
+      setError(err.message || 'Failed to delete inquiries')
+      toast.error(err.message || 'Failed to delete inquiries')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleBulkStatusUpdate = async (status) => {
+    try {
+      setLoading(true)
+      await api.bulkUpdateInquiries('update_status', selectedInquiries, { status })
+      setSelectedInquiries([])
+      loadInquiries()
+      toast.success(`Status updated to ${status.replace('_', ' ')} for ${selectedInquiries.length} inquiries`)
+    } catch (err) {
+      console.error('Bulk status update failed:', err)
+      setError(err.message || 'Failed to update status')
+      toast.error(err.message || 'Failed to update status')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleViewInquiry = (inquiry) => {
     setViewingInquiry(inquiry)
   }
@@ -155,28 +192,6 @@ const Inquiries = () => {
             <RefreshCw className="w-4 h-4" />
             Refresh
           </button>
-          <button
-            onClick={async () => {
-              console.log('Testing API directly...')
-              try {
-                const response = await fetch('/api/inquiries', {
-                  headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                  }
-                })
-                const data = await response.json()
-                console.log('Direct API test result:', data)
-                alert(`API Test: ${response.status} - Found ${data.items?.length || 0} inquiries`)
-              } catch (err) {
-                console.error('Direct API test failed:', err)
-                alert(`API Test Failed: ${err.message}`)
-              }
-            }}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-          >
-            Test API
-          </button>
         </div>
       </div>
 
@@ -211,6 +226,56 @@ const Inquiries = () => {
           </div>
         </div>
       </div>
+
+      {/* Bulk Usage Action Bar */}
+      {selectedInquiries.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-blue-600" />
+            <span className="font-medium text-blue-900">
+              {selectedInquiries.length} inquiry{selectedInquiries.length !== 1 ? 's' : ''} selected
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <select
+              onChange={(e) => {
+                if (e.target.value) {
+                  const status = e.target.value;
+                  if (window.confirm(`Update status of ${selectedInquiries.length} inquiries to "${status.replace('_', ' ')}"?`)) {
+                    handleBulkStatusUpdate(status);
+                    e.target.value = ''; // Reset select
+                  }
+                }
+              }}
+              className="px-3 py-2 border border-blue-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white"
+              defaultValue=""
+            >
+              <option value="" disabled>Update Status...</option>
+              {metadata.statuses.map(status => (
+                <option key={status} value={status}>
+                  Mark as {status.replace('_', ' ').toUpperCase()}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={handleBulkDelete}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm flex items-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete Selected
+            </button>
+
+            <button
+              onClick={() => setSelectedInquiries([])}
+              className="px-3 py-2 text-gray-600 hover:text-gray-800 text-sm"
+            >
+              Cancel Selection
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 mb-4">

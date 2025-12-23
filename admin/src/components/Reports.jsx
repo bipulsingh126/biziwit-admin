@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { toast } from 'react-toastify'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { Search, Filter, Download, Upload, FileText, Table, Plus, Eye, Edit, Trash2, MoreVertical, Share, X, Camera, Image, ExternalLink, CheckCircle, AlertCircle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import * as XLSX from 'xlsx'
@@ -617,7 +618,7 @@ const Reports = () => {
   // Bulk operations
   const handleBulkDelete = async () => {
     if (selectedReports.length === 0) {
-      alert('Please select reports to delete')
+      toast.error('Please select reports to delete')
       return
     }
 
@@ -646,7 +647,7 @@ const Reports = () => {
 
   const handleBulkStatusChange = async (newStatus) => {
     if (selectedReports.length === 0) {
-      alert('Please select reports to update')
+      toast.error('Please select reports to update')
       return
     }
 
@@ -686,7 +687,7 @@ const Reports = () => {
 
       if (timeSinceLastExport < minDelay) {
         const remainingTime = Math.ceil((minDelay - timeSinceLastExport) / 1000)
-        alert(`Please wait ${remainingTime} more seconds before exporting again.`)
+        toast.info(`Please wait ${remainingTime} more seconds before exporting again.`)
         return
       }
 
@@ -728,7 +729,7 @@ const Reports = () => {
       URL.revokeObjectURL(url)
 
       // Show success message
-      alert(`Successfully exported all reports in ${format.toUpperCase()} format!`)
+      toast.success(`Successfully exported all reports in ${format.toUpperCase()} format!`)
 
     } catch (error) {
       setError(`Failed to export reports: ${error.message}`)
@@ -738,33 +739,23 @@ const Reports = () => {
   }
 
   const handleDownloadTemplate = () => {
-    // Create a sample Excel template
+    // Create a sample Excel template with only required fields for upload
     const templateData = [
       {
         'Report Title': 'Sample Report Title',
         'Title Meta Tag': 'Sample Sub Title',
         'REPORT OVERVIEW': 'Detailed report description and overview',
         'Table of Contents': 'Chapter 1, Chapter 2, Chapter 3',
-        'Summary': 'Sample summary description',
         'Report Category': 'ICT and Media',
         'Report Sub Category': 'Software and Services',
-        'CATEGORIES': 'ICT and Media',
-        'Category': 'ICT and Media',
-        'Sub Category': 'Software and Services',
         'SEGMENT / COMPANIES': 'Enterprise Software Companies: Microsoft, Apple, Google, Amazon, IBM, Oracle, Salesforce',
-
         'Author Name': 'John Doe',
         'Report Code': 'RPT001',
         'Number of Page': '150',
-        'Price': '2500',
         'Excel Datapack Prices': '3500',
         'Single User Prices': '2500',
         'Enterprise License Prices': '5000',
         'Internet Handling Charges': '100',
-        'Currency': 'USD',
-        'Format': 'PDF',
-        'Language': 'English',
-        'Industry': 'Information Technology',
         'Report Type': 'Market Research',
         // SEO Fields
         'Title Tag': 'Sample SEO Title Tag for Search Engines',
@@ -2452,14 +2443,6 @@ const Reports = () => {
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSortChange('author', sortConfig.key === 'author' && sortConfig.direction === 'asc' ? 'desc' : 'asc')}
                 >
-                  <div className="flex items-center gap-1">
-                    <span>Author</span>
-                    {sortConfig.key === 'author' && (
-                      sortConfig.direction === 'asc' ?
-                        <ArrowUp className="w-3.5 h-3.5 text-blue-600" /> :
-                        <ArrowDown className="w-3.5 h-3.5 text-blue-600" />
-                    )}
-                  </div>
                 </th>
                 <th
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"

@@ -15,7 +15,7 @@ const Header = ({ setSidebarOpen }) => {
             <Menu className="w-5 h-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <h2 className="text-base sm:text-lg font-semibold text-gray-900 truncate">BiziWit Admin</h2>
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 truncate">BIZWIT ADMIN</h2>
             <p className="text-xs text-gray-500 hidden md:block truncate">Manage your business intelligence</p>
           </div>
         </div>

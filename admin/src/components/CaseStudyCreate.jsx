@@ -308,25 +308,7 @@ const CaseStudyCreate = () => {
       </div>
 
       <div className="flex">
-        {/* Sidebar Navigation */}
-        <div className="w-64 bg-white border-r min-h-screen">
-          <div className="p-4">
-            <nav className="space-y-2">
-              <a href="#basic" className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg">
-                <FileText className="w-4 h-4" />
-                Basic Information
-              </a>
-              <a href="#seo" className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg">
-                <Globe className="w-4 h-4" />
-                SEO Settings
-              </a>
-              <a href="#content" className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg">
-                <Tag className="w-4 h-4" />
-                Content
-              </a>
-            </nav>
-          </div>
-        </div>
+
 
         {/* Main Content */}
         <div className="flex-1 p-6">

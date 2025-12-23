@@ -1388,21 +1388,34 @@ const Categories = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-5xl max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold flex items-center gap-2">
-                <TrendingUp className="w-6 h-6 text-indigo-600" />
-                Top 15 Trending Subcategories
-              </h2>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleSelectAllTrendingSubcategories}
-                  className="px-3 py-1 text-sm bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors"
-                >
-                  {selectedTrendingSubcategories.length === trendingSubcategories.length ? 'Deselect All' : 'Select All'}
-                </button>
-                <span className="text-sm text-gray-500">
-                  {selectedTrendingSubcategories.length} selected
-                </span>
+              <div className="flex items-center gap-4">
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <TrendingUp className="w-6 h-6 text-indigo-600" />
+                  Top 15 Trending Subcategories
+                </h2>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleSelectAllTrendingSubcategories}
+                    className="px-3 py-1 text-sm bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors"
+                  >
+                    {selectedTrendingSubcategories.length === trendingSubcategories.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                  <span className="text-sm text-gray-500">
+                    {selectedTrendingSubcategories.length} selected
+                  </span>
+                </div>
               </div>
+              <button
+                onClick={() => {
+                  setShowTrendingSubcategoriesModal(false)
+                  setSelectedTrendingSubcategories([])
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors p-1 hover:bg-gray-100 rounded-lg"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
 
             <div className="space-y-3 mb-6">

@@ -1160,7 +1160,7 @@ const ReportCreate = () => {
                     handleInputChange('reportDescription', value)
                     handleInputChange('content', value) // Keep backward compatibility
                   }}
-                  placeholder="Write your report overview here..."
+                  placeholder=""
                   disabled={saving}
                 />
               </div>
@@ -1171,7 +1171,7 @@ const ReportCreate = () => {
                 <RichTextEditor
                   value={formData.tableOfContents}
                   onChange={(value) => handleInputChange('tableOfContents', value)}
-                  placeholder="1. Introduction\n2. Market Analysis\n3. Key Findings\n4. Conclusion"
+                  placeholder=""
                   disabled={saving}
                 />
               </div>
@@ -1180,18 +1180,11 @@ const ReportCreate = () => {
             {activeTab === 'segmentation' && (
               <div className="bg-white border border-gray-200 rounded-lg p-6">
                 <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center">
-                    <Target className="w-5 h-5 text-blue-600 mr-2" />
-                    Segment / Companies
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    This data is imported from Excel <span className="font-mono bg-gray-100 px-2 py-1 rounded">SEGMENT / COMPANIES</span> column and can be edited here.
-                  </p>
                 </div>
                 <RichTextEditor
                   value={formData.segmentCompanies}
                   onChange={(value) => handleInputChange('segmentCompanies', value)}
-                  placeholder="Market segmentation and companies data from Excel import will appear here..."
+                  placeholder=""
                   disabled={saving}
                 />
               </div>

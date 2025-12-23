@@ -23,6 +23,9 @@ import Categories from './components/Categories'
 import HomePageManagement from './components/HomePageManagement'
 import Testimonial from './components/Testimonial'
 
+import { ToastContainer } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
+
 const AppContent = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { user, loading } = useAuth()
@@ -40,172 +43,178 @@ const AppContent = () => {
   }
 
   if (!user) {
-    return <Login />
+    return (
+      <>
+        <ToastContainer position="top-right" autoClose={3000} />
+        <Login />
+      </>
+    )
   }
 
   return (
     <div className="min-h-screen">
+      <ToastContainer position="top-right" autoClose={3000} />
       <div className="flex h-screen bg-gray-50">
         <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        
+
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header setSidebarOpen={setSidebarOpen} />
-          
+
           <main className="flex-1 overflow-y-auto bg-gray-50">
             <div className="max-w-7xl mx-auto">
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route 
-                  path="/dashboard" 
+                <Route
+                  path="/dashboard"
                   element={
                     <ProtectedRoute route="/dashboard">
                       <Dashboard />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/users" 
+                <Route
+                  path="/users"
                   element={
                     <ProtectedRoute route="/users">
                       <Users />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/analytics" 
+                <Route
+                  path="/analytics"
                   element={
                     <ProtectedRoute route="/analytics">
                       <Analytics />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/reports" 
+                <Route
+                  path="/reports"
                   element={
                     <ProtectedRoute route="/reports">
                       <Reports />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/reports/create" 
+                <Route
+                  path="/reports/create"
                   element={
                     <ProtectedRoute route="/reports">
                       <ReportCreate />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/reports/:id/edit" 
+                <Route
+                  path="/reports/:id/edit"
                   element={
                     <ProtectedRoute route="/reports">
                       <ReportCreate />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/seo-management" 
+                <Route
+                  path="/seo-management"
                   element={
                     <ProtectedRoute route="/seo-management">
                       <SEOManagement />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/blog" 
+                <Route
+                  path="/blog"
                   element={
                     <ProtectedRoute route="/blog">
                       <Blog />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/inquiries" 
+                <Route
+                  path="/inquiries"
                   element={
                     <ProtectedRoute route="/inquiries">
                       <Inquiries />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/categories" 
+                <Route
+                  path="/categories"
                   element={
                     <ProtectedRoute route="/categories">
                       <Categories />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/admin/megatrends" 
+                <Route
+                  path="/admin/megatrends"
                   element={
                     <ProtectedRoute route="/megatrends">
                       <Megatrends />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/admin/megatrends/create" 
+                <Route
+                  path="/admin/megatrends/create"
                   element={
                     <ProtectedRoute route="/megatrends">
                       <MegatrendCreate />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/admin/megatrends/:id/edit" 
+                <Route
+                  path="/admin/megatrends/:id/edit"
                   element={
                     <ProtectedRoute route="/megatrends">
                       <MegatrendCreate />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/admin/megatrends/:id" 
+                <Route
+                  path="/admin/megatrends/:id"
                   element={
                     <ProtectedRoute route="/megatrends">
                       <MegatrendDetail />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/admin/case-studies" 
+                <Route
+                  path="/admin/case-studies"
                   element={
                     <ProtectedRoute route="/case-studies">
                       <CaseStudies />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/admin/case-studies/create" 
+                <Route
+                  path="/admin/case-studies/create"
                   element={
                     <ProtectedRoute route="/case-studies">
                       <CaseStudyCreate />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/admin/case-studies/:id/edit" 
+                <Route
+                  path="/admin/case-studies/:id/edit"
                   element={
                     <ProtectedRoute route="/case-studies">
                       <CaseStudyCreate />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/home-page-management" 
+                <Route
+                  path="/home-page-management"
                   element={
                     <ProtectedRoute route="/home-page-management">
                       <HomePageManagement />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/testimonials" 
+                <Route
+                  path="/testimonials"
                   element={
                     <ProtectedRoute route="/testimonials">
                       <Testimonial />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
               </Routes>
             </div>
@@ -236,9 +245,9 @@ function App() {
 
     const handleUnhandledRejection = (event) => {
       // Suppress API 404 errors for trending endpoints
-      if (event.reason && event.reason.message && 
-          event.reason.message.includes('404') && 
-          event.reason.message.includes('trending')) {
+      if (event.reason && event.reason.message &&
+        event.reason.message.includes('404') &&
+        event.reason.message.includes('trending')) {
         console.warn('Trending API endpoint not available:', event.reason.message)
         event.preventDefault()
         return false
