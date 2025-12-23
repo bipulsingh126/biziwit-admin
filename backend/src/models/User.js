@@ -6,27 +6,7 @@ const UserSchema = new mongoose.Schema({
   slug: { type: String, unique: true, lowercase: true, trim: true, sparse: true },
   email: { type: String, required: true, unique: true, lowercase: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ['super_admin', 'admin', 'editor'], default: 'editor', index: true },
-  permissions: {
-    reports: {
-      view: { type: Boolean, default: true },
-      create: { type: Boolean, default: true },
-      edit: { type: Boolean, default: true },
-      delete: { type: Boolean, default: true }
-    },
-    posts: {
-      view: { type: Boolean, default: true },
-      create: { type: Boolean, default: true },
-      edit: { type: Boolean, default: true },
-      delete: { type: Boolean, default: true }
-    },
-    users: {
-      view: { type: Boolean, default: false },
-      create: { type: Boolean, default: false },
-      edit: { type: Boolean, default: false },
-      delete: { type: Boolean, default: false }
-    }
-  }
+  role: { type: String, enum: ['super_admin', 'admin', 'editor'], default: 'editor', index: true }
 }, { timestamps: true })
 
 UserSchema.pre('save', async function (next) {
@@ -37,7 +17,7 @@ UserSchema.pre('save', async function (next) {
 })
 
 // Pre-save middleware to generate slug
-UserSchema.pre('save', function(next) {
+UserSchema.pre('save', function (next) {
   if (!this.slug && this.name) {
     this.slug = this.name
       .toLowerCase()
@@ -56,20 +36,31 @@ UserSchema.methods.comparePassword = async function (candidate) {
 UserSchema.methods.hasPermission = function (module, action) {
   // Super Admin has all permissions
   if (this.role === 'super_admin') return true
-  
+
   // Regular Admin has all permissions except user management
   if (this.role === 'admin') {
     if (module === 'users') return false
     return true
   }
-  
-  // Check specific permission for editors
-  return this.permissions?.[module]?.[action] || false
+
+  // Editor role: hardcoded permissions for specific modules
+  if (this.role === 'editor') {
+    // Editors have full CRUD access to: reports, posts (blogs), megatrends, caseStudies
+    const allowedModules = ['reports', 'posts', 'megatrends', 'caseStudies']
+    const allowedActions = ['view', 'create', 'edit', 'delete']
+
+    if (allowedModules.includes(module) && allowedActions.includes(action)) {
+      return true
+    }
+    return false
+  }
+
+  return false
 }
 
 UserSchema.methods.toSafeJSON = function () {
-  const { _id, name, email, role, permissions, createdAt, updatedAt } = this
-  return { id: _id.toString(), name, email, role, permissions, createdAt, updatedAt }
+  const { _id, name, email, role, createdAt, updatedAt } = this
+  return { id: _id.toString(), name, email, role, createdAt, updatedAt }
 }
 
 const User = mongoose.model('User', UserSchema)

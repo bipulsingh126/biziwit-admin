@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Edit, Trash2, Plus, Settings, X, Save } from 'lucide-react'
+import { Edit, Trash2, Plus, X, Save } from 'lucide-react'
 import api from '../utils/api'
-import UserPermissions from './UserPermissions'
 
 const Users = () => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -9,7 +8,6 @@ const Users = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedUser, setSelectedUser] = useState(null)
-  const [showPermissions, setShowPermissions] = useState(false)
   const [showAddUser, setShowAddUser] = useState(false)
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'editor' })
 
@@ -36,31 +34,7 @@ const Users = () => {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
-  const handleEditPermissions = (user) => {
-    setSelectedUser(user)
-    setShowPermissions(true)
-  }
 
-  const handleSavePermissions = async (updatedUser) => {
-    try {
-      const userId = updatedUser._id || updatedUser.id
-      const updateData = { 
-        role: updatedUser.role,
-        permissions: updatedUser.permissions 
-      }
-      await api.updateUser(userId, updateData)
-      await loadUsers()
-      setShowPermissions(false)
-      setSelectedUser(null)
-    } catch (err) {
-      setError(err.message)
-    }
-  }
-
-  const handleCancelPermissions = () => {
-    setShowPermissions(false)
-    setSelectedUser(null)
-  }
 
   const handleAddUser = () => {
     setShowAddUser(true)
@@ -145,10 +119,10 @@ const Users = () => {
         return
       }
 
-      const updateData = { 
-        name: newUser.name.trim(), 
-        email: newUser.email.toLowerCase().trim(), 
-        role: newUser.role 
+      const updateData = {
+        name: newUser.name.trim(),
+        email: newUser.email.toLowerCase().trim(),
+        role: newUser.role
       }
       if (newUser.password) {
         updateData.password = newUser.password
@@ -191,7 +165,7 @@ const Users = () => {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Users</h1>
-        <button 
+        <button
           onClick={handleAddUser}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
         >
@@ -234,21 +208,14 @@ const Users = () => {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => handleEditPermissions(user)}
-                      className="flex items-center gap-1 px-2 py-1 text-blue-600 hover:text-blue-800 text-sm border border-blue-200 rounded hover:bg-blue-50"
-                    >
-                      <Settings className="w-3 h-3" />
-                      Permissions
-                    </button>
-                    <button 
+                    <button
                       onClick={() => handleEditUser(user)}
                       className="flex items-center gap-1 px-2 py-1 text-gray-600 hover:text-gray-800 text-sm border border-gray-200 rounded hover:bg-gray-50"
                     >
                       <Edit className="w-3 h-3" />
                       Edit
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleDeleteUser(user._id)}
                       className="flex items-center gap-1 px-2 py-1 text-red-600 hover:text-red-800 text-sm border border-red-200 rounded hover:bg-red-50"
                     >
@@ -262,14 +229,6 @@ const Users = () => {
           </tbody>
         </table>
       </div>
-
-      {showPermissions && selectedUser && (
-        <UserPermissions
-          user={selectedUser}
-          onSave={handleSavePermissions}
-          onCancel={handleCancelPermissions}
-        />
-      )}
 
       {showAddUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -349,7 +308,7 @@ const Users = () => {
                 <p className="text-xs text-gray-500 mt-1">
                   {newUser.role === 'super_admin' && 'Full access to all features including user management'}
                   {newUser.role === 'admin' && 'Full access to content management, no user management'}
-                  {newUser.role === 'editor' && 'Custom permissions can be set after creation'}
+                  {newUser.role === 'editor' && 'Access to Reports, Blogs, Megatrends, and Case Studies only'}
                 </p>
               </div>
             </div>

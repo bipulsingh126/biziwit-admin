@@ -23,7 +23,6 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Users', href: '/users', icon: Users },
-    { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: 'Reports', href: '/reports', icon: FileText },
     { name: 'Categories', href: '/categories', icon: Folder },
     { name: 'SEO Management', href: '/seo-management', icon: Search },

@@ -50,6 +50,41 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
   const [tableRows, setTableRows] = useState(3)
   const [tableCols, setTableCols] = useState(3)
 
+  // Floating Toolbar State
+  const [showFloatingToolbar, setShowFloatingToolbar] = useState(false)
+  const [toolbarPosition, setToolbarPosition] = useState({ top: 0, left: 0 })
+  const [selectionStyles, setSelectionStyles] = useState({
+    isBold: false,
+    isItalic: false,
+    isUnderline: false,
+    isStrikethrough: false,
+    isHighlighted: false,
+    isJustifyLeft: false,
+    isJustifyCenter: false,
+    isJustifyRight: false,
+    isJustifyFull: false,
+    isUnorderedList: false,
+    isOrderedList: false
+  })
+
+  // Save selection for link insertion
+  const savedSelection = useRef(null)
+
+  const saveSelection = () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+      savedSelection.current = selection.getRangeAt(0);
+    }
+  }
+
+  const restoreSelection = () => {
+    if (savedSelection.current) {
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(savedSelection.current);
+    }
+  }
+
   useEffect(() => {
     if (editorRef.current && value !== editorRef.current.innerHTML) {
       const newValue = value || '';
@@ -454,6 +489,8 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
       editorRef.current.addEventListener('paste', handlePaste)
     }
 
+
+
     document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleKeyDown)
     return () => {
@@ -464,6 +501,34 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
       }
     }
   }, [])
+
+  // Effect for updating toolbar state
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      // We use a small timeout to let the selection settle (especially for key navigation)
+      setTimeout(updateToolbarState, 10);
+    };
+
+    const element = editorRef.current;
+    if (element) {
+      element.addEventListener('mouseup', handleSelectionChange);
+      element.addEventListener('keyup', handleSelectionChange);
+      element.addEventListener('click', handleSelectionChange);
+    }
+
+    return () => {
+      if (element) {
+        element.removeEventListener('mouseup', handleSelectionChange);
+        element.removeEventListener('keyup', handleSelectionChange);
+        element.removeEventListener('click', handleSelectionChange);
+      }
+    };
+  }); // Run on every render to ensure we have latest scope if needed, or we can use generic refs. 
+  // Actually with no dependency array it runs every render which is fine for adding/removing 
+  // (though slightly inefficient, it ensures closure freshness). Better: use [] and refs for state if needed.
+  // But updateToolbarState uses setState, which is stable. 
+  // Let's rely on the function definition being hoisted or available.
+
 
   const executeCommand = (command, value = null) => {
     document.execCommand(command, false, value)
@@ -479,14 +544,54 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
     }
   }
 
+  // Enhanced style application to support exact pixel sizes
+  const applyStyle = (styleName, value) => {
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return;
+
+    const range = selection.getRangeAt(0);
+    const span = document.createElement('span');
+    span.style[styleName] = value;
+
+    if (!range.collapsed) {
+      try {
+        // Try simple wrapper first
+        range.surroundContents(span);
+      } catch (e) {
+        // Fallback for complex selections (e.g. crossing block boundaries)
+        const fragment = range.extractContents();
+        span.appendChild(fragment);
+        range.insertNode(span);
+      }
+    } else {
+      // If nothing selected, we can't easily "prepare" the next character style 
+      // without inserting a zero-width space or similar, which is messy.
+      // For now, we'll try to focus on selected text. 
+      // As a fallback for cursor placement, we might just have to rely on browser behavior or insert a placeholder.
+      // Let's use the standard command as a partial fallback or just return.
+      // But standard 'fontSize' uses 1-7, so that doesn't help with pixels.
+      // We will insert a temporary span with a zero width space
+      const textNode = document.createTextNode('\u200B');
+      span.appendChild(textNode);
+      range.insertNode(span);
+      // Move cursor inside span
+      range.setStart(textNode, 1);
+      range.setEnd(textNode, 1);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    updateContent();
+  }
+
   const handleFontChange = (font) => {
     setSelectedFont(font)
-    executeCommand('fontName', font)
+    applyStyle('fontFamily', font)
   }
 
   const handleFontSizeChange = (size) => {
     setSelectedFontSize(size)
-    executeCommand('fontSize', size)
+    applyStyle('fontSize', size)
   }
 
   const handleFormatChange = (format) => {
@@ -518,45 +623,146 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
     }
   }
 
+  // Update toolbar state based on cursor position
+  const updateToolbarState = () => {
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return;
+
+    let node = selection.anchorNode;
+    // Walk up the DOM tree to find computed styles
+    while (node && node !== editorRef.current) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const computed = window.getComputedStyle(node);
+
+        // Font Family
+        let font = computed.fontFamily.replace(/['"]/g, '');
+        // Browser might return full stack "Arial, Helvetica, sans-serif", take first
+        font = font.split(',')[0].trim();
+        if (font) setSelectedFont(font);
+
+        // Font Size
+        const size = computed.fontSize;
+        if (size) setSelectedFontSize(size);
+
+        // Block format (simple check)
+        const tagName = node.tagName.toLowerCase();
+        if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'p'].includes(tagName)) {
+          // Mapping tag to format value
+          if (tagName === 'div' || tagName === 'p') setSelectedFormat('normal');
+          else setSelectedFormat(tagName);
+        }
+
+        break; // Found the closest element, stop
+      }
+      node = node.parentNode;
+    }
+
+    // Check for standard command states
+    const isBold = document.queryCommandState('bold');
+    const isItalic = document.queryCommandState('italic');
+    const isUnderline = document.queryCommandState('underline');
+    const isStrikethrough = document.queryCommandState('strikeThrough');
+    const isJustifyLeft = document.queryCommandState('justifyLeft');
+    const isJustifyCenter = document.queryCommandState('justifyCenter');
+    const isJustifyRight = document.queryCommandState('justifyRight');
+    const isJustifyFull = document.queryCommandState('justifyFull');
+    const isUnorderedList = document.queryCommandState('insertUnorderedList');
+    const isOrderedList = document.queryCommandState('insertOrderedList');
+
+    // Check highlight - this is tricky as hiliteColor isn't always reliable for queryCommandState
+    // We check if the parent node or any ancestor has background color
+    let isHighlighted = false;
+    let currentNode = selection.anchorNode;
+    while (currentNode && currentNode !== editorRef.current) {
+      if (currentNode.nodeType === Node.ELEMENT_NODE) {
+        const bg = window.getComputedStyle(currentNode).backgroundColor;
+        if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+          isHighlighted = true;
+          break;
+        }
+      }
+      currentNode = currentNode.parentNode;
+    }
+
+    setSelectionStyles({
+      isBold,
+      isItalic,
+      isUnderline,
+      isStrikethrough,
+      isHighlighted,
+      isJustifyLeft,
+      isJustifyCenter,
+      isJustifyRight,
+      isJustifyFull,
+      isUnorderedList,
+      isOrderedList
+    });
+
+    // Calculate position for floating toolbar
+    if (!selection.isCollapsed) {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      // We need relative position to the editor container if possible, 
+      // but absolute position on page is easier if the toolbar is fixed/portal 
+      // OR relative to the editor container if that is the offset parent.
+      // Let's assume the editor container (relative) is the parent.
+      // We can get offsets relative to the editorRef.
+      if (editorRef.current) {
+        const editorRect = editorRef.current.getBoundingClientRect();
+        // Position above the selection
+        const top = rect.top - editorRect.top - 40; // 40px above
+        const left = rect.left - editorRect.left;
+
+        setToolbarPosition({ top, left });
+        setShowFloatingToolbar(true);
+      }
+    } else {
+      setShowFloatingToolbar(false);
+    }
+  };
+
+
   // Color functions
   const applyTextColor = (color) => {
     executeCommand('foreColor', color)
     setShowColorPicker(false)
   }
 
+  // Enhanced highlight that handles partial and full block selections better
   const applyHighlight = (color) => {
-    // Modern approach for text highlighting
-    const selection = window.getSelection()
-    if (selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0)
-      if (!range.collapsed) {
-        // Create a span element with background color
-        const span = document.createElement('span')
-        span.style.backgroundColor = color
-        span.style.padding = '2px 4px'
-        span.style.borderRadius = '3px'
+    saveSelection(); // Save before doing anything complex
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return;
 
-        try {
-          // Surround the selected content with the span
-          range.surroundContents(span)
-        } catch (e) {
-          // If surroundContents fails, use extractContents and appendChild
-          const contents = range.extractContents()
-          span.appendChild(contents)
-          range.insertNode(span)
-        }
+    const range = selection.getRangeAt(0);
 
-        // Clear selection
-        selection.removeAllRanges()
+    if (!range.collapsed) {
+      try {
+        const span = document.createElement('span');
+        span.style.backgroundColor = color;
+        span.style.borderRadius = '3px';
 
-        // Update content
-        updateContent()
-      } else {
-        // If no text is selected, try the fallback method
+        const contents = range.extractContents();
+        span.appendChild(contents);
+        range.insertNode(span);
+
+        // Restore selection to inside
+        selection.removeAllRanges();
+        const newRange = document.createRange();
+        newRange.selectNodeContents(span);
+        selection.addRange(newRange);
+
+      } catch (error) {
+        console.error("Highlight error:", error);
+        // Fallback
         executeCommand('hiliteColor', color)
       }
+    } else {
+      executeCommand('hiliteColor', color)
     }
+
     setShowHighlightPicker(false)
+    updateContent()
   }
 
   const removeHighlight = () => {
@@ -607,13 +813,22 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
     executeCommand('insertHTML', tableHTML)
   }
 
+  // Link insertion with proper selection restoration
   const insertLink = () => {
-    const url = prompt('Enter URL:')
-    if (url) {
-      const text = window.getSelection().toString() || 'Link'
-      const linkHTML = `<a href="${url}" target="_blank">${text}</a>`
-      executeCommand('insertHTML', linkHTML)
-    }
+    saveSelection();
+    setTimeout(() => {
+      const url = prompt('Enter URL:')
+      if (url) {
+        restoreSelection(); // Restore the exact range
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0 && !selection.isCollapsed) {
+          executeCommand('createLink', url);
+        } else {
+          const linkHTML = `<a href="${url}" target="_blank">Link</a>`
+          executeCommand('insertHTML', linkHTML)
+        }
+      }
+    }, 10);
   }
 
   const insertImage = () => {
@@ -979,10 +1194,10 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
     {
       group: 'formatting',
       items: [
-        { icon: Bold, command: 'bold', title: 'Bold' },
-        { icon: Italic, command: 'italic', title: 'Italic' },
-        { icon: Underline, command: 'underline', title: 'Underline' },
-        { icon: Strikethrough, command: 'strikeThrough', title: 'Strikethrough' }
+        { icon: Bold, command: 'bold', title: 'Bold', isActive: selectionStyles.isBold },
+        { icon: Italic, command: 'italic', title: 'Italic', isActive: selectionStyles.isItalic },
+        { icon: Underline, command: 'underline', title: 'Underline', isActive: selectionStyles.isUnderline },
+        { icon: Strikethrough, command: 'strikeThrough', title: 'Strikethrough', isActive: selectionStyles.isStrikethrough }
       ]
     },
     {
@@ -995,17 +1210,17 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
     {
       group: 'alignment',
       items: [
-        { icon: AlignLeft, command: 'justifyLeft', title: 'Align Left' },
-        { icon: AlignCenter, command: 'justifyCenter', title: 'Align Center' },
-        { icon: AlignRight, command: 'justifyRight', title: 'Align Right' },
-        { icon: AlignJustify, command: 'justifyFull', title: 'Justify' }
+        { icon: AlignLeft, command: 'justifyLeft', title: 'Align Left', isActive: selectionStyles.isJustifyLeft },
+        { icon: AlignCenter, command: 'justifyCenter', title: 'Align Center', isActive: selectionStyles.isJustifyCenter },
+        { icon: AlignRight, command: 'justifyRight', title: 'Align Right', isActive: selectionStyles.isJustifyRight },
+        { icon: AlignJustify, command: 'justifyFull', title: 'Justify', isActive: selectionStyles.isJustifyFull }
       ]
     },
     {
       group: 'lists',
       items: [
-        { icon: List, command: 'insertUnorderedList', title: 'Bullet List' },
-        { icon: ListOrdered, command: 'insertOrderedList', title: 'Numbered List' }
+        { icon: List, command: 'insertUnorderedList', title: 'Bullet List', isActive: selectionStyles.isUnorderedList },
+        { icon: ListOrdered, command: 'insertOrderedList', title: 'Numbered List', isActive: selectionStyles.isOrderedList }
       ]
     },
     {
@@ -1060,8 +1275,9 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
                       <button
                         onClick={() => item.action ? item.action() : executeCommand(item.command)}
                         className={`p-1 hover:bg-gray-200 rounded transition-colors ${(item.type === 'color' && showColorPicker) ||
-                          (item.type === 'highlight' && showHighlightPicker) ||
-                          (item.type === 'table' && showTableOptions) ? 'bg-blue-100' : ''
+                            (item.type === 'highlight' && showHighlightPicker) ||
+                            (item.type === 'table' && showTableOptions) ||
+                            (item.isActive) ? 'bg-blue-100 text-blue-600' : ''
                           }`}
                         title={item.title}
                         type="button"

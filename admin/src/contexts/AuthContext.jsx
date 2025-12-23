@@ -68,9 +68,16 @@ export const AuthProvider = ({ children }) => {
       return true
     }
 
-    // Editor role: check specific permissions
+    // Editor role: hardcoded permissions for specific modules
     if (user.role === 'editor') {
-      return user.permissions?.[module]?.[action] || false
+      // Editors have full CRUD access to: reports, posts (blogs), megatrends, caseStudies
+      const allowedModules = ['reports', 'posts', 'megatrends', 'caseStudies']
+      const allowedActions = ['view', 'create', 'edit', 'delete']
+
+      if (allowedModules.includes(module) && allowedActions.includes(action)) {
+        return true
+      }
+      return false
     }
 
     return false
@@ -88,17 +95,16 @@ export const AuthProvider = ({ children }) => {
       return true
     }
 
-    // Editor role: check based on permissions
+    // Editor role: hardcoded allowed routes
     if (user.role === 'editor') {
-      if (route === '/reports' && hasPermission('reports', 'view')) return true
-      if ((route === '/blog' || route === '/news') && hasPermission('posts', 'view')) return true
-      if (route === '/users' && hasPermission('users', 'view')) return true
-      if (route === '/analytics' && hasPermission('analytics', 'view')) return true
-      if (route === '/case-studies' && hasPermission('caseStudies', 'view')) return true
-      if (route === '/megatrends' && hasPermission('megatrends', 'view')) return true
-      if (route === '/home-page-management' && hasPermission('content', 'edit')) return true
-      if (route === '/dashboard') return true
-      return false
+      const allowedRoutes = [
+        '/dashboard',
+        '/reports',
+        '/blog',
+        '/admin/megatrends',
+        '/admin/case-studies'
+      ]
+      return allowedRoutes.includes(route)
     }
 
     return false

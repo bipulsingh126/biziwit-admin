@@ -132,6 +132,11 @@ class ApiClient {
     return this.request('/api/auth/me')
   }
 
+  async getLoginHistory(params = {}) {
+    const query = new URLSearchParams(params).toString()
+    return this.request(`/api/auth/history${query ? `?${query}` : ''}`)
+  }
+
   // Users
   async getUsers(params = {}) {
     const query = new URLSearchParams(params).toString()

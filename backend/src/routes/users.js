@@ -31,7 +31,7 @@ router.get('/', requireSuperAdmin, async (req, res, next) => {
 // Create user - only super admins can create users
 router.post('/', requireSuperAdmin, async (req, res, next) => {
   try {
-    const { name, email, password, role, permissions } = req.body
+    const { name, email, password, role } = req.body
 
     // Validate required fields
     if (!name || !email || !password) {
@@ -64,17 +64,6 @@ router.post('/', requireSuperAdmin, async (req, res, next) => {
       role: role || 'editor'
     }
 
-    // Add permissions for editor role
-    if (userData.role === 'editor') {
-      // Use provided permissions or default to empty object which will fallback to schema defaults if not specified
-      // Or better, explicitly set defaults if permissions are missing to match UI expectations
-      userData.permissions = permissions || {
-        reports: { view: true, create: true, edit: true, delete: true },
-        posts: { view: true, create: true, edit: true, delete: true },
-        users: { view: false, create: false, edit: false, delete: false }
-      }
-    }
-
     const user = await User.create(userData)
     res.status(201).json(user.toSafeJSON())
   } catch (e) {
@@ -97,7 +86,7 @@ router.get('/:id', requireSuperAdmin, async (req, res, next) => {
 // Update user - only super admins can edit users
 router.patch('/:id', requireSuperAdmin, async (req, res, next) => {
   try {
-    const { name, email, password, role, permissions } = req.body
+    const { name, email, password, role } = req.body
     const updateData = {}
 
     // Validate and update name
@@ -139,11 +128,6 @@ router.patch('/:id', requireSuperAdmin, async (req, res, next) => {
         return res.status(400).json({ error: 'Invalid role specified' })
       }
       updateData.role = role
-    }
-
-    // Update permissions for editor role
-    if (permissions !== undefined) {
-      updateData.permissions = permissions
     }
 
     // Hash password if provided

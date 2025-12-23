@@ -5,6 +5,7 @@ import fs from 'fs'
 import dotenv from 'dotenv'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { Server } from 'socket.io'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -40,26 +41,47 @@ if (USE_HTTPS) {
   server = http.createServer(app)
 }
 
+// Configure Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+})
+
+// Socket.IO connection handler
+io.on('connection', (socket) => {
+  console.log('👤 Client connected:', socket.id)
+
+  socket.on('disconnect', () => {
+    console.log('👤 Client disconnected:', socket.id)
+  })
+})
+
+// Export io instance for use in routes
+export { io }
+
 // Connect to database and start server
 connectDB()
   .then(async () => {
     // Seed default admin users
     await seedDefaultAdmin()
-    
+
     // Start server
     server.listen(PORT, () => {
       const protocol = USE_HTTPS ? 'https' : 'http'
       const serverUrl = `${protocol}://${DOMAIN}:${PORT}`
-      
+
       console.log(`🚀 Server is running on ${serverUrl}`)
       console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`)
-      
+
       if (USE_HTTPS) {
         console.log(`🔒 HTTPS enabled on port ${PORT}`)
       } else {
         console.log(`🌐 HTTP server on port ${PORT}`)
       }
-      
+
       console.log(`📊 API Health: ${serverUrl}/health`)
       console.log(`🏠 Local: http://localhost:${PORT}`)
     })
@@ -73,7 +95,7 @@ connectDB()
 process.on("unhandledRejection", (err) => {
   console.log(`Error: ${err.message}`)
   console.log(`Shutting down the server due to Unhandled Promise Rejection`)
-  
+
   server.close(() => {
     process.exit(1)
   })

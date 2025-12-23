@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import RichTextEditor from './components/RichTextEditor'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import Dashboard from './components/Dashboard'
 import Users from './components/Users'
-import Analytics from './components/Analytics'
 import Reports from './components/Reports'
 import ReportCreate from './components/ReportCreate'
 import SEOManagement from './components/SEOManagement'
@@ -64,6 +64,7 @@ const AppContent = () => {
             <div className="max-w-7xl mx-auto">
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/test-verification" element={<div className="p-10"><RichTextEditor /></div>} />
                 <Route
                   path="/dashboard"
                   element={
@@ -77,14 +78,6 @@ const AppContent = () => {
                   element={
                     <ProtectedRoute route="/users">
                       <Users />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/analytics"
-                  element={
-                    <ProtectedRoute route="/analytics">
-                      <Analytics />
                     </ProtectedRoute>
                   }
                 />
@@ -147,7 +140,7 @@ const AppContent = () => {
                 <Route
                   path="/admin/megatrends"
                   element={
-                    <ProtectedRoute route="/megatrends">
+                    <ProtectedRoute route="/admin/megatrends">
                       <Megatrends />
                     </ProtectedRoute>
                   }
@@ -155,7 +148,7 @@ const AppContent = () => {
                 <Route
                   path="/admin/megatrends/create"
                   element={
-                    <ProtectedRoute route="/megatrends">
+                    <ProtectedRoute route="/admin/megatrends">
                       <MegatrendCreate />
                     </ProtectedRoute>
                   }
@@ -163,7 +156,7 @@ const AppContent = () => {
                 <Route
                   path="/admin/megatrends/:id/edit"
                   element={
-                    <ProtectedRoute route="/megatrends">
+                    <ProtectedRoute route="/admin/megatrends">
                       <MegatrendCreate />
                     </ProtectedRoute>
                   }
@@ -171,7 +164,7 @@ const AppContent = () => {
                 <Route
                   path="/admin/megatrends/:id"
                   element={
-                    <ProtectedRoute route="/megatrends">
+                    <ProtectedRoute route="/admin/megatrends">
                       <MegatrendDetail />
                     </ProtectedRoute>
                   }
@@ -179,7 +172,7 @@ const AppContent = () => {
                 <Route
                   path="/admin/case-studies"
                   element={
-                    <ProtectedRoute route="/case-studies">
+                    <ProtectedRoute route="/admin/case-studies">
                       <CaseStudies />
                     </ProtectedRoute>
                   }
@@ -187,7 +180,7 @@ const AppContent = () => {
                 <Route
                   path="/admin/case-studies/create"
                   element={
-                    <ProtectedRoute route="/case-studies">
+                    <ProtectedRoute route="/admin/case-studies">
                       <CaseStudyCreate />
                     </ProtectedRoute>
                   }
@@ -195,7 +188,7 @@ const AppContent = () => {
                 <Route
                   path="/admin/case-studies/:id/edit"
                   element={
-                    <ProtectedRoute route="/case-studies">
+                    <ProtectedRoute route="/admin/case-studies">
                       <CaseStudyCreate />
                     </ProtectedRoute>
                   }

@@ -1,16 +1,54 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import api from '../utils/api'
 import { useAuth } from '../contexts/AuthContext'
-import { Users, ShoppingCart, Activity, TrendingUp, Clock } from 'lucide-react'
+import { Users, ShoppingCart, Activity, TrendingUp, Clock, LogIn, LogOut } from 'lucide-react'
+import io from 'socket.io-client'
 
 const Dashboard = () => {
   const [stats, setStats] = useState([])
   const [recentActivities, setRecentActivities] = useState([])
   const [loading, setLoading] = useState(true)
+  const [newActivityCount, setNewActivityCount] = useState(0)
   const { user, hasPermission } = useAuth()
+  const socketRef = useRef(null)
 
   useEffect(() => {
     loadDashboardData()
+
+    // Setup Socket.IO connection for admin users only
+    if (['admin', 'super_admin'].includes(user?.role)) {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'
+      socketRef.current = io(API_BASE, {
+        transports: ['websocket', 'polling']
+      })
+
+      socketRef.current.on('connect', () => {
+        console.log('✅ Connected to Socket.IO server')
+      })
+
+      socketRef.current.on('user:login', (data) => {
+        console.log('🔵 New login event:', data)
+        setRecentActivities(prev => [data, ...prev])
+        setNewActivityCount(prev => prev + 1)
+      })
+
+      socketRef.current.on('user:logout', (data) => {
+        console.log('🔴 New logout event:', data)
+        setRecentActivities(prev => [data, ...prev])
+        setNewActivityCount(prev => prev + 1)
+      })
+
+      socketRef.current.on('disconnect', () => {
+        console.log('❌ Disconnected from Socket.IO server')
+      })
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect()
+      }
+    }
   }, [])
 
   const loadDashboardData = async () => {
@@ -101,15 +139,30 @@ const Dashboard = () => {
       }
 
       setStats(statsData)
-      setRecentActivities([
-        {
-          id: '1',
-          user: user?.name || 'User',
-          action: 'Logged into dashboard',
-          time: new Date().toLocaleString(),
-          type: 'login'
+
+      // Fetch login history for admins
+      if (['admin', 'super_admin'].includes(user.role)) {
+        try {
+          const history = await api.getLoginHistory({})
+          setRecentActivities(history)
+        } catch (e) {
+          console.error('Failed to fetch login history', e)
         }
-      ])
+      } else {
+        // Fallback for non-admins (or just show own login)
+        setRecentActivities([
+          {
+            id: '1',
+            user: user?.name || 'User',
+            action: 'Logged into dashboard',
+            time: new Date().toISOString(),
+            type: 'login',
+            role: user.role,
+            email: user.email,
+            ip: 'Current'
+          }
+        ])
+      }
     } catch (error) {
       console.error('Dashboard load error:', error)
     } finally {
@@ -186,31 +239,92 @@ const Dashboard = () => {
                 <Clock className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
-                <p className="text-sm text-gray-500">Your latest actions</p>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Login History
+                  {newActivityCount > 0 && (
+                    <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 animate-pulse">
+                      {newActivityCount} new
+                    </span>
+                  )}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Real-time user activity
+                  {newActivityCount > 0 && (
+                    <button
+                      onClick={() => setNewActivityCount(0)}
+                      className="ml-2 text-blue-600 hover:text-blue-800 text-xs underline"
+                    >
+                      Clear notifications
+                    </button>
+                  )}
+                </p>
               </div>
             </div>
           </div>
         </div>
         <div className="card-body">
           <div className="space-y-4">
-            {recentActivities.map((activity) => (
-              <div key={activity.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold text-sm shadow-md">
-                  {activity.user.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">{activity.user}</p>
-                  <p className="text-sm text-gray-600">{activity.action}</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-sm text-gray-500">{activity.time}</span>
-                  <div className="mt-1">
-                    <span className="badge badge-success">Success</span>
-                  </div>
-                </div>
+            {recentActivities.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP Address</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {recentActivities.map((activity, idx) => (
+                      <tr key={activity.id || idx} className={idx < newActivityCount ? 'bg-green-50' : ''}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                              {(activity.user?.name || activity.user?.email || activity.user || '?').charAt(0).toUpperCase()}
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900">{activity.user?.name || activity.user || 'Unknown'}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${activity.role === 'super_admin' ? 'bg-purple-100 text-purple-800' : activity.role === 'admin' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
+                            {activity.role}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {activity.email}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {activity.action === 'logout' ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              <LogOut className="w-3 h-3 mr-1" />
+                              Logout
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              <LogIn className="w-3 h-3 mr-1" />
+                              Login
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(activity.time || activity.timestamp).toLocaleString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {activity.ip}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
+            ) : (
+              <p className="text-gray-500 text-center py-4">No login history found</p>
+            )}
           </div>
         </div>
       </div>
