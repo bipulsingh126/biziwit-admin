@@ -1143,6 +1143,201 @@ router.get('/by-slug/:slug', async (req, res, next) => {
   }
 })
 
+
+// GET /api/reports/export - Export reports to Excel/CSV
+router.get('/export', async (req, res, next) => {
+  try {
+    const { format = 'csv' } = req.query
+
+    // Get ALL reports from database (no pagination limit)
+    const reports = await Report.find({}).lean()
+
+    console.log(`Exporting ${reports.length} reports in ${format} format`)
+
+    if (format === 'excel') {
+      // Create Excel workbook
+      const workbook = XLSX.utils.book_new()
+
+      // Prepare data for Excel
+      const excelData = reports.map(report => ({
+        'Report Title': report.title,
+        'Title Meta Tag': report.subTitle || '',
+        'REPORT OVERVIEW': report.summary || '',
+        'Table of Contents': report.tableOfContents || '',
+        'Category': report.category || report.domain || report.industry || '',
+        'Sub Category': report.subCategory || report.subdomain || report.reportType || '',
+        'SEGMENT / COMPANIES': report.segmentCompanies || report.segment || '',
+        'Region': report.region || '',
+        'Sub Regions': report.subRegions || '',
+        'Author Name': report.author || '',
+        'Report Code': report.reportCode || '',
+        'Number of Page': report.numberOfPages || '',
+        'Price': report.price || '',
+        'Excel Datapack Prices': report.excelDatapackPrice || '',
+        'Single User Prices': report.singleUserPrice || '',
+        'Enterprise License Prices': report.enterprisePrice || '',
+        'Internet Handling Charges': report.internetHandlingCharges || '',
+        'Currency': report.currency || '',
+        'Format': report.format || '',
+        'Language': report.language || '',
+        'Industry': report.industry || '',
+        'Report Type': report.reportType || '',
+        'Status': report.status,
+        'Featured': report.featured ? 'Yes' : 'No',
+        'Popular': report.popular ? 'Yes' : 'No',
+        'Publish Date': report.publishDate ? new Date(report.publishDate).toLocaleDateString() : '',
+        'Last Updated': report.lastUpdated ? new Date(report.lastUpdated).toLocaleDateString() : new Date(report.updatedAt).toLocaleDateString(),
+        'Excel Data Pack License': report.excelDataPackLicense || '',
+        'Single User License': report.singleUserLicense || '',
+        'Enterprise License Price': report.enterpriseLicensePrice || '',
+        // SEO Fields
+        'Title Tag': report.titleTag || '',
+        'URL Slug': report.slug || report.url || '',
+        'Meta Description': report.metaDescription || '',
+        'Keywords': report.keywords || ''
+      }))
+
+      // Create worksheet
+      const worksheet = XLSX.utils.json_to_sheet(excelData)
+
+      // Add styling to the worksheet
+      const range = XLSX.utils.decode_range(worksheet['!ref'])
+
+      // Style header row (row 0)
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
+        if (!worksheet[cellAddress]) continue
+
+        worksheet[cellAddress].s = {
+          fill: { fgColor: { rgb: "4F46E5" } }, // Blue background
+          font: { color: { rgb: "FFFFFF" }, bold: true, sz: 12 }, // White, bold text
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } }
+          }
+        }
+      }
+
+      // Style data rows with alternating colors
+      for (let row = 1; row <= range.e.r; row++) {
+        const isEvenRow = row % 2 === 0
+        for (let col = range.s.c; col <= range.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col })
+          if (!worksheet[cellAddress]) continue
+
+          worksheet[cellAddress].s = {
+            fill: { fgColor: { rgb: isEvenRow ? "F8FAFC" : "FFFFFF" } }, // Alternating row colors
+            font: { color: { rgb: "1F2937" }, sz: 10 }, // Dark gray text
+            alignment: { horizontal: "left", vertical: "center", wrapText: true },
+            border: {
+              top: { style: "thin", color: { rgb: "E5E7EB" } },
+              bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+              left: { style: "thin", color: { rgb: "E5E7EB" } },
+              right: { style: "thin", color: { rgb: "E5E7EB" } }
+            }
+          }
+        }
+      }
+
+      // Set column widths for better readability
+      const columnWidths = [
+        { wch: 50 }, // Report Title
+        { wch: 30 }, // Title Meta Tag
+        { wch: 40 }, // Report Overview
+        { wch: 30 }, // Table of Contents
+        { wch: 20 }, // Category
+        { wch: 25 }, // Sub Category
+        { wch: 30 }, // Segmentation
+        { wch: 15 }, // Region
+        { wch: 20 }, // Author Name
+        { wch: 15 }, // Report Code
+        { wch: 12 }, // Number of Page
+        { wch: 12 }, // Price
+        { wch: 15 }, // Excel Datapack Prices
+        { wch: 15 }, // Single User Prices
+        { wch: 18 }, // Enterprise License Prices
+        { wch: 18 }, // Internet Handling Charges
+        { wch: 10 }, // Currency
+        { wch: 10 }, // Format
+        { wch: 12 }, // Language
+        { wch: 20 }, // Industry
+        { wch: 15 }, // Report Type
+        { wch: 10 }, // Status
+        { wch: 8 },  // Featured
+        { wch: 8 },  // Popular
+        { wch: 15 }, // Publish Date
+        { wch: 15 }, // Last Updated
+        { wch: 20 }, // Excel Data Pack License
+        { wch: 20 }, // Single User License
+        { wch: 20 }, // Enterprise License Price
+        { wch: 30 }, // Title Tag
+        { wch: 25 }, // URL Slug
+        { wch: 40 }, // Meta Description
+        { wch: 30 }  // Keywords
+      ]
+      worksheet['!cols'] = columnWidths
+
+      // Set row heights
+      worksheet['!rows'] = [{ hpt: 25 }] // Header row height
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Reports')
+
+      // Generate Excel buffer with styling support
+      const excelBuffer = XLSX.write(workbook, {
+        type: 'buffer',
+        bookType: 'xlsx',
+        cellStyles: true
+      })
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      res.setHeader('Content-Disposition', `attachment; filename=reports_export_${new Date().toISOString().split('T')[0]}.xlsx`)
+      res.send(excelBuffer)
+    } else {
+      // CSV format
+      const csvHeaders = ['Report Title', 'Title Meta Tag', 'REPORT OVERVIEW', 'Table of Contents', 'Category', 'Sub Category', 'SEGMENT / COMPANIES', 'Region', 'Sub Regions', 'Author Name', 'Report Code', 'Number of Page', 'Price', 'Excel Datapack Prices', 'Single User Prices', 'Enterprise License Prices', 'Internet Handling Charges', 'Currency', 'Status', 'Publish Date', 'Last Updated', 'Title Tag', 'URL Slug', 'Meta Description', 'Keywords']
+      const csvRows = reports.map(report => [
+        `"${(report.title || '').replace(/"/g, '""')}"`,
+        `"${(report.subTitle || '').replace(/"/g, '""')}"`,
+        `"${(report.summary || '').replace(/"/g, '""')}"`,
+        `"${(report.tableOfContents || '').replace(/"/g, '""')}"`,
+        `"${(report.category || report.domain || report.industry || '').replace(/"/g, '""')}"`,
+        `"${(report.subCategory || report.subdomain || report.reportType || '').replace(/"/g, '""')}"`,
+        `"${(report.segmentCompanies || report.segment || '').replace(/"/g, '""')}"`,
+        `"${(report.region || '').replace(/"/g, '""')}"`,
+        `"${(report.subRegions || '').replace(/"/g, '""')}"`,
+        `"${report.author || ''}"`,
+        `"${(report.reportCode || '').replace(/"/g, '""')}"`,
+        `"${report.numberOfPages || ''}"`,
+        `"${report.price || ''}"`,
+        `"${report.excelDatapackPrice || ''}"`,
+        `"${report.singleUserPrice || ''}"`,
+        `"${report.enterprisePrice || ''}"`,
+        `"${report.internetHandlingCharges || ''}"`,
+        `"${report.currency || ''}"`,
+        `"${report.status || ''}"`,
+        `"${report.publishDate ? new Date(report.publishDate).toLocaleDateString() : ''}"`,
+        `"${report.lastUpdated ? new Date(report.lastUpdated).toLocaleDateString() : new Date(report.updatedAt).toLocaleDateString()}"`,
+        `"${(report.titleTag || '').replace(/"/g, '""')}"`,
+        `"${(report.slug || report.url || '').replace(/"/g, '""')}"`,
+        `"${(report.metaDescription || '').replace(/"/g, '""')}"`,
+        `"${(report.keywords || '').replace(/"/g, '""')}"`
+      ])
+
+      const csvContent = [csvHeaders.join(','), ...csvRows.map(row => row.join(','))].join('\n')
+
+      res.setHeader('Content-Type', 'text/csv')
+      res.setHeader('Content-Disposition', `attachment; filename=reports_export_${new Date().toISOString().split('T')[0]}.csv`)
+      res.send(csvContent)
+    }
+  } catch (error) {
+    console.error('Error exporting reports:', error)
+    next(error)
+  }
+})
+
 // GET /api/reports/:id - Get single report
 router.get('/:id', async (req, res, next) => {
   try {
@@ -1530,199 +1725,7 @@ router.post('/upload-image', upload.single('file'), (req, res, next) => {
   }
 })
 
-// GET /api/reports/export - Export reports to Excel/CSV
-router.get('/export', async (req, res, next) => {
-  try {
-    const { format = 'csv' } = req.query
 
-    // Get ALL reports from database (no pagination limit)
-    const reports = await Report.find({}).lean()
-
-    console.log(`Exporting ${reports.length} reports in ${format} format`)
-
-    if (format === 'excel') {
-      // Create Excel workbook
-      const workbook = XLSX.utils.book_new()
-
-      // Prepare data for Excel
-      const excelData = reports.map(report => ({
-        'Report Title': report.title,
-        'Title Meta Tag': report.subTitle || '',
-        'REPORT OVERVIEW': report.summary || '',
-        'Table of Contents': report.tableOfContents || '',
-        'Category': report.category || report.domain || report.industry || '',
-        'Sub Category': report.subCategory || report.subdomain || report.reportType || '',
-        'SEGMENT / COMPANIES': report.segmentCompanies || report.segment || '',
-        'Region': report.region || '',
-        'Sub Regions': report.subRegions || '',
-        'Author Name': report.author || '',
-        'Report Code': report.reportCode || '',
-        'Number of Page': report.numberOfPages || '',
-        'Price': report.price || '',
-        'Excel Datapack Prices': report.excelDatapackPrice || '',
-        'Single User Prices': report.singleUserPrice || '',
-        'Enterprise License Prices': report.enterprisePrice || '',
-        'Internet Handling Charges': report.internetHandlingCharges || '',
-        'Currency': report.currency || '',
-        'Format': report.format || '',
-        'Language': report.language || '',
-        'Industry': report.industry || '',
-        'Report Type': report.reportType || '',
-        'Status': report.status,
-        'Featured': report.featured ? 'Yes' : 'No',
-        'Popular': report.popular ? 'Yes' : 'No',
-        'Publish Date': report.publishDate ? new Date(report.publishDate).toLocaleDateString() : '',
-        'Last Updated': report.lastUpdated ? new Date(report.lastUpdated).toLocaleDateString() : new Date(report.updatedAt).toLocaleDateString(),
-        'Excel Data Pack License': report.excelDataPackLicense || '',
-        'Single User License': report.singleUserLicense || '',
-        'Enterprise License Price': report.enterpriseLicensePrice || '',
-        // SEO Fields
-        'Title Tag': report.titleTag || '',
-        'URL Slug': report.slug || report.url || '',
-        'Meta Description': report.metaDescription || '',
-        'Keywords': report.keywords || ''
-      }))
-
-      // Create worksheet
-      const worksheet = XLSX.utils.json_to_sheet(excelData)
-
-      // Add styling to the worksheet
-      const range = XLSX.utils.decode_range(worksheet['!ref'])
-
-      // Style header row (row 0)
-      for (let col = range.s.c; col <= range.e.c; col++) {
-        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
-        if (!worksheet[cellAddress]) continue
-
-        worksheet[cellAddress].s = {
-          fill: { fgColor: { rgb: "4F46E5" } }, // Blue background
-          font: { color: { rgb: "FFFFFF" }, bold: true, sz: 12 }, // White, bold text
-          alignment: { horizontal: "center", vertical: "center" },
-          border: {
-            top: { style: "thin", color: { rgb: "000000" } },
-            bottom: { style: "thin", color: { rgb: "000000" } },
-            left: { style: "thin", color: { rgb: "000000" } },
-            right: { style: "thin", color: { rgb: "000000" } }
-          }
-        }
-      }
-
-      // Style data rows with alternating colors
-      for (let row = 1; row <= range.e.r; row++) {
-        const isEvenRow = row % 2 === 0
-        for (let col = range.s.c; col <= range.e.c; col++) {
-          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col })
-          if (!worksheet[cellAddress]) continue
-
-          worksheet[cellAddress].s = {
-            fill: { fgColor: { rgb: isEvenRow ? "F8FAFC" : "FFFFFF" } }, // Alternating row colors
-            font: { color: { rgb: "1F2937" }, sz: 10 }, // Dark gray text
-            alignment: { horizontal: "left", vertical: "center", wrapText: true },
-            border: {
-              top: { style: "thin", color: { rgb: "E5E7EB" } },
-              bottom: { style: "thin", color: { rgb: "E5E7EB" } },
-              left: { style: "thin", color: { rgb: "E5E7EB" } },
-              right: { style: "thin", color: { rgb: "E5E7EB" } }
-            }
-          }
-        }
-      }
-
-      // Set column widths for better readability
-      const columnWidths = [
-        { wch: 50 }, // Report Title
-        { wch: 30 }, // Title Meta Tag
-        { wch: 40 }, // Report Overview
-        { wch: 30 }, // Table of Contents
-        { wch: 20 }, // Category
-        { wch: 25 }, // Sub Category
-        { wch: 30 }, // Segmentation
-        { wch: 15 }, // Region
-        { wch: 20 }, // Author Name
-        { wch: 15 }, // Report Code
-        { wch: 12 }, // Number of Page
-        { wch: 12 }, // Price
-        { wch: 15 }, // Excel Datapack Prices
-        { wch: 15 }, // Single User Prices
-        { wch: 18 }, // Enterprise License Prices
-        { wch: 18 }, // Internet Handling Charges
-        { wch: 10 }, // Currency
-        { wch: 10 }, // Format
-        { wch: 12 }, // Language
-        { wch: 20 }, // Industry
-        { wch: 15 }, // Report Type
-        { wch: 10 }, // Status
-        { wch: 8 },  // Featured
-        { wch: 8 },  // Popular
-        { wch: 15 }, // Publish Date
-        { wch: 15 }, // Last Updated
-        { wch: 20 }, // Excel Data Pack License
-        { wch: 20 }, // Single User License
-        { wch: 20 }, // Enterprise License Price
-        { wch: 30 }, // Title Tag
-        { wch: 25 }, // URL Slug
-        { wch: 40 }, // Meta Description
-        { wch: 30 }  // Keywords
-      ]
-      worksheet['!cols'] = columnWidths
-
-      // Set row heights
-      worksheet['!rows'] = [{ hpt: 25 }] // Header row height
-
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Reports')
-
-      // Generate Excel buffer with styling support
-      const excelBuffer = XLSX.write(workbook, {
-        type: 'buffer',
-        bookType: 'xlsx',
-        cellStyles: true
-      })
-
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-      res.setHeader('Content-Disposition', `attachment; filename=reports_export_${new Date().toISOString().split('T')[0]}.xlsx`)
-      res.send(excelBuffer)
-    } else {
-      // CSV format
-      const csvHeaders = ['Report Title', 'Title Meta Tag', 'REPORT OVERVIEW', 'Table of Contents', 'Category', 'Sub Category', 'SEGMENT / COMPANIES', 'Region', 'Sub Regions', 'Author Name', 'Report Code', 'Number of Page', 'Price', 'Excel Datapack Prices', 'Single User Prices', 'Enterprise License Prices', 'Internet Handling Charges', 'Currency', 'Status', 'Publish Date', 'Last Updated', 'Title Tag', 'URL Slug', 'Meta Description', 'Keywords']
-      const csvRows = reports.map(report => [
-        `"${(report.title || '').replace(/"/g, '""')}"`,
-        `"${(report.subTitle || '').replace(/"/g, '""')}"`,
-        `"${(report.summary || '').replace(/"/g, '""')}"`,
-        `"${(report.tableOfContents || '').replace(/"/g, '""')}"`,
-        `"${(report.category || report.domain || report.industry || '').replace(/"/g, '""')}"`,
-        `"${(report.subCategory || report.subdomain || report.reportType || '').replace(/"/g, '""')}"`,
-        `"${(report.segmentCompanies || report.segment || '').replace(/"/g, '""')}"`,
-        `"${(report.region || '').replace(/"/g, '""')}"`,
-        `"${(report.subRegions || '').replace(/"/g, '""')}"`,
-        `"${report.author || ''}"`,
-        `"${(report.reportCode || '').replace(/"/g, '""')}"`,
-        `"${report.numberOfPages || ''}"`,
-        `"${report.price || ''}"`,
-        `"${report.excelDatapackPrice || ''}"`,
-        `"${report.singleUserPrice || ''}"`,
-        `"${report.enterprisePrice || ''}"`,
-        `"${report.internetHandlingCharges || ''}"`,
-        `"${report.currency || ''}"`,
-        `"${report.status || ''}"`,
-        `"${report.publishDate ? new Date(report.publishDate).toLocaleDateString() : ''}"`,
-        `"${report.lastUpdated ? new Date(report.lastUpdated).toLocaleDateString() : new Date(report.updatedAt).toLocaleDateString()}"`,
-        `"${(report.titleTag || '').replace(/"/g, '""')}"`,
-        `"${(report.slug || report.url || '').replace(/"/g, '""')}"`,
-        `"${(report.metaDescription || '').replace(/"/g, '""')}"`,
-        `"${(report.keywords || '').replace(/"/g, '""')}"`
-      ])
-
-      const csvContent = [csvHeaders.join(','), ...csvRows.map(row => row.join(','))].join('\n')
-
-      res.setHeader('Content-Type', 'text/csv')
-      res.setHeader('Content-Disposition', `attachment; filename=reports_export_${new Date().toISOString().split('T')[0]}.csv`)
-      res.send(csvContent)
-    }
-  } catch (error) {
-    console.error('Error exporting reports:', error)
-    next(error)
-  }
-})
 
 // POST /api/reports/migrate-search-titles - Populate searchTitle for existing reports
 router.post('/migrate-search-titles', authenticate, requireRole('super_admin', 'admin'), async (req, res, next) => {

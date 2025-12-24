@@ -10,6 +10,8 @@ import {
   AlignJustify,
   List,
   ListOrdered,
+  Indent,
+  Outdent,
   Table,
   Link,
   Image,
@@ -1220,7 +1222,9 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
       group: 'lists',
       items: [
         { icon: List, command: 'insertUnorderedList', title: 'Bullet List', isActive: selectionStyles.isUnorderedList },
-        { icon: ListOrdered, command: 'insertOrderedList', title: 'Numbered List', isActive: selectionStyles.isOrderedList }
+        { icon: ListOrdered, command: 'insertOrderedList', title: 'Numbered List', isActive: selectionStyles.isOrderedList },
+        { icon: Outdent, command: 'outdent', title: 'Decrease Indent' },
+        { icon: Indent, command: 'indent', title: 'Increase Indent' }
       ]
     },
     {
@@ -1275,9 +1279,9 @@ const RichTextEditor = ({ value, onChange, placeholder = "Start writing..." }) =
                       <button
                         onClick={() => item.action ? item.action() : executeCommand(item.command)}
                         className={`p-1 hover:bg-gray-200 rounded transition-colors ${(item.type === 'color' && showColorPicker) ||
-                            (item.type === 'highlight' && showHighlightPicker) ||
-                            (item.type === 'table' && showTableOptions) ||
-                            (item.isActive) ? 'bg-blue-100 text-blue-600' : ''
+                          (item.type === 'highlight' && showHighlightPicker) ||
+                          (item.type === 'table' && showTableOptions) ||
+                          (item.isActive) ? 'bg-blue-100 text-blue-600' : ''
                           }`}
                         title={item.title}
                         type="button"

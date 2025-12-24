@@ -563,13 +563,6 @@ const Categories = () => {
             {loading ? 'Syncing...' : 'Sync Reports'}
           </button>
           <button
-            onClick={() => setShowTrendingModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-          >
-            <TrendingUp className="w-4 h-4" />
-            Top 10 Trending
-          </button>
-          <button
             onClick={() => setShowTrendingSubcategoriesModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
           >

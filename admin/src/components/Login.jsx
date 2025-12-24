@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Eye, EyeOff, Lock, User, AlertCircle } from 'lucide-react'
+import logo from '../assets/logo.svg'
 
 const Login = () => {
   const [email, setEmail] = useState('')
@@ -20,13 +21,13 @@ const Login = () => {
     setError('')
 
     const result = await login(email, password)
-    
+
     if (result.success) {
       // Login successful - AuthContext will handle redirect
     } else {
       setError(result.error)
     }
-    
+
     setLoading(false)
   }
 
@@ -35,10 +36,17 @@ const Login = () => {
       <div className="bg-white rounded-lg shadow-md w-full max-w-md p-8">
         {/* Logo and Title */}
         <div className="text-center mb-8">
-          <div className="w-12 h-12 bg-blue-600 rounded flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-xl">B</span>
+          <div className="flex justify-center mb-6 group">
+            <div className="relative">
+              <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+              <img
+                src={logo}
+                alt="Bizwit Research"
+                className="relative h-28 w-auto object-contain drop-shadow-xl transform transition-transform duration-500 hover:scale-105"
+              />
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">BiziWit Admin</h1>
+          <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-cyan-600 mb-2 tracking-tight">Bizwit Research Admin Panel</h1>
           <p className="text-gray-600">Please sign in to continue</p>
         </div>
 
@@ -92,27 +100,10 @@ const Login = () => {
           </button>
         </form>
 
-        {/* Default Credentials Info */}
-        <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
-          <p className="font-medium text-blue-800 mb-2">Available Accounts:</p>
-          <div className="space-y-2">
-            <div>
-              <p className="text-blue-800 font-medium">🔑 Main Admin (Full Access):</p>
-              <p className="text-blue-700">Email: mainadmin@biziwit.com</p>
-              <p className="text-blue-700">Password: MainAdmin@2024</p>
-            </div>
-            <div>
-              <p className="text-blue-800 font-medium">🔑 Admin (Limited Access):</p>
-              <p className="text-blue-700">Email: admin@biziwit.com</p>
-              <p className="text-blue-700">Password: Admin@123</p>
-            </div>
-          </div>
-        </div>
-
         {/* Footer */}
         <div className="mt-4 text-center">
           <p className="text-xs text-gray-500">
-            © 2024 BiziWit Admin Panel
+            © 2017- 2025 Bizwit Research Admin Pannel
           </p>
         </div>
       </div>
