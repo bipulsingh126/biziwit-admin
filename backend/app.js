@@ -1,10 +1,13 @@
 import express from 'express'
+import * as fs from 'fs'
 import dotenv from 'dotenv'
 import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
 import path from 'path'
+import { fileURLToPath } from 'url'
 import { connectDB } from './src/config/db.js'
+import { ssrHandler } from './src/utils/ssrHandler.js'
 import customReportRoutes from './src/routes/customReports.js'
 import megatrendSubmissionRoutes from './src/routes/megatrendSubmissions.js'
 import authRoutes from './src/routes/auth.js'
@@ -43,6 +46,10 @@ if (missingEnvVars.length > 0) {
 }
 
 const app = express()
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || ''
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || ''
@@ -298,8 +305,8 @@ app.get('/health', (req, res) => res.json({ ok: true }))
 // Favicon route to prevent 404 errors
 app.get('/favicon.ico', (req, res) => res.status(204).end())
 
-// Root route
-app.get('/', (req, res) => {
+// Root route moved to /api/status to allow SSR to handle homepage
+app.get('/api/status', (req, res) => {
   res.json({
     message: 'BiziWit Admin Panel API - Server is running',
     version: '1.0.0',
@@ -329,6 +336,29 @@ app.use('/api/homepage', homePageRoutes)
 app.use('/api/testimonials', testimonialsRoutes)
 app.use('/api/content', contentRoutes)
 app.use('/share', socialShareRoutes)
+
+// --- SSR & Frontend Static Files ---
+
+// Serve static files from frontend build (CSS, JS, Images)
+// This must be BEFORE the SSR catch-all
+// Production Path: /var/www/bizwit_code/dist (if configured)
+// Local Path: ../frontend/dist
+const frontendDistPath = process.env.FRONTEND_DIST_PATH
+  ? path.resolve(process.env.FRONTEND_DIST_PATH)
+  : path.join(__dirname, '../frontend/dist');
+
+console.log(`📂 Serving frontend static files from: ${frontendDistPath}`);
+
+if (fs.existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath, { index: false }));
+} else {
+  console.warn(`⚠️ Frontend build not found at ${frontendDistPath}. SSR will fail until built.`);
+}
+
+// SSR Handler (Catch-all for non-API routes)
+// Using regex to match everything that doesn't start with /api, /uploads, or /images
+// Note: api/uploads/images are already handled above, but good to be explicit in handler
+app.get(/^(?!\/api|\/uploads|\/images).*/, ssrHandler);
 
 // 404 handler
 app.use((req, res) => {
