@@ -288,15 +288,16 @@ async function syncReportsWithCategories() {
   try {
     console.log('🔄 Starting report-category synchronization...')
 
-    // Get all reports with category/subcategory data
+    // Get all NON-ARCHIVED reports with category/subcategory data
     const reports = await Report.find({
+      status: { $ne: 'archived' },
       $or: [
         { category: { $exists: true, $ne: '' } },
         { subCategory: { $exists: true, $ne: '' } }
       ]
     })
 
-    console.log(`📊 Found ${reports.length} reports with category data`)
+    console.log(`📊 Found ${reports.length} non-archived reports with category data`)
 
     let categoriesUpdated = 0
     let subcategoriesUpdated = 0
@@ -326,13 +327,24 @@ async function syncReportsWithCategories() {
             }
           }
 
-          // Update counts
-          category.reportCount = category.reports.length
-          category.subcategories.forEach(sub => {
-            sub.reportCount = sub.reports.length
+          // Update counts based on actual database counts (not array length)
+          // This ensures we only count NON-ARCHIVED reports
+          category.reportCount = await Report.countDocuments({
+            category: category.name,
+            status: { $ne: 'archived' }
           })
 
+          // Update subcategory counts
+          for (const sub of category.subcategories) {
+            sub.reportCount = await Report.countDocuments({
+              category: category.name,
+              subCategory: sub.name,
+              status: { $ne: 'archived' }
+            })
+          }
+
           await category.save()
+          console.log(`✅ Updated category "${category.name}": ${category.reportCount} reports`)
         }
       }
     }
@@ -545,7 +557,7 @@ router.get('/', async (req, res, next) => {
       subCategory = '',
       status = '',
       author = '',
-      limit = 10,
+      limit = 5000,
       offset = 0,
       sortBy = 'createdAt',
       order = 'desc'
@@ -615,8 +627,8 @@ router.get('/', async (req, res, next) => {
     // Get total count for pagination
     const total = await Report.countDocuments(filter)
 
-    // Apply pagination with limit
-    const limitNum = parseInt(limit) || 10
+    // Apply pagination with limit (default 1000 to show all reports)
+    const limitNum = parseInt(limit) || 1000
     const offsetNum = parseInt(offset) || 0
 
     // Build sort object
