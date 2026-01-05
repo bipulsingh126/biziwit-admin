@@ -1,4 +1,4 @@
-# BiziWit Backend (Node.js, Express, MongoDB)
+# bizwit Backend (Node.js, Express, MongoDB)
 
 API server powering admin features like Custom Report Requests and Megatrend Whitepaper Submissions.
 

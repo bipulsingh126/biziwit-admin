@@ -1,7 +1,7 @@
 {
-  "name": "biziwit-backend",
+  "name": "bizwit-backend",
   "version": "1.0.0",
-  "description": "Backend for BiziWit Admin ",
+  "description": "Backend for bizwit Admin ",
   "main": "server.js",
   "type": "module",
   "scripts": {

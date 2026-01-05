@@ -21,10 +21,10 @@ async function notifyAdmin(crr) {
   if (!transport) return
   const to = process.env.NOTIFY_EMAIL || process.env.SMTP_USER
   if (!to) return
-  const subject = `[BiziWit] New Custom Report Request from ${crr.company}`
+  const subject = `[bizwit] New Custom Report Request from ${crr.company}`
   const text = `Name: ${crr.name}\nEmail: ${crr.email}\nCompany: ${crr.company}\nIndustry: ${crr.industry}\nDeadline: ${crr.deadline || ''}\n\nRequirements:\n${crr.requirements}`
   await transport.sendMail({
-    from: process.env.MAIL_FROM || `no-reply@${(process.env.DOMAIN || 'biziwit.local')}`,
+    from: process.env.MAIL_FROM || `no-reply@${(process.env.DOMAIN || 'bizwit.local')}`,
     to,
     subject,
     text,
@@ -116,7 +116,7 @@ router.post('/:id/respond', async (req, res, next) => {
     if (!transport) return res.status(500).json({ error: 'Email not configured' })
 
     await transport.sendMail({
-      from: process.env.MAIL_FROM || `no-reply@${(process.env.DOMAIN || 'biziwit.local')}`,
+      from: process.env.MAIL_FROM || `no-reply@${(process.env.DOMAIN || 'bizwit.local')}`,
       to: doc.email,
       subject,
       text: message,

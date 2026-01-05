@@ -23,10 +23,10 @@ async function sendNotification(inquiry) {
   if (!transport) return
   const to = process.env.NOTIFY_EMAIL || process.env.SMTP_USER
   if (!to) return
-  const subject = `[BiziWit] New Inquiry: ${inquiry.subject || inquiry.name}`
+  const subject = `[bizwit] New Inquiry: ${inquiry.subject || inquiry.name}`
   const text = `New inquiry received\n\nName: ${inquiry.name}\nEmail: ${inquiry.email}\nPhone: ${inquiry.phone || ''}\nCompany: ${inquiry.company || ''}\nSubject: ${inquiry.subject || ''}\n\nMessage:\n${inquiry.message}`
   await transport.sendMail({
-    from: process.env.MAIL_FROM || `no-reply@${(process.env.DOMAIN || 'biziwit.local')}`,
+    from: process.env.MAIL_FROM || `no-reply@${(process.env.DOMAIN || 'bizwit.local')}`,
     to,
     subject,
     text,

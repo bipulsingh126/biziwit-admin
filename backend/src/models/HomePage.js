@@ -69,7 +69,7 @@ const homePageSchema = new mongoose.Schema({
   pageTitle: {
     type: String,
     required: true,
-    default: 'BiziWit - Market Research & Business Intelligence'
+    default: 'bizwit - Market Research & Business Intelligence'
   },
   pageSubtitle: {
     type: String,
@@ -85,7 +85,7 @@ const homePageSchema = new mongoose.Schema({
   seoData: {
     title: {
       type: String,
-      default: 'BiziWit - Market Research & Business Intelligence'
+      default: 'bizwit - Market Research & Business Intelligence'
     },
     metaDescription: {
       type: String,
@@ -259,7 +259,7 @@ homePageSchema.methods.removeMegatrendBySlug = function (slug) {
 // Static method to create default homepage data
 homePageSchema.statics.createDefault = async function () {
   const defaultData = {
-    pageTitle: 'BiziWit - Market Research & Business Intelligence',
+    pageTitle: 'bizwit - Market Research & Business Intelligence',
     pageSubtitle: 'Comprehensive market research reports and industry analysis',
     banners: [
       {

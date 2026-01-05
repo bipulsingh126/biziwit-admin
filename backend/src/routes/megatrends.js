@@ -56,10 +56,10 @@ async function notifySubmission(sub) {
   if (!transport) return
   const to = process.env.NOTIFY_EMAIL || process.env.SMTP_USER
   if (!to) return
-  const subject = `[BiziWit] Whitepaper Request: ${sub.megatrendTitle}`
+  const subject = `[bizwit] Whitepaper Request: ${sub.megatrendTitle}`
   const text = `Name: ${sub.name}\nEmail: ${sub.email}\nCompany: ${sub.company}\nRole: ${sub.role}\nMegatrend: ${sub.megatrendTitle}\nAt: ${sub.createdAt?.toISOString()}`
   await transport.sendMail({
-    from: process.env.MAIL_FROM || `no-reply@${(process.env.DOMAIN || 'biziwit.local')}`,
+    from: process.env.MAIL_FROM || `no-reply@${(process.env.DOMAIN || 'bizwit.local')}`,
     to,
     subject,
     text,

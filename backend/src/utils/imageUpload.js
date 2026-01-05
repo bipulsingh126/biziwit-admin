@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 
 /**
- * Centralized Image Upload Utility for BiziWit Admin
+ * Centralized Image Upload Utility for bizwit Admin
  * Provides consistent image upload functionality across all components
  */
 

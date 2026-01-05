@@ -308,7 +308,7 @@ app.get('/favicon.ico', (req, res) => res.status(204).end())
 // Root route moved to /api/status to allow SSR to handle homepage
 app.get('/api/status', (req, res) => {
   res.json({
-    message: 'BiziWit Admin Panel API - Server is running',
+    message: 'bizwit Admin Panel API - Server is running',
     version: '1.0.0',
     status: 'Active'
   })
@@ -418,13 +418,13 @@ const seedDefaultAdmin = async () => {
       const defaultAdmins = [
         {
           name: 'Main Admin',
-          email: 'mainadmin@biziwit.com',
+          email: 'mainadmin@bizwit.com',
           password: 'MainAdmin@2024',
           role: 'super_admin'
         },
         {
           name: 'Admin',
-          email: 'admin@biziwit.com',
+          email: 'admin@bizwit.com',
           password: 'Admin@123',
           role: 'admin'
         }
