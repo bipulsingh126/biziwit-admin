@@ -135,9 +135,9 @@ router.get('/:idOrSlug', async (req, res) => {
 })
 
 // Create testimonial
-router.post('/', authenticate, requireRole('super_admin', 'admin', 'editor'), async (req, res) => {
+router.post('/', authenticate, requireRole('super_admin', 'admin', 'editor'), upload.single('image'), async (req, res) => {
   try {
-    const { quote, clientName, clientTitle, clientCompany, clientImage, rating, isActive, sortOrder } = req.body
+    const { quote, clientName, clientTitle, clientCompany, rating, isActive, sortOrder } = req.body
 
     // Validation
     if (!quote || !clientName || !clientTitle || !clientCompany) {
@@ -147,12 +147,18 @@ router.post('/', authenticate, requireRole('super_admin', 'admin', 'editor'), as
     // Generate unique slug from clientName
     const slug = await generateUniqueSlug(clientName)
 
+    // Handle image if uploaded
+    let imageUrl = ''
+    if (req.file) {
+      imageUrl = `/images/testimonials/${req.file.filename}`
+    }
+
     const testimonial = new Testimonial({
       quote,
       clientName,
       clientTitle,
       clientCompany,
-      clientImage: clientImage || '',
+      clientImage: imageUrl,
       slug,
       rating: rating || 5,
       isActive: isActive !== undefined ? isActive : true,
@@ -163,14 +169,21 @@ router.post('/', authenticate, requireRole('super_admin', 'admin', 'editor'), as
     res.status(201).json({ success: true, data: testimonial })
   } catch (error) {
     console.error('Error creating testimonial:', error)
+    // Clean up uploaded file on error
+    if (req.file) {
+      const filePath = path.join(uploadDir, req.file.filename)
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath)
+      }
+    }
     res.status(500).json({ error: error.message || 'Failed to create testimonial' })
   }
 })
 
 // Update testimonial
-router.put('/:id', authenticate, requireRole('super_admin', 'admin', 'editor'), async (req, res) => {
+router.put('/:id', authenticate, requireRole('super_admin', 'admin', 'editor'), upload.single('image'), async (req, res) => {
   try {
-    const { quote, clientName, clientTitle, clientCompany, clientImage, rating, isActive, sortOrder } = req.body
+    const { quote, clientName, clientTitle, clientCompany, rating, isActive, sortOrder } = req.body
 
     // Validation
     if (!quote || !clientName || !clientTitle || !clientCompany) {
@@ -189,6 +202,19 @@ router.put('/:id', authenticate, requireRole('super_admin', 'admin', 'editor'), 
       slug = await generateUniqueSlug(clientName)
     }
 
+    // Handle image if uploaded
+    let imageUrl = existingTestimonial.clientImage
+    if (req.file) {
+      // Delete old image if exists
+      if (existingTestimonial.clientImage) {
+        const oldImagePath = path.join(process.cwd(), 'public', existingTestimonial.clientImage)
+        if (fs.existsSync(oldImagePath)) {
+          fs.unlinkSync(oldImagePath)
+        }
+      }
+      imageUrl = `/images/testimonials/${req.file.filename}`
+    }
+
     const testimonial = await Testimonial.findByIdAndUpdate(
       req.params.id,
       {
@@ -196,7 +222,7 @@ router.put('/:id', authenticate, requireRole('super_admin', 'admin', 'editor'), 
         clientName,
         clientTitle,
         clientCompany,
-        clientImage: clientImage || '',
+        clientImage: imageUrl,
         slug,
         rating: rating || 5,
         isActive: isActive !== undefined ? isActive : true,
@@ -209,6 +235,13 @@ router.put('/:id', authenticate, requireRole('super_admin', 'admin', 'editor'), 
     res.json({ success: true, data: testimonial })
   } catch (error) {
     console.error('Error updating testimonial:', error)
+    // Clean up uploaded file on error
+    if (req.file) {
+      const filePath = path.join(uploadDir, req.file.filename)
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath)
+      }
+    }
     res.status(500).json({ error: error.message || 'Failed to update testimonial' })
   }
 })
