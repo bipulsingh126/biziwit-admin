@@ -104,7 +104,10 @@ const SEOPageSchema = new mongoose.Schema({
     enum: ['always', 'hourly', 'daily', 'weekly', 'monthly', 'yearly', 'never'], 
     default: 'weekly' 
   },
-  
+  author: {
+    type: String,
+    default:""
+  },
   // Analytics and crawling
   lastCrawled: { 
     type: Date 

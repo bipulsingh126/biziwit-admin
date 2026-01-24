@@ -176,6 +176,7 @@ app.use(helmet({
 app.use(express.json({ limit: '2mb' }))
 app.use(express.urlencoded({ extended: true }))
 app.use(morgan('dev'))
+app.use(express.static("public"));
 
 // Enhanced static file serving with comprehensive CORS headers
 app.use('/uploads', (req, res, next) => {
@@ -345,7 +346,7 @@ app.use('/share', socialShareRoutes)
 // Local Path: ../frontend/dist
 const frontendDistPath = process.env.FRONTEND_DIST_PATH
   ? path.resolve(process.env.FRONTEND_DIST_PATH)
-  : path.join(__dirname, '../frontend/dist');
+  : path.join(__dirname, '../dist');
 
 console.log(`📂 Serving frontend static files from: ${frontendDistPath}`);
 

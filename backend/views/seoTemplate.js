@@ -4,39 +4,44 @@
  */
 
 function seoTemplate({
-    title,
-    description,
-    keywords,
-    canonical,
-    image,
-    robots,
-    ogTitle,
-    ogDescription,
-    ogImage,
-    twitterTitle,
-    twitterDescription,
-    twitterImage,
-    scripts,
-    bodyScripts,
-    appHtml, // Currently empty for Client-Side Hydration
-    cssFiles,
-    jsFiles,
+  title,
+  description,
+  keywords,
+  canonical,
+  image,
+  robots,
+  ogTitle,
+  ogDescription,
+  ogImage,
+  twitterTitle,
+  twitterDescription,
+  twitterImage,
+  scripts,
+  bodyScripts,
+  appHtml, // Currently empty for Client-Side Hydration
+  cssFiles,
+  jsFiles,
+  author,
 }) {
-    const headScriptsRaw = Array.isArray(scripts) ? scripts.join("\n") : "";
-    const bodyScriptsRaw = Array.isArray(bodyScripts) ? bodyScripts.join("\n") : "";
+  console.log("received author", author);
+  const headScriptsRaw = Array.isArray(scripts) ? scripts.join("\n") : "";
+  const bodyScriptsRaw = Array.isArray(bodyScripts)
+    ? bodyScripts.join("\n")
+    : "";
 
-    // Defaults
-    const defaultTitle = "Bizwit Research & Consulting";
-    const defaultDescription = "Bizwit Research & Consulting provides comprehensive market research and consulting services.";
-    const defaultImage = "https://admin.bizwitresearch.com/assets/logo.png"; // Adjust path as needed
-    const siteUrl = "https://www.bizwitresearch.com";
+  // Defaults
+  const defaultTitle = "Bizwit Research & Consulting";
+  const defaultDescription =
+    "Bizwit Research & Consulting provides comprehensive market research and consulting services.";
+  const defaultImage = "https://admin.bizwitresearch.com/assets/logo.png"; // Adjust path as needed
+  const siteUrl = "https://www.bizwitresearch.com";
 
-    const safeTitle = title || defaultTitle;
-    const safeDescription = description || defaultDescription;
-    const safeImage = image || ogImage || defaultImage;
-    const safeUrl = canonical || siteUrl;
+  const safeTitle = title || defaultTitle;
+  const safeDescription = description || defaultDescription;
+  const safeImage = image || ogImage || defaultImage;
+  const safeUrl = canonical || siteUrl;
 
-    return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -48,7 +53,7 @@ function seoTemplate({
     ${keywords ? `<meta name="keywords" content="${keywords}" />` : ""}
     <meta name="robots" content="${robots || "index, follow"}" />
     <link rel="canonical" href="${safeUrl}" />
-
+   ${author && `<meta name="author" content=${author}></meta>`}
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="${safeUrl}" />
@@ -65,8 +70,8 @@ function seoTemplate({
 
     <!-- Injected Styles -->
     ${cssFiles
-            .map((css) => `<link rel="stylesheet" crossorigin href="${css}">`)
-            .join("\n    ")}
+      .map((css) => `<link rel="stylesheet" crossorigin href="${css}">`)
+      .join("\n    ")}
     
     <!-- User Scripts -->
     ${headScriptsRaw}
@@ -78,8 +83,8 @@ function seoTemplate({
     
     <!-- Injected Scripts -->
     ${jsFiles
-            .map((js) => `<script type="module" crossorigin src="${js}"></script>`)
-            .join("\n    ")}
+      .map((js) => `<script type="module" crossorigin src="${js}"></script>`)
+      .join("\n    ")}
   </body>
 </html>`;
 }
