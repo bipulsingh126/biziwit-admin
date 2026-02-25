@@ -1,5 +1,6 @@
 import express from 'express'
 import CaseStudy from '../models/CaseStudy.js'
+import SEOPage from '../models/SEOPage.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
 import path from 'path'
 import fs from 'fs'
@@ -229,8 +230,9 @@ router.post('/', authenticate, requireRole('super_admin', 'admin', 'editor'), as
     if (error.code === 11000) {
       return res.status(400).json({ error: 'Slug or URL already exists' })
     }
-  },
-);
+    res.status(500).json({ error: error.message })
+  }
+});
 
 // Update case study by slug
 router.patch('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin', 'editor'), async (req, res) => {
@@ -282,21 +284,23 @@ router.patch(
         caseStudy = await CaseStudy.findById(id);
       }
 
-    if (!caseStudy) {
-      return res.status(404).json({ error: 'Case study not found' })
-    }
+      if (!caseStudy) {
+        return res.status(404).json({ error: 'Case study not found' })
+      }
 
-    // Update the case study
-    Object.assign(caseStudy, req.body)
-    await caseStudy.save()
+      // Update the case study
+      Object.assign(caseStudy, req.body)
+      await caseStudy.save()
 
-    res.json(caseStudy)
-  } catch (error) {
-    console.error('Error updating case study:', error)
-    if (error.code === 11000) {
-      return res.status(400).json({ error: 'Slug or URL already exists' })
+      res.json(caseStudy)
+    } catch (error) {
+      console.error('Error updating case study:', error)
+      if (error.code === 11000) {
+        return res.status(400).json({ error: 'Slug or URL already exists' })
+      }
+      res.status(500).json({ error: error.message })
     }
-  },
+  }
 );
 
 // Delete case study by slug
