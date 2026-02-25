@@ -1,4 +1,5 @@
 import express from 'express'
+import sanitizeHtml from 'sanitize-html'
 import CaseStudy from '../models/CaseStudy.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
 import path from 'path'
@@ -10,6 +11,32 @@ import {
   deleteImageFile,
   generateImageUrl
 } from '../utils/imageUpload.js'
+
+const sanitizeOptions = {
+  allowedTags: sanitizeHtml.defaults.allowedTags.concat(['h1', 'h2', 'img', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'u', 's', 'strike']),
+  allowedAttributes: {
+    ...sanitizeHtml.defaults.allowedAttributes,
+    '*': ['style', 'class', 'width', 'height', 'align', 'valign', 'border', 'cellpadding', 'cellspacing'],
+    'img': ['src', 'alt', 'width', 'height'],
+    'a': ['href', 'target', 'name']
+  },
+  allowedStyles: {
+    '*': {
+      'color': [/.*/],
+      'background-color': [/.*/],
+      'font-size': [/.*/],
+      'font-weight': [/.*/],
+      'text-align': [/.*/],
+      'font-family': [/.*/],
+      'line-height': [/.*/],
+      'margin': [/.*/],
+      'padding': [/.*/],
+      'padding-left': [/.*/],
+      'list-style-type': [/.*/],
+      'text-decoration': [/.*/]
+    }
+  }
+};
 
 const router = express.Router()
 
@@ -208,6 +235,9 @@ router.post('/', authenticate, requireRole('super_admin', 'admin', 'editor'), as
     const caseStudyData = {
       ...req.body
     }
+    if (caseStudyData.content) {
+      caseStudyData.content = sanitizeHtml(caseStudyData.content, sanitizeOptions);
+    }
 
     const caseStudy = new CaseStudy(caseStudyData)
     await caseStudy.save()
@@ -225,9 +255,14 @@ router.post('/', authenticate, requireRole('super_admin', 'admin', 'editor'), as
 // Update case study by slug
 router.patch('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin', 'editor'), async (req, res) => {
   try {
+    const updateData = { ...req.body };
+    if (updateData.content) {
+      updateData.content = sanitizeHtml(updateData.content, sanitizeOptions);
+    }
+    
     const caseStudy = await CaseStudy.findOneAndUpdate(
       { slug: req.params.slug },
-      req.body,
+      updateData,
       { new: true, runValidators: true }
     )
 
@@ -262,7 +297,11 @@ router.patch('/:id', authenticate, requireRole('super_admin', 'admin', 'editor')
     }
 
     // Update the case study
-    Object.assign(caseStudy, req.body)
+    const updateData = { ...req.body };
+    if (updateData.content) {
+      updateData.content = sanitizeHtml(updateData.content, sanitizeOptions);
+    }
+    Object.assign(caseStudy, updateData)
     await caseStudy.save()
 
     res.json(caseStudy)

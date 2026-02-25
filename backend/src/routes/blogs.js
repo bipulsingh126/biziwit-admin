@@ -1,4 +1,5 @@
 import express from 'express';
+import sanitizeHtml from 'sanitize-html';
 import Blog from '../models/Blog.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import XLSX from 'xlsx';
@@ -9,6 +10,32 @@ import {
   deleteImageFile,
   generateImageUrl
 } from '../utils/imageUpload.js';
+
+const sanitizeOptions = {
+  allowedTags: sanitizeHtml.defaults.allowedTags.concat(['h1', 'h2', 'img', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'u', 's', 'strike']),
+  allowedAttributes: {
+    ...sanitizeHtml.defaults.allowedAttributes,
+    '*': ['style', 'class', 'width', 'height', 'align', 'valign', 'border', 'cellpadding', 'cellspacing'],
+    'img': ['src', 'alt', 'width', 'height'],
+    'a': ['href', 'target', 'name']
+  },
+  allowedStyles: {
+    '*': {
+      'color': [/.*/],
+      'background-color': [/.*/],
+      'font-size': [/.*/],
+      'font-weight': [/.*/],
+      'text-align': [/.*/],
+      'font-family': [/.*/],
+      'line-height': [/.*/],
+      'margin': [/.*/],
+      'padding': [/.*/],
+      'padding-left': [/.*/],
+      'list-style-type': [/.*/],
+      'text-decoration': [/.*/]
+    }
+  }
+};
 
 const router = express.Router();
 
@@ -287,6 +314,10 @@ router.post('/', authenticate, requireRole('super_admin', 'admin', 'editor'), as
       createdBy: req.user.id
     };
 
+    if (blogData.content) {
+      blogData.content = sanitizeHtml(blogData.content, sanitizeOptions);
+    }
+
     const blog = new Blog(blogData);
     await blog.save();
 
@@ -316,9 +347,14 @@ router.post('/', authenticate, requireRole('super_admin', 'admin', 'editor'), as
 // Update blog by slug
 router.put('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin', 'editor'), async (req, res) => {
   try {
+    const updateData = { ...req.body, updatedAt: new Date() };
+    if (updateData.content) {
+      updateData.content = sanitizeHtml(updateData.content, sanitizeOptions);
+    }
+
     const blog = await Blog.findOneAndUpdate(
       { slug: req.params.slug },
-      { ...req.body, updatedAt: new Date() },
+      updateData,
       { new: true, runValidators: true }
     );
 
@@ -372,7 +408,12 @@ router.put('/:id', authenticate, requireRole('super_admin', 'admin', 'editor'), 
     }
 
     // Update the blog
-    Object.assign(blog, req.body);
+    const updateData = { ...req.body };
+    if (updateData.content) {
+      updateData.content = sanitizeHtml(updateData.content, sanitizeOptions);
+    }
+    
+    Object.assign(blog, updateData);
     blog.updatedAt = new Date();
     await blog.save();
 

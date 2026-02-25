@@ -19,6 +19,22 @@ const sanitizeOptions = {
     'img': ['src', 'alt', 'width', 'height'],
     'a': ['href', 'target', 'name']
   },
+  allowedStyles: {
+    '*': {
+      'color': [/.*/],
+      'background-color': [/.*/],
+      'font-size': [/.*/],
+      'font-weight': [/.*/],
+      'text-align': [/.*/],
+      'font-family': [/.*/],
+      'line-height': [/.*/],
+      'margin': [/.*/],
+      'padding': [/.*/],
+      'padding-left': [/.*/],
+      'list-style-type': [/.*/],
+      'text-decoration': [/.*/]
+    }
+  }
 };
 
 // Enhanced helper function to format imported Excel data with better formatting preservation

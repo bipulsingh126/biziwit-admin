@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import sanitizeHtml from 'sanitize-html'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
@@ -8,6 +9,32 @@ import Megatrend from '../models/Megatrend.js'
 import MegatrendSubmission from '../models/MegatrendSubmission.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
 import nodemailer from 'nodemailer'
+
+const sanitizeOptions = {
+  allowedTags: sanitizeHtml.defaults.allowedTags.concat(['h1', 'h2', 'img', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'u', 's', 'strike']),
+  allowedAttributes: {
+    ...sanitizeHtml.defaults.allowedAttributes,
+    '*': ['style', 'class', 'width', 'height', 'align', 'valign', 'border', 'cellpadding', 'cellspacing'],
+    'img': ['src', 'alt', 'width', 'height'],
+    'a': ['href', 'target', 'name']
+  },
+  allowedStyles: {
+    '*': {
+      'color': [/.*/],
+      'background-color': [/.*/],
+      'font-size': [/.*/],
+      'font-weight': [/.*/],
+      'text-align': [/.*/],
+      'font-family': [/.*/],
+      'line-height': [/.*/],
+      'margin': [/.*/],
+      'padding': [/.*/],
+      'padding-left': [/.*/],
+      'list-style-type': [/.*/],
+      'text-decoration': [/.*/]
+    }
+  }
+};
 
 const router = Router()
 
@@ -187,6 +214,9 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const body = req.body || {}
+    if (body.content) {
+      body.content = sanitizeHtml(body.content, sanitizeOptions);
+    }
     const slug = await uniqueSlug(body.title, body.slug)
     const doc = await Megatrend.create({ ...body, slug })
     res.status(201).json(doc)
@@ -206,6 +236,9 @@ router.get('/:id', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const body = { ...req.body }
+    if (body.content) {
+      body.content = sanitizeHtml(body.content, sanitizeOptions);
+    }
     if (body.title && !body.slug) body.slug = await uniqueSlug(body.title)
     const updated = await Megatrend.findByIdAndUpdate(req.params.id, body, { new: true })
     if (!updated) return res.status(404).json({ error: 'Not found' })
