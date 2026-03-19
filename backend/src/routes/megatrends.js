@@ -248,7 +248,7 @@ router.get("/", async (req, res, next) => {
 router.post("/", async (req, res, next) => {
   try {
     const body = req.body || {}
-    const slug = await uniqueSlug(body.title, body.slug)
+    const slug = await uniqueSlug(body.title, body.slug || body.url)
     const doc = await Megatrend.create({ ...body, slug })
     res.status(201).json(doc)
   } catch (e) { next(e) }
@@ -269,7 +269,11 @@ router.get("/:id", async (req, res, next) => {
 router.patch("/:id", async (req, res, next) => {
   try {
     const body = { ...req.body }
-    if (body.title && !body.slug) body.slug = await uniqueSlug(body.title)
+    if (body.title && !body.slug && !body.url) {
+      body.slug = await uniqueSlug(body.title)
+    } else if (body.slug || body.url) {
+      body.slug = await uniqueSlug(body.title, body.slug || body.url)
+    }
     const updated = await Megatrend.findByIdAndUpdate(req.params.id, body, { new: true })
     if (!updated) return res.status(404).json({ error: 'Not found' })
     res.json(updated)
