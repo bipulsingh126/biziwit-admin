@@ -16,6 +16,7 @@ const __dirname = path.dirname(__filename);
 
 // Helper to look up content by slug across multiple collections
 async function findContentBySlug(slug) {
+  if (!slug || typeof slug !== "string") return null;
   const variations = [slug, slug.replace(/-/g, " ")];
 
   // 1. Try finding in Report
@@ -140,7 +141,7 @@ export const ssrHandler = async (req, res, next) => {
       } else {
         // 3. NEW FALLBACK: Try finding in other collections (Report, Blog, CaseStudy, etc.)
         // This handles URLs where the item slug is directly at the root (e.g. /laudantium-hic-nost)
-        const dynamicContent = await findContentBySlug(firstSegment);
+        const dynamicContent = firstSegment ? await findContentBySlug(firstSegment) : null;
         if (dynamicContent) {
           const { type, data } = dynamicContent;
           console.log(`✅ Found dynamic content of type: ${type} for slug: ${firstSegment}`);
@@ -196,6 +197,12 @@ export const ssrHandler = async (req, res, next) => {
       (match) => match.match(/href="([^"]+)"/)[1],
     );
     const jsFiles = jsMatches.map((match) => match.match(/src="([^"]+)"/)[1]);
+
+    // --- Final Robots Override for Action Pages ---
+    const noIndexPatterns = ["download-sample", "inquiry", "buy-now"];
+    if (noIndexPatterns.some((p) => requestPath.split('/').includes(p))) {
+      seoData.robots = "noindex, nofollow";
+    }
 
     const html = seoTemplate({
       ...seoData,

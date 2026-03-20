@@ -302,7 +302,28 @@ function getContainerStyle(contentType) {
 // Helper function to sync all existing reports with categories
 async function syncReportsWithCategories() {
   try {
-    console.log('🔄 Starting report-category synchronization...')
+    console.log('🔄 Starting report-category synchronization with fuzzy matching...')
+
+    // Normalize helper: lowercase, remove non-alphanumeric, remove "and", strip ampersands
+    const normalize = (str) => {
+      if (!str) return ''
+      return str.toLowerCase()
+        .replace(/&/g, '')
+        .replace(/\band\b/g, '') // remove "and" only as a word
+        .replace(/[^a-z0-9]/g, '')
+        .trim()
+    }
+
+    // Get all categories with subcategories once to optimize
+    const categories = await Category.find({})
+    const normalizedCategories = categories.map(cat => ({
+      doc: cat,
+      normalizedName: normalize(cat.name),
+      subcategories: cat.subcategories.map(sub => ({
+        doc: sub,
+        normalizedName: normalize(sub.name)
+      }))
+    }))
 
     // Get all NON-ARCHIVED reports with category/subcategory data
     const reports = await Report.find({
@@ -317,56 +338,96 @@ async function syncReportsWithCategories() {
 
     let categoriesUpdated = 0
     let subcategoriesUpdated = 0
+    let reportsNormalized = 0
 
     for (const report of reports) {
       if (report.category && report.category.trim()) {
-        const category = await Category.findOne({
-          name: { $regex: new RegExp(`^${report.category.trim()}$`, 'i') }
-        })
+        const reportCategoryNormalized = normalize(report.category)
+        
+        // Find best matching category
+        const bestCategory = normalizedCategories.find(cat => 
+          cat.doc.name.toLowerCase() === report.category.trim().toLowerCase() ||
+          cat.normalizedName === reportCategoryNormalized
+        )
 
-        if (category) {
+        if (bestCategory) {
+          const categoryDoc = bestCategory.doc
+          let reportUpdated = false
+          
+          // Normalize category name in report if it's different
+          if (report.category !== categoryDoc.name) {
+            console.log(`📏 Normalizing category name for report "${report.title}": "${report.category}" -> "${categoryDoc.name}"`)
+            report.category = categoryDoc.name
+            report.domain = categoryDoc.name
+            report.reportCategories = categoryDoc.name
+            reportUpdated = true
+            reportsNormalized++
+          }
+
           // Add report to category if not already present
-          if (!category.reports.includes(report._id)) {
-            category.reports.push(report._id)
+          if (!categoryDoc.reports.includes(report._id)) {
+            categoryDoc.reports.push(report._id)
             categoriesUpdated++
           }
 
           // Handle subcategory
           if (report.subCategory && report.subCategory.trim()) {
-            const subcategory = category.subcategories.find(sub =>
-              sub.name.toLowerCase() === report.subCategory.trim().toLowerCase()
+            const reportSubNormalized = normalize(report.subCategory)
+            
+            const bestSub = bestCategory.subcategories.find(sub => 
+              sub.doc.name.toLowerCase() === report.subCategory.trim().toLowerCase() ||
+              sub.normalizedName === reportSubNormalized
             )
 
-            if (subcategory && !subcategory.reports.includes(report._id)) {
-              subcategory.reports.push(report._id)
-              subcategoriesUpdated++
+            if (bestSub) {
+              const subDoc = bestSub.doc
+              // Normalize subcategory name in report
+              if (report.subCategory !== subDoc.name) {
+                console.log(`📏 Normalizing subcategory name for report "${report.title}": "${report.subCategory}" -> "${subDoc.name}"`)
+                report.subCategory = subDoc.name
+                report.subdomain = subDoc.name
+                reportUpdated = true
+              }
+
+              if (!subDoc.reports.includes(report._id)) {
+                subDoc.reports.push(report._id)
+                subcategoriesUpdated++
+              }
             }
           }
 
-          // Update counts based on actual database counts (not array length)
-          // This ensures we only count NON-ARCHIVED reports
-          category.reportCount = await Report.countDocuments({
-            category: category.name,
-            status: { $ne: 'archived' }
-          })
-
-          // Update subcategory counts
-          for (const sub of category.subcategories) {
-            sub.reportCount = await Report.countDocuments({
-              category: category.name,
-              subCategory: sub.name,
-              status: { $ne: 'archived' }
-            })
+          // Save report if names were normalized
+          if (reportUpdated) {
+            await report.save()
           }
-
-          await category.save()
-          console.log(`✅ Updated category "${category.name}": ${category.reportCount} reports`)
         }
       }
     }
 
-    console.log(`✅ Synchronization complete: ${categoriesUpdated} category updates, ${subcategoriesUpdated} subcategory updates`)
-    return { categoriesUpdated, subcategoriesUpdated }
+    // After processing report links, we need to save each category to persist the new linked reports and update counts
+    // (Note: in-place doc updates have happened in bestCategory.doc)
+    for (const catEntry of normalizedCategories) {
+      const cat = catEntry.doc
+      
+      // Update counts based on ACTUAL database counts for safety
+      cat.reportCount = await Report.countDocuments({
+        category: cat.name,
+        status: { $ne: 'archived' }
+      })
+
+      for (const sub of cat.subcategories) {
+        sub.reportCount = await Report.countDocuments({
+          category: cat.name,
+          subCategory: sub.name,
+          status: { $ne: 'archived' }
+        })
+      }
+      
+      await cat.save()
+    }
+
+    console.log(`✅ Synchronization complete: ${categoriesUpdated} category links, ${subcategoriesUpdated} subcategory links, ${reportsNormalized} reports normalized`)
+    return { categoriesUpdated, subcategoriesUpdated, reportsNormalized }
   } catch (error) {
     console.error('❌ Error syncing reports with categories:', error)
     throw error
@@ -522,7 +583,7 @@ const generateUniqueSlug = async (title, existingSlug = null) => {
     throw new Error('Title is required for slug generation')
   }
 
-  let baseSlug = existingSlug || slugify(title, { lower: true, strict: true })
+  let baseSlug = slugify(existingSlug || title, { lower: true, strict: true })
   if (!baseSlug) {
     baseSlug = `report-${Date.now()}`
   }

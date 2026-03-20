@@ -752,9 +752,29 @@ router.post('/', async (req, res, next) => {
         }
       })
     })
-
-
+    
     await category.save()
+
+    // Sync reports matching this new category
+    try {
+      const reports = await Report.find({
+        category: { $regex: new RegExp(`^${category.name.trim()}$`, 'i') },
+        status: { $ne: 'archived' }
+      })
+      if (reports.length > 0) {
+        category.reports = reports.map(r => r._id)
+        category.reportCount = reports.length
+        for (const report of reports) {
+          if (report.category !== category.name) {
+            report.category = category.name
+            report.reportCategories = category.name
+            report.domain = category.name
+            await report.save()
+          }
+        }
+        await category.save()
+      }
+    } catch (err) { console.error('Auto-sync err:', err) }
 
     res.status(201).json({
       success: true,
@@ -803,14 +823,28 @@ router.put('/:id', async (req, res, next) => {
     }
 
     // Update fields
-    if (name !== undefined) {
-      category.name = name.trim()
+    const oldName = category.name
+    if (name !== undefined && name.trim() !== oldName) {
+      const newName = name.trim()
+      category.name = newName
       // Update slug when name changes
-      category.slug = name.trim()
+      category.slug = newName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
+      
+      // Update all reports using this category name
+      console.log(`Syncing reports for renamed category: ${oldName} -> ${newName}`)
+      await Report.updateMany(
+        { category: { $regex: new RegExp(`^${oldName.trim()}$`, 'i') } },
+        { 
+          category: newName,
+          domain: newName,
+          reportCategories: newName
+        }
+      )
     }
+    
     if (description !== undefined) category.description = description.trim()
     if (isActive !== undefined) category.isActive = isActive
     if (isTopTrending !== undefined) {
@@ -820,17 +854,43 @@ router.put('/:id', async (req, res, next) => {
 
     // Update subcategories if provided
     if (subcategories !== undefined) {
-      category.subcategories = subcategories.map((sub, index) => ({
-        _id: sub._id, // Keep existing ID if updating
-        name: sub.name.trim(),
-        slug: sub.slug || sub.name.trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-+|-+$/g, ''),
-        description: sub.description?.trim() || '',
-        isActive: sub.isActive !== undefined ? sub.isActive : true,
-        sortOrder: index
-      }))
+      const categoryName = category.name
+      // Note: This replaces all subcategories. For better sync, we should identify changes
+      // but for now we'll handle single subcategory updates via a dedicated route below
+      category.subcategories = subcategories.map((sub, index) => {
+        const existingSub = sub._id ? category.subcategories.id(sub._id) : null
+        const subName = sub.name.trim()
+        
+        // If an existing subcategory is renamed, sync reports
+        if (existingSub && existingSub.name !== subName) {
+          console.log(`Syncing reports for renamed subcategory inside category update: ${existingSub.name} -> ${subName}`)
+          // Run as fire-and-forget or await if needed. Better to await for consistency.
+          Report.updateMany(
+            { 
+              category: { $regex: new RegExp(`^${categoryName.trim()}$`, 'i') }, 
+              subCategory: { $regex: new RegExp(`^${existingSub.name.trim()}$`, 'i') } 
+            },
+            { 
+              subCategory: subName,
+              subdomain: subName
+            }
+          ).catch(err => console.error('Failed to sync reports for renamed subcategory in batch update:', err))
+        }
+
+        return {
+          _id: sub._id,
+          name: subName,
+          slug: sub.slug || subName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, ''),
+          description: sub.description?.trim() || '',
+          isActive: sub.isActive !== undefined ? sub.isActive : true,
+          sortOrder: index,
+          reports: existingSub ? existingSub.reports : (sub.reports || []),
+          reportCount: existingSub ? existingSub.reportCount : (sub.reportCount || 0)
+        }
+      })
     }
 
     await category.save()
@@ -851,6 +911,74 @@ router.put('/:id', async (req, res, next) => {
     next(error)
   }
 })
+
+// PUT /api/categories/:id/subcategories/:subId - Update subcategory
+router.put('/:id/subcategories/:subId', async (req, res, next) => {
+  try {
+    const { name, description, isActive, isTopTrending } = req.body
+    const { id, subId } = req.params
+
+    const category = await Category.findById(id)
+    if (!category) {
+      return res.status(404).json({ success: false, error: 'Category not found' })
+    }
+
+    const subcategory = category.subcategories.id(subId)
+    if (!subcategory) {
+      return res.status(404).json({ success: false, error: 'Subcategory not found' })
+    }
+
+    const oldSubName = subcategory.name
+    const categoryName = category.name
+
+    if (name !== undefined && name.trim() !== oldSubName) {
+      const newSubName = name.trim()
+      
+      // Check if another subcategory in the same category has this name
+      const exists = category.subcategories.some(sub => 
+        sub._id.toString() !== subId && sub.name.toLowerCase() === newSubName.toLowerCase()
+      )
+      if (exists) {
+        return res.status(400).json({ success: false, error: 'Subcategory with this name already exists in this category' })
+      }
+
+      subcategory.name = newSubName
+      subcategory.slug = newSubName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+
+      // Sync reports for this subcategory
+      console.log(`Syncing reports for renamed subcategory: ${categoryName} / ${oldSubName} -> ${newSubName}`)
+      await Report.updateMany(
+        { 
+          category: { $regex: new RegExp(`^${categoryName.trim()}$`, 'i') }, 
+          subCategory: { $regex: new RegExp(`^${oldSubName.trim()}$`, 'i') } 
+        },
+        { 
+          subCategory: newSubName,
+          subdomain: newSubName
+        }
+      )
+    }
+
+    if (description !== undefined) subcategory.description = description.trim()
+    if (isActive !== undefined) subcategory.isActive = isActive
+    if (isTopTrending !== undefined) subcategory.isTopTrending = Boolean(isTopTrending)
+
+    await category.save()
+
+    res.json({
+      success: true,
+      data: category,
+      message: 'Subcategory updated successfully'
+    })
+  } catch (error) {
+    console.error('Error updating subcategory:', error)
+    next(error)
+  }
+})
+
 
 // DELETE /api/categories/:id - Delete category
 router.delete('/:id', async (req, res, next) => {
@@ -940,6 +1068,29 @@ router.post('/:id/subcategories', async (req, res, next) => {
     })
 
     await category.save()
+
+    // Sync existing reports
+    try {
+      const subName = name.trim()
+      const reports = await Report.find({
+        category: category.name,
+        subCategory: { $regex: new RegExp(`^${subName}$`, 'i') },
+        status: { $ne: 'archived' }
+      })
+      if (reports.length > 0) {
+        const sub = category.subcategories[category.subcategories.length - 1]
+        sub.reports = reports.map(r => r._id)
+        sub.reportCount = reports.length
+        for (const r of reports) {
+          if (r.subCategory !== sub.name) {
+            r.subCategory = sub.name
+            r.subdomain = sub.name
+            await r.save()
+          }
+        }
+        await category.save()
+      }
+    } catch (err) { console.error('Sub-sync err:', err) }
 
     res.status(201).json({
       success: true,

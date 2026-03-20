@@ -45,13 +45,14 @@ MegatrendSchema.pre('save', function (next) {
   if (!this.slug || (this.isModified('title') && !this.isModified('slug') && !this.isModified('url'))) {
     if (this.url) {
       this.slug = this.url
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
     } else if (this.title) {
       this.slug = this.title
         .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .trim('-')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
     } else {
       this.slug = `megatrend-${Date.now()}`
     }

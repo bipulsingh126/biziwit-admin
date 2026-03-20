@@ -115,10 +115,8 @@ blogSchema.index({ createdAt: -1 });
 blogSchema.methods.generateSlug = function (baseTitle) {
   return baseTitle
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .trim('-');
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 };
 
 // Pre-save middleware to generate slug and URL if not provided

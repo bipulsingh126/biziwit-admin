@@ -28,7 +28,7 @@ const upload = multer({ storage });
 
 // Helpers
 const uniqueSlug = async (title, desired) => {
-  let slug = desired || slugify(title, { lower: true, strict: true });
+  let slug = slugify(desired || title, { lower: true, strict: true });
   if (!slug) slug = Date.now().toString(36);
   let i = 0;
   // ensure uniqueness
