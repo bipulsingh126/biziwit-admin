@@ -154,11 +154,30 @@ router.get('/', async (req, res) => {
 // Get single blog by slug (public access)
 router.get('/by-slug/:slug', async (req, res) => {
   try {
-    // Only return published blogs for public access
-    const blog = await Blog.findOne({
-      slug: req.params.slug,
+    const { slug } = req.params;
+    
+    // 1. Exact match (published only)
+    let blog = await Blog.findOne({
+      slug: slug,
       status: 'published'
     });
+
+    // 2. Case-insensitive match (if exact failed)
+    if (!blog) {
+      blog = await Blog.findOne({ 
+        slug: { $regex: new RegExp(`^${slug}$`, 'i') },
+        status: 'published'
+      });
+    }
+
+    // 3. Fallback: Legacy format (hyphens to spaces)
+    if (!blog && slug.includes('-')) {
+      const fallbackSlug = slug.replace(/-/g, ' ');
+      blog = await Blog.findOne({ 
+        slug: { $regex: new RegExp(`^${fallbackSlug}$`, 'i') },
+        status: 'published'
+      });
+    }
 
     if (!blog) {
       return res.status(404).json({
@@ -184,10 +203,28 @@ router.get('/by-slug/:slug', async (req, res) => {
 // Public blog access by slug (SEO-friendly URL)
 router.get('/slug/:slug', async (req, res) => {
   try {
-    const blog = await Blog.findOne({
-      slug: req.params.slug,
-      status: 'published' // Only show published blogs for public access
+    const { slug } = req.params;
+    
+    // Try to find with same strategy as by-slug
+    let blog = await Blog.findOne({
+      slug: slug,
+      status: 'published'
     });
+
+    if (!blog) {
+      blog = await Blog.findOne({ 
+        slug: { $regex: new RegExp(`^${slug}$`, 'i') },
+        status: 'published'
+      });
+    }
+
+    if (!blog && slug.includes('-')) {
+      const fallbackSlug = slug.replace(/-/g, ' ');
+      blog = await Blog.findOne({ 
+        slug: { $regex: new RegExp(`^${fallbackSlug}$`, 'i') },
+        status: 'published'
+      });
+    }
 
     if (!blog) {
       return res.status(404).json({
@@ -277,8 +314,19 @@ router.get('/:identifier', async (req, res) => {
   try {
     const { identifier } = req.params;
 
-    // Try to find by slug first, then by ID for backward compatibility
+    // Try to find by slug first (exact match)
     let blog = await Blog.findOne({ slug: identifier });
+
+    // Case-insensitive slug match
+    if (!blog) {
+      blog = await Blog.findOne({ slug: { $regex: new RegExp(`^${identifier}$`, 'i') } });
+    }
+
+    // Legacy format slug match
+    if (!blog && identifier.includes('-')) {
+      const fallbackSlug = identifier.replace(/-/g, ' ');
+      blog = await Blog.findOne({ slug: { $regex: new RegExp(`^${fallbackSlug}$`, 'i') } });
+    }
 
     if (!blog && identifier.match(/^[0-9a-fA-F]{24}$/)) {
       // If it looks like a MongoDB ObjectId, try finding by ID

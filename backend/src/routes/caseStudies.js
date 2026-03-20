@@ -125,11 +125,31 @@ router.get("/", async (req, res) => {
 // Get single case study by slug
 router.get("/by-slug/:slug", async (req, res) => {
   try {
-    // Only return published case studies for public access
-    const caseStudy = await CaseStudy.findOne({
-      slug: req.params.slug,
+    const { slug } = req.params;
+
+    // 1. Exact match (published only)
+    let caseStudy = await CaseStudy.findOne({
+      slug: slug,
       status: "published",
     });
+
+    // 2. Case-insensitive match (if exact failed)
+    if (!caseStudy) {
+      caseStudy = await CaseStudy.findOne({
+        slug: { $regex: new RegExp(`^${slug}$`, "i") },
+        status: "published",
+      });
+    }
+
+    // 3. Fallback: Legacy format (hyphens to spaces)
+    if (!caseStudy && slug.includes("-")) {
+      const fallbackSlug = slug.replace(/-/g, " ");
+      caseStudy = await CaseStudy.findOne({
+        slug: { $regex: new RegExp(`^${fallbackSlug}$`, "i") },
+        status: "published",
+      });
+    }
+
     if (!caseStudy) {
       return res.status(404).json({ error: "Case study not found" });
     }
@@ -196,8 +216,23 @@ router.get("/:identifier", async (req, res) => {
   try {
     const { identifier } = req.params;
 
-    // Try to find by slug first, then by ID for backward compatibility
+    // Try to find by slug first (exact match)
     let caseStudy = await CaseStudy.findOne({ slug: identifier });
+
+    // Case-insensitive slug match
+    if (!caseStudy) {
+      caseStudy = await CaseStudy.findOne({
+        slug: { $regex: new RegExp(`^${identifier}$`, "i") },
+      });
+    }
+
+    // Legacy format slug match
+    if (!caseStudy && identifier.includes("-")) {
+      const fallbackSlug = identifier.replace(/-/g, " ");
+      caseStudy = await CaseStudy.findOne({
+        slug: { $regex: new RegExp(`^${fallbackSlug}$`, "i") },
+      });
+    }
 
     if (!caseStudy && identifier.match(/^[0-9a-fA-F]{24}$/)) {
       // If it looks like a MongoDB ObjectId, try finding by ID

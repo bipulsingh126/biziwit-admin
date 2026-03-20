@@ -166,12 +166,34 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (r
   }
 })
 
-// Configure Helmet with CORS-friendly settings
+// Configure Helmet with CORS-friendly settings and Content Security Policy
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
   crossOriginEmbedderPolicy: false,
-  crossOriginOpenerPolicy: { policy: "unsafe-none" }
+  crossOriginOpenerPolicy: { policy: "unsafe-none" },
+  contentSecurityPolicy: {
+    directives: {
+      "default-src": ["'self'"],
+      "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://www.google.com/recaptcha/", "https://www.gstatic.com/recaptcha/"],
+      "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      "font-src": ["'self'", "https://fonts.gstatic.com", "data:"],
+      "img-src": ["'self'", "data:", "https://www.google.com", "https://www.gstatic.com", "https://*.stripe.com", "https://*.bizwitresearch.com"],
+      "connect-src": [
+        "'self'",
+        "https://www.google.com",
+        "https://www.gstatic.com",
+        "https://api.bizwitresearch.com",
+        "https://bizwitresearch.com",
+        "http://localhost:*",
+        "https://*.stripe.com"
+      ],
+      "frame-src": ["'self'", "https://www.google.com", "https://www.gstatic.com", "https://*.stripe.com"],
+      "object-src": ["'none'"],
+      "upgrade-insecure-requests": [],
+    },
+  },
 }))
+
 
 app.use(express.json({ limit: '2mb' }))
 app.use(express.urlencoded({ extended: true }))
@@ -344,10 +366,12 @@ app.use('/share', socialShareRoutes)
 // This must be BEFORE the SSR catch-all
 // Production Path: /var/www/bizwit_code/dist (if configured)
 // Local Path: ../frontend/dist
-const frontendDistPath = process.env.FRONTEND_DIST_PATH
-  ? path.resolve(process.env.FRONTEND_DIST_PATH)
-  : path.join(__dirname, '../dist');
+const localPath = path.join(__dirname, '../../bizwit_code-main/dist');
+const remotePath = path.join(__dirname, '../../bizwit_code/dist');
+console.log(localPath, 'localPath')
+console.log(remotePath, 'remotePath')
 
+const frontendDistPath = fs.existsSync(remotePath) ? remotePath : localPath;
 console.log(`📂 Serving frontend static files from: ${frontendDistPath}`);
 
 if (fs.existsSync(frontendDistPath)) {
@@ -357,9 +381,8 @@ if (fs.existsSync(frontendDistPath)) {
 }
 
 // SSR Handler (Catch-all for non-API routes)
-// Using regex to match everything that doesn't start with /api, /uploads, or /images
-// Note: api/uploads/images are already handled above, but good to be explicit in handler
-app.get(/^(?!\/api|\/uploads|\/images).*/, ssrHandler);
+// Using regex pattern instead of * for Express 5.x compatibility
+app.get(/^\/(?!api\/|uploads\/|images\/|assets\/|index\.html|favicon\.ico|robots\.txt|sitemap\.xml).*/, ssrHandler);
 
 // 404 handler
 app.use((req, res) => {
