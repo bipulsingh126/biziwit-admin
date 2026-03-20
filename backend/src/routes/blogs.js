@@ -156,13 +156,13 @@ router.get('/by-slug/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
     
-    // 1. Exact match (published only)
+    // 1. Exact match on slug field (published only)
     let blog = await Blog.findOne({
       slug: slug,
       status: 'published'
     });
 
-    // 2. Case-insensitive match (if exact failed)
+    // 2. Case-insensitive match on slug (if exact failed)
     if (!blog) {
       blog = await Blog.findOne({ 
         slug: { $regex: new RegExp(`^${slug}$`, 'i') },
@@ -170,7 +170,15 @@ router.get('/by-slug/:slug', async (req, res) => {
       });
     }
 
-    // 3. Fallback: Legacy format (hyphens to spaces)
+    // 3. Match on url field (for manually entered URL slugs that haven't synced yet)
+    if (!blog) {
+      blog = await Blog.findOne({
+        url: { $regex: new RegExp(`^${slug}$`, 'i') },
+        status: 'published'
+      });
+    }
+
+    // 4. Fallback: Legacy format (hyphens to spaces)
     if (!blog && slug.includes('-')) {
       const fallbackSlug = slug.replace(/-/g, ' ');
       blog = await Blog.findOne({ 
@@ -395,16 +403,7 @@ router.post('/', authenticate, requireRole('super_admin', 'admin', 'editor'), as
 // Update blog by slug
 router.put('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin', 'editor'), async (req, res) => {
   try {
-    const updateData = { ...req.body, updatedAt: new Date() };
-    if (updateData.content) {
-      updateData.content = sanitizeHtml(updateData.content, sanitizeOptions);
-    }
-
-    const blog = await Blog.findOneAndUpdate(
-      { slug: req.params.slug },
-      updateData,
-      { new: true, runValidators: true }
-    );
+    const blog = await Blog.findOne({ slug: req.params.slug });
 
     if (!blog) {
       return res.status(404).json({
@@ -412,6 +411,15 @@ router.put('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin', '
         message: 'Blog not found'
       });
     }
+
+    const updateData = { ...req.body, updatedAt: new Date() };
+    if (updateData.content) {
+      updateData.content = sanitizeHtml(updateData.content, sanitizeOptions);
+    }
+
+    // Use Object.assign + save() so pre-save middleware fires (syncs slug from url)
+    Object.assign(blog, updateData);
+    await blog.save();
 
     res.json({
       success: true,

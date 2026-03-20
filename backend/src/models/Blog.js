@@ -121,8 +121,26 @@ blogSchema.methods.generateSlug = function (baseTitle) {
 
 // Pre-save middleware to generate slug and URL if not provided
 blogSchema.pre('save', async function (next) {
-  // Generate slug if not provided or if title changed
-  if (!this.slug || (this.isModified('title') && this.title)) {
+  // If admin manually provided a url (slug), use it as the slug field too
+  if (this.isModified('url') && this.url) {
+    // Sanitize the manually entered url to be a valid slug
+    const sanitizedSlug = this.url
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    // Check if this sanitized slug is unique (excluding this document)
+    const existing = await this.constructor.findOne({ slug: sanitizedSlug, _id: { $ne: this._id } });
+    if (!existing) {
+      this.slug = sanitizedSlug;
+      this.url = sanitizedSlug; // Keep url in sync
+    }
+    // If slug is taken, keep existing slug but still update url
+  }
+
+  // Only auto-generate slug from title if no slug exists at all
+  if (!this.slug && this.title) {
     let baseSlug = this.generateSlug(this.title);
     let slug = baseSlug;
     let counter = 1;

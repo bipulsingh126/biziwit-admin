@@ -127,13 +127,13 @@ router.get("/by-slug/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
 
-    // 1. Exact match (published only)
+    // 1. Exact match on slug field (published only)
     let caseStudy = await CaseStudy.findOne({
       slug: slug,
       status: "published",
     });
 
-    // 2. Case-insensitive match (if exact failed)
+    // 2. Case-insensitive match on slug (if exact failed)
     if (!caseStudy) {
       caseStudy = await CaseStudy.findOne({
         slug: { $regex: new RegExp(`^${slug}$`, "i") },
@@ -141,7 +141,15 @@ router.get("/by-slug/:slug", async (req, res) => {
       });
     }
 
-    // 3. Fallback: Legacy format (hyphens to spaces)
+    // 3. Match on url field (for manually entered URL slugs that haven't synced yet)
+    if (!caseStudy) {
+      caseStudy = await CaseStudy.findOne({
+        url: { $regex: new RegExp(`^${slug}$`, "i") },
+        status: "published",
+      });
+    }
+
+    // 4. Fallback: Legacy format (hyphens to spaces)
     if (!caseStudy && slug.includes("-")) {
       const fallbackSlug = slug.replace(/-/g, " ");
       caseStudy = await CaseStudy.findOne({
@@ -272,36 +280,38 @@ router.post('/', authenticate, requireRole('super_admin', 'admin', 'editor'), as
 // Update case study by slug
 router.patch('/by-slug/:slug', authenticate, requireRole('super_admin', 'admin', 'editor'), async (req, res) => {
   try {
-    const caseStudy = await CaseStudy.findOneAndUpdate(
-      { slug: req.params.slug },
-      req.body,
-      { new: true, runValidators: true }
-    )
+    const caseStudy = await CaseStudy.findOne({ slug: req.params.slug });
 
-      if (!caseStudy) {
-        return res.status(404).json({ error: "Case study not found" });
-      }
-      const seoData = {
-        titleMetaTag: caseStudy.titleTag,
-        url: caseStudy.slug,
-        metaDescription: caseStudy.metaDescription,
-        keywords: caseStudy.keywords,
-      };
-      // Update related SEO Page
-      await SEOPage.findOneAndUpdate({ url: req.params.slug }, seoData, {
-        new: true,
-        runValidators: true,
-      });
-      res.json(caseStudy);
-    } catch (error) {
-      console.error("Error updating case study:", error);
-      if (error.code === 11000) {
-        return res.status(400).json({ error: "Slug or URL already exists" });
-      }
-      res.status(400).json({ error: error.message });
+    if (!caseStudy) {
+      return res.status(404).json({ error: "Case study not found" });
     }
-  },
-);
+
+    const oldSlug = caseStudy.slug;
+
+    // Use Object.assign + save() so pre-save middleware fires (syncs slug from url)
+    Object.assign(caseStudy, req.body);
+    await caseStudy.save();
+
+    const seoData = {
+      titleMetaTag: caseStudy.titleTag,
+      url: caseStudy.slug,
+      metaDescription: caseStudy.metaDescription,
+      keywords: caseStudy.keywords,
+    };
+    // Update related SEO Page
+    await SEOPage.findOneAndUpdate({ url: oldSlug }, seoData, {
+      new: true,
+      runValidators: true,
+    });
+    res.json(caseStudy);
+  } catch (error) {
+    console.error("Error updating case study:", error);
+    if (error.code === 11000) {
+      return res.status(400).json({ error: "Slug or URL already exists" });
+    }
+    res.status(400).json({ error: error.message });
+  }
+});
 
 // Update case study by ID (legacy support)
 router.patch(
