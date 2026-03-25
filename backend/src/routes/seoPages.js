@@ -17,7 +17,30 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 export const CreateSlug = (text) => {
   if (!text) return "";
-  let slug = text
+  let raw = String(text).trim();
+
+  // If full URL is provided, keep only pathname
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      raw = new URL(raw).pathname || "/";
+    } catch (_) {
+      // keep raw as-is if URL parsing fails
+    }
+  } else if (/^www\./i.test(raw)) {
+    try {
+      raw = new URL(`https://${raw}`).pathname || "/";
+    } catch (_) {
+      // keep raw as-is
+    }
+  }
+
+  // Remove query/hash and normalize slashes
+  raw = raw.split("?")[0].split("#")[0].replace(/\\+/g, "/").trim();
+
+  // Home URL handling
+  if (!raw || raw === "/") return "/";
+
+  let slug = raw
     .toString()
     .toLowerCase()
     .trim()

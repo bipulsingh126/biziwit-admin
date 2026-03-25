@@ -49,9 +49,39 @@ async function findContentBySlug(slug) {
   return null;
 }
 
+const API_ORIGIN =
+  (process.env.PUBLIC_API_URL || process.env.API_BASE_URL || "https://api.bizwitresearch.com").replace(/\/$/, "");
+
+const toAbsoluteImageUrl = (img) => {
+  if (!img || typeof img !== "string") return "";
+  if (/^https?:\/\//i.test(img)) return img;
+  const imagePath = img.startsWith("/") ? img : `/${img}`;
+  return `${API_ORIGIN}${imagePath}`;
+};
+
 export const ssrHandler = async (req, res, next) => {
   try {
-    const requestPath = req.path.replace(/^\/+/, "").trim(); // Remove leading slashes
+    const normalizePath = (value) => {
+      let v = String(value || "").trim();
+      if (!v) return "/";
+
+      if (/^https?:\/\//i.test(v)) {
+        try {
+          v = new URL(v).pathname || "/";
+        } catch (_) {}
+      } else if (/^www\./i.test(v)) {
+        try {
+          v = new URL(`https://${v}`).pathname || "/";
+        } catch (_) {}
+      }
+
+      v = v.split("?")[0].split("#")[0].replace(/\\+/g, "/").replace(/\/+$/, "");
+      if (!v.startsWith("/")) v = `/${v}`;
+      return v || "/";
+    };
+
+    const normalizedRequestPath = normalizePath(req.path);
+    const requestPath = normalizedRequestPath.replace(/^\/+/, "").trim(); // Remove leading slashes
     console.log(requestPath, "slug");
 
     const segments = requestPath.split("/").filter(Boolean);
@@ -108,16 +138,31 @@ export const ssrHandler = async (req, res, next) => {
     } else {
       // 2. Fallback to querying SEOPage using the full string or first segment
       // This handles listing pages like /report-store, /reports, /blogs, etc.
-      const searchPath = fullPath.startsWith("/") ? fullPath : `/${fullPath}`;
-      const altPath = fullPath.replace(/^\//, "");
+      const searchPath = normalizePath(fullPath === "home" ? "/" : fullPath);
+      const altPath = searchPath.replace(/^\//, "");
 
-      const seoPage = await SEOPage.findOne({
+      const urlCandidates = [searchPath, altPath, firstSegment].filter(Boolean);
+
+      // Home page fallback by pageName to support legacy/malformed stored URLs
+      if (searchPath === "/") {
+        urlCandidates.push("/home", "home");
+      }
+
+      let seoPage = await SEOPage.findOne({
         $or: [
-          { url: searchPath },
-          { url: altPath },
-          { url: firstSegment }
+          { url: { $in: urlCandidates } },
+          ...(searchPath === "/" ? [{ pageName: { $in: ["Home Page", "Home"] } }] : []),
         ]
       });
+
+      // Extra fallback: compare normalized path to stored URL variants
+      if (!seoPage) {
+        const allActiveSeoPages = await SEOPage.find({ isActive: true }).select("url pageName");
+        const matched = allActiveSeoPages.find((p) => normalizePath(p.url) === searchPath);
+        if (matched) {
+          seoPage = await SEOPage.findById(matched._id);
+        }
+      }
 
       console.log("From Seo Database lookup for path:", searchPath, seoPage ? "Found ✅" : "Not Found ❌");
 
