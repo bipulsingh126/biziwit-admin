@@ -57,17 +57,16 @@ export const ssrHandler = async (req, res, next) => {
     const segments = requestPath.split("/").filter(Boolean);
     const firstSegment = segments[0];
     console.log("👽 firstSegment", firstSegment);
-    // Default SEO Data
+    // Default SEO Data (Cleared to support dynamic-only mode)
     let seoData = {
-      title: "Bizwit Research & Consulting | Market Research Reports",
-      description:
-        "Bizwit Research & Consulting is a leading global market research and consulting firm.",
-      canonical: `https://www.bizwitresearch.com/${requestPath}`,
-      robots: "index, follow",
-      keywords: "market research, consulting, business intelligence",
+      title: "",
+      description: "",
+      canonical: "",
+      robots: "",
+      keywords: "",
       ogTitle: "",
       ogDescription: "",
-      image: "https://www.bizwitresearch.com/assets/logo.png",
+      image: "",
       author: "",
       scripts: [],
       bodyScripts: [],

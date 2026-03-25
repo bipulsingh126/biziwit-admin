@@ -35,6 +35,7 @@ const MegatrendSchema = new mongoose.Schema({
   status: { type: String, enum: ['draft', 'published', 'scheduled'], default: 'draft', index: true },
   publishedAt: { type: Date },
   isHome: { type: Boolean, default: false, index: true },
+  isGtmStrategy: { type: Boolean, default: false, index: true },
   homePageVisibility: { type: Boolean, default: false },
   author: { type: String, trim: true },
 }, { timestamps: true })

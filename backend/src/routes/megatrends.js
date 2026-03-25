@@ -75,9 +75,10 @@ async function notifySubmission(sub) {
 // Public: list published megatrends
 router.get("/public", async (req, res, next) => {
   try {
-    const { q = "", tags, tag, limit = 50, offset = 0, isHome } = req.query;
+    const { q = "", tags, tag, limit = 50, offset = 0, isHome, isGtmStrategy } = req.query;
     const query = { status: "published" };
     if (isHome === "true") query.isHome = true;
+    if (isGtmStrategy === "true") query.isGtmStrategy = true;
     if (q) {
       const rx = new RegExp(q, "i");
       query.$or = [

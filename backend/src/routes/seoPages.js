@@ -17,18 +17,20 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 export const CreateSlug = (text) => {
   if (!text) return "";
-  return (
-    text
-      .toString()
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, "-") // Replace spaces with -
-      .replace(/[^\w\-]+/g, "")
-      //   .replace(/[0-9%]+/g, '-') // replace numbers and % with -
-      //   .replace(/--+/g, '-') // replace multiple dashes with single -
-      // Remove all non-word chars
-      .replace(/\-\-+/g, "-")
-  ); // Replace multiple - with single -
+  let slug = text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-") // Replace spaces with -
+    .replace(/[^\w\-\/]+/g, "") // Allow forward slashes
+    .replace(/\/\/+/g, "/") // Replace multiple / with single /
+    .replace(/\-\-+/g, "-"); // Replace multiple - with single -
+  
+  // Ensure leading slash for SEO friendliness
+  if (!slug.startsWith("/")) {
+    slug = "/" + slug;
+  }
+  return slug;
 };
 
 const storage = multer.diskStorage({
@@ -56,6 +58,23 @@ const upload = multer({
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
+});
+
+// Public endpoint to get SEO data by pageName
+router.get("/public", async (req, res, next) => {
+  try {
+    const { pageName } = req.query;
+    if (!pageName) {
+      return res.status(400).json({ error: "pageName is required" });
+    }
+    const page = await SEOPage.findOne({ pageName, isActive: true });
+    if (!page) {
+      return res.status(404).json({ error: "SEO page not found" });
+    }
+    res.json(page);
+  } catch (e) {
+    next(e);
+  }
 });
 
 // RBAC: admin and editor
@@ -130,6 +149,9 @@ router.get("/:id", async (req, res, next) => {
 router.post("/", async (req, res, next) => {
   try {
     const pageData = req.body;
+    if (pageData.url) {
+      pageData.url = CreateSlug(pageData.url);
+    }
 
     // Check if URL already exists
     const existingPage = await SEOPage.findOne({ url: pageData.url });
@@ -152,9 +174,9 @@ router.patch("/:id", async (req, res, next) => {
     const updateData = req.body;
     // If URL is being updated, check for conflicts
     if (updateData.url) {
-      var slugifiedUrl = CreateSlug(updateData.url);
+      updateData.url = CreateSlug(updateData.url);
       const existingPage = await SEOPage.findOne({
-        url: slugifiedUrl,
+        url: updateData.url,
         _id: { $ne: req.params.id },
       });
       if (existingPage) {
@@ -162,36 +184,43 @@ router.patch("/:id", async (req, res, next) => {
       }
     }
     const previousSeoData = await SEOPage.findById(req.params.id);
+    if (!previousSeoData) {
+      return res.status(404).json({ error: "SEO page not found" });
+    }
+
     const page = await SEOPage.findByIdAndUpdate(
       req.params.id,
-      { ...updateData, url: slugifiedUrl },
+      updateData,
       {
         new: true,
         runValidators: true,
       },
     );
-    console.log("previousSeoData", previousSeoData)
-    if(previousSeoData.pageName === "Case Studies"){
+
+    if (!page) {
+      return res.status(404).json({ error: "SEO page not found" });
+    }
+
+    if (previousSeoData.pageName === "Case Studies") {
       let CaseStudyUpdateData = {
         titleTag: page.titleMetaTag,
         slug: page.url,
         metaDescription: page.metaDescription,
         keywords: page.keywords,
       };
-      console.log("CaseStudyUpdateData", CaseStudyUpdateData)
-      const updatedCaseStudy = await CaseStudy.findOneAndUpdate(
+      await CaseStudy.findOneAndUpdate(
         { slug: previousSeoData.url },
         CaseStudyUpdateData,
         { new: true, runValidators: true },
       );
-      console.log("updatedCaseStudy", updatedCaseStudy)
     }
-    if(previousSeoData.pageName === "MegaTrends"){
+
+    if (previousSeoData.pageName === "MegaTrends") {
       let MegaTrendUpdateData = {
         metaTitle: page.titleMetaTag,
         slug: page.url,
         metaDescription: page.metaDescription,
-        metaKeywords: page.keywords.split(","),
+        metaKeywords: page.keywords ? page.keywords.split(",").map(k => k.trim()) : [],
       };
       await Megatrend.findOneAndUpdate(
         { slug: previousSeoData.url },

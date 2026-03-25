@@ -22,9 +22,15 @@ router.get('/resolve/:slug', async (req, res) => {
             let doc = await Model.findOne({ slug: searchRegex }).lean();
             if (doc) return doc;
 
-            // 2. Legacy/Space format
+            // 2. Exact/Case-insensitive url (if slug hasn't synced yet)
+            doc = await Model.findOne({ url: searchRegex }).lean();
+            if (doc) return doc;
+
+            // 3. Legacy/Space format
             if (slug.includes('-')) {
                 doc = await Model.findOne({ slug: legacyRegex }).lean();
+                if (doc) return doc;
+                doc = await Model.findOne({ url: legacyRegex }).lean();
             }
             return doc;
         };
