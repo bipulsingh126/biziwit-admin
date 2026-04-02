@@ -343,9 +343,9 @@ async function syncReportsWithCategories() {
     for (const report of reports) {
       if (report.category && report.category.trim()) {
         const reportCategoryNormalized = normalize(report.category)
-        
+
         // Find best matching category
-        const bestCategory = normalizedCategories.find(cat => 
+        const bestCategory = normalizedCategories.find(cat =>
           cat.doc.name.toLowerCase() === report.category.trim().toLowerCase() ||
           cat.normalizedName === reportCategoryNormalized
         )
@@ -353,7 +353,7 @@ async function syncReportsWithCategories() {
         if (bestCategory) {
           const categoryDoc = bestCategory.doc
           let reportUpdated = false
-          
+
           // Normalize category name in report if it's different
           if (report.category !== categoryDoc.name) {
             console.log(`📏 Normalizing category name for report "${report.title}": "${report.category}" -> "${categoryDoc.name}"`)
@@ -373,8 +373,8 @@ async function syncReportsWithCategories() {
           // Handle subcategory
           if (report.subCategory && report.subCategory.trim()) {
             const reportSubNormalized = normalize(report.subCategory)
-            
-            const bestSub = bestCategory.subcategories.find(sub => 
+
+            const bestSub = bestCategory.subcategories.find(sub =>
               sub.doc.name.toLowerCase() === report.subCategory.trim().toLowerCase() ||
               sub.normalizedName === reportSubNormalized
             )
@@ -408,7 +408,7 @@ async function syncReportsWithCategories() {
     // (Note: in-place doc updates have happened in bestCategory.doc)
     for (const catEntry of normalizedCategories) {
       const cat = catEntry.doc
-      
+
       // Update counts based on ACTUAL database counts for safety
       cat.reportCount = await Report.countDocuments({
         category: cat.name,
@@ -422,7 +422,7 @@ async function syncReportsWithCategories() {
           status: { $ne: 'archived' }
         })
       }
-      
+
       await cat.save()
     }
 
@@ -1243,47 +1243,64 @@ router.get('/export', async (req, res, next) => {
 
     console.log(`Exporting ${reports.length} reports in ${format} format`)
 
+    // Helper function to truncate text to Excel's limit (32,767 characters)
+    const truncateText = (text, maxLength = 32000) => {
+      if (!text) return ''
+      const str = String(text)
+      if (str.length <= maxLength) return str
+      return str.substring(0, maxLength) + '... [TRUNCATED]'
+    }
+
+    // Helper function to strip HTML tags for cleaner export
+    const stripHtml = (html) => {
+      if (!html) return ''
+      return String(html)
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    }
+
     if (format === 'excel') {
       // Create Excel workbook
       const workbook = XLSX.utils.book_new()
 
-      // Prepare data for Excel
+      // Prepare data for Excel with truncation
       const excelData = reports.map(report => ({
-        'Report Title': report.title,
-        'Title Meta Tag': report.subTitle || '',
-        'REPORT OVERVIEW': report.summary || '',
-        'Table of Contents': report.tableOfContents || '',
-        'Category': report.category || report.domain || report.industry || '',
-        'Sub Category': report.subCategory || report.subdomain || report.reportType || '',
-        'SEGMENT / COMPANIES': report.segmentCompanies || report.segment || '',
-        'Region': report.region || '',
-        'Sub Regions': report.subRegions || '',
-        'Author Name': report.author || '',
-        'Report Code': report.reportCode || '',
+        'Report Title': truncateText(report.title, 500),
+        'Title Meta Tag': truncateText(report.subTitle, 500),
+        'REPORT OVERVIEW': truncateText(stripHtml(report.reportDescription || report.summary), 32000),
+        'Table of Contents': truncateText(stripHtml(report.tableOfContents), 32000),
+        'Category': truncateText(report.category || report.domain || report.industry, 255),
+        'Sub Category': truncateText(report.subCategory || report.subdomain || report.reportType, 255),
+        'SEGMENT / COMPANIES': truncateText(stripHtml(report.segmentCompanies || report.segment), 32000),
+        'Region': truncateText(report.region, 255),
+        'Sub Regions': truncateText(report.subRegions, 500),
+        'Author Name': truncateText(report.author, 255),
+        'Report Code': truncateText(report.reportCode, 100),
         'Number of Page': report.numberOfPages || '',
         'Price': report.price || '',
         'Excel Datapack Prices': report.excelDatapackPrice || '',
         'Single User Prices': report.singleUserPrice || '',
         'Enterprise License Prices': report.enterprisePrice || '',
         'Internet Handling Charges': report.internetHandlingCharges || '',
-        'Currency': report.currency || '',
-        'Format': report.format || '',
-        'Language': report.language || '',
-        'Industry': report.industry || '',
-        'Report Type': report.reportType || '',
+        'Currency': truncateText(report.currency, 10),
+        'Format': truncateText(report.format, 50),
+        'Language': truncateText(report.language, 50),
+        'Industry': truncateText(report.industry, 255),
+        'Report Type': truncateText(report.reportType, 100),
         'Status': report.status,
         'Featured': report.featured ? 'Yes' : 'No',
         'Popular': report.popular ? 'Yes' : 'No',
         'Publish Date': report.publishDate ? new Date(report.publishDate).toLocaleDateString() : '',
         'Last Updated': report.lastUpdated ? new Date(report.lastUpdated).toLocaleDateString() : new Date(report.updatedAt).toLocaleDateString(),
-        'Excel Data Pack License': report.excelDataPackLicense || '',
-        'Single User License': report.singleUserLicense || '',
+        'Excel Data Pack License': truncateText(report.excelDataPackLicense, 500),
+        'Single User License': truncateText(report.singleUserLicense, 500),
         'Enterprise License Price': report.enterpriseLicensePrice || '',
         // SEO Fields
-        'Title Tag': report.titleTag || '',
-        'URL Slug': report.slug || report.url || '',
-        'Meta Description': report.metaDescription || '',
-        'Keywords': report.keywords || ''
+        'Title Tag': truncateText(report.titleTag, 500),
+        'URL Slug': truncateText(report.slug || report.url, 500),
+        'Meta Description': truncateText(report.metaDescription, 1000),
+        'Keywords': truncateText(report.keywords, 1000)
       }))
 
       // Create worksheet
@@ -1385,34 +1402,34 @@ router.get('/export', async (req, res, next) => {
       res.setHeader('Content-Disposition', `attachment; filename=reports_export_${new Date().toISOString().split('T')[0]}.xlsx`)
       res.send(excelBuffer)
     } else {
-      // CSV format
+      // CSV format with truncation
       const csvHeaders = ['Report Title', 'Title Meta Tag', 'REPORT OVERVIEW', 'Table of Contents', 'Category', 'Sub Category', 'SEGMENT / COMPANIES', 'Region', 'Sub Regions', 'Author Name', 'Report Code', 'Number of Page', 'Price', 'Excel Datapack Prices', 'Single User Prices', 'Enterprise License Prices', 'Internet Handling Charges', 'Currency', 'Status', 'Publish Date', 'Last Updated', 'Title Tag', 'URL Slug', 'Meta Description', 'Keywords']
       const csvRows = reports.map(report => [
-        `"${(report.title || '').replace(/"/g, '""')}"`,
-        `"${(report.subTitle || '').replace(/"/g, '""')}"`,
-        `"${(report.summary || '').replace(/"/g, '""')}"`,
-        `"${(report.tableOfContents || '').replace(/"/g, '""')}"`,
-        `"${(report.category || report.domain || report.industry || '').replace(/"/g, '""')}"`,
-        `"${(report.subCategory || report.subdomain || report.reportType || '').replace(/"/g, '""')}"`,
-        `"${(report.segmentCompanies || report.segment || '').replace(/"/g, '""')}"`,
-        `"${(report.region || '').replace(/"/g, '""')}"`,
-        `"${(report.subRegions || '').replace(/"/g, '""')}"`,
-        `"${report.author || ''}"`,
-        `"${(report.reportCode || '').replace(/"/g, '""')}"`,
+        `"${truncateText(report.title, 500).replace(/"/g, '""')}"`,
+        `"${truncateText(report.subTitle, 500).replace(/"/g, '""')}"`,
+        `"${truncateText(stripHtml(report.reportDescription || report.summary), 32000).replace(/"/g, '""')}"`,
+        `"${truncateText(stripHtml(report.tableOfContents), 32000).replace(/"/g, '""')}"`,
+        `"${truncateText(report.category || report.domain || report.industry, 255).replace(/"/g, '""')}"`,
+        `"${truncateText(report.subCategory || report.subdomain || report.reportType, 255).replace(/"/g, '""')}"`,
+        `"${truncateText(stripHtml(report.segmentCompanies || report.segment), 32000).replace(/"/g, '""')}"`,
+        `"${truncateText(report.region, 255).replace(/"/g, '""')}"`,
+        `"${truncateText(report.subRegions, 500).replace(/"/g, '""')}"`,
+        `"${truncateText(report.author, 255).replace(/"/g, '""')}"`,
+        `"${truncateText(report.reportCode, 100).replace(/"/g, '""')}"`,
         `"${report.numberOfPages || ''}"`,
         `"${report.price || ''}"`,
         `"${report.excelDatapackPrice || ''}"`,
         `"${report.singleUserPrice || ''}"`,
         `"${report.enterprisePrice || ''}"`,
         `"${report.internetHandlingCharges || ''}"`,
-        `"${report.currency || ''}"`,
+        `"${truncateText(report.currency, 10).replace(/"/g, '""')}"`,
         `"${report.status || ''}"`,
         `"${report.publishDate ? new Date(report.publishDate).toLocaleDateString() : ''}"`,
         `"${report.lastUpdated ? new Date(report.lastUpdated).toLocaleDateString() : new Date(report.updatedAt).toLocaleDateString()}"`,
-        `"${(report.titleTag || '').replace(/"/g, '""')}"`,
-        `"${(report.slug || report.url || '').replace(/"/g, '""')}"`,
-        `"${(report.metaDescription || '').replace(/"/g, '""')}"`,
-        `"${(report.keywords || '').replace(/"/g, '""')}"`
+        `"${truncateText(report.titleTag, 500).replace(/"/g, '""')}"`,
+        `"${truncateText(report.slug || report.url, 500).replace(/"/g, '""')}"`,
+        `"${truncateText(report.metaDescription, 1000).replace(/"/g, '""')}"`,
+        `"${truncateText(report.keywords, 1000).replace(/"/g, '""')}"`
       ])
 
       const csvContent = [csvHeaders.join(','), ...csvRows.map(row => row.join(','))].join('\n')
