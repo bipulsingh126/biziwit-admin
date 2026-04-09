@@ -1266,8 +1266,8 @@ router.get('/export', async (req, res, next) => {
 
       // Prepare data for Excel with truncation
       const excelData = reports.map(report => ({
-        'Report Title': truncateText(report.title, 500),
-        'Title Meta Tag': truncateText(report.subTitle, 500),
+        'Report Title': truncateText(report.title, 1000),
+        'Title Meta Tag': truncateText(report.subTitle, 1000),
         'REPORT OVERVIEW': truncateText(stripHtml(report.reportDescription || report.summary), 32000),
         'Table of Contents': truncateText(stripHtml(report.tableOfContents), 32000),
         'Category': truncateText(report.category || report.domain || report.industry, 255),
@@ -1405,8 +1405,8 @@ router.get('/export', async (req, res, next) => {
       // CSV format with truncation
       const csvHeaders = ['Report Title', 'Title Meta Tag', 'REPORT OVERVIEW', 'Table of Contents', 'Category', 'Sub Category', 'SEGMENT / COMPANIES', 'Region', 'Sub Regions', 'Author Name', 'Report Code', 'Number of Page', 'Price', 'Excel Datapack Prices', 'Single User Prices', 'Enterprise License Prices', 'Internet Handling Charges', 'Currency', 'Status', 'Publish Date', 'Last Updated', 'Title Tag', 'URL Slug', 'Meta Description', 'Keywords']
       const csvRows = reports.map(report => [
-        `"${truncateText(report.title, 500).replace(/"/g, '""')}"`,
-        `"${truncateText(report.subTitle, 500).replace(/"/g, '""')}"`,
+        `"${truncateText(report.title, 1000).replace(/"/g, '""')}"`,
+        `"${truncateText(report.subTitle, 1000).replace(/"/g, '""')}"`,
         `"${truncateText(stripHtml(report.reportDescription || report.summary), 32000).replace(/"/g, '""')}"`,
         `"${truncateText(stripHtml(report.tableOfContents), 32000).replace(/"/g, '""')}"`,
         `"${truncateText(report.category || report.domain || report.industry, 255).replace(/"/g, '""')}"`,
@@ -3100,8 +3100,8 @@ router.post('/bulk-upload', upload.single('file'), async (req, res, next) => {
         }
 
         // Additional validation for data quality
-        if (cleanTitle.length > 500) {
-          cleanTitle = cleanTitle.substring(0, 500) + '...';
+        if (cleanTitle.length > 1000) {
+          cleanTitle = cleanTitle.substring(0, 997) + '...';
         }
 
 
