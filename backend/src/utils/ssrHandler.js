@@ -442,25 +442,41 @@ export const ssrHandler = async (req, res, next) => {
     // --- Set cache headers ---
     setCacheHeaders(res, pageType);
 
-    // --- Build HTML from template ---
+   // Path to the client build's index.html
+    // Prioritize environment variable for Production flexibility
     const localDist = path.resolve(__dirname, "../../../../bizwit_code-main/dist");
     const remoteDist = path.resolve(__dirname, "../../../../bizwit_code/dist");
+
+    // Prioritize environment variable for Production flexibility
     const frontendDistPath = process.env.FRONTEND_DIST_PATH
       ? path.resolve(process.env.FRONTEND_DIST_PATH)
       : (fs.existsSync(remoteDist) ? remoteDist : localDist);
+    console.log(frontendDistPath, 'frontendDistPath');
 
     const indexPath = path.join(frontendDistPath, "index.html");
+    console.log(indexPath, 'indexPath');
 
     if (!fs.existsSync(indexPath)) {
-      console.error("SSR Error: frontend/dist/index.html not found.");
+      console.error(
+        "SSR Error: frontend/dist/index.html not found. Have you built the frontend?",
+      );
       return res.status(500).send("Server Error: Frontend build not found.");
     }
 
     const indexHtml = fs.readFileSync(indexPath, "utf-8");
-    const cssMatches = indexHtml.match(/href="(\/assets\/[^"]+\.css)"/g) || [];
-    const jsMatches = indexHtml.match(/src="(\/assets\/[^"]+\.js)"/g) || [];
-    const cssFiles = cssMatches.map(m => m.match(/href="([^"]+)"/)[1]);
-    const jsFiles = jsMatches.map(m => m.match(/src="([^"]+)"/)[1]);
+    // Improved regex to find assets with flexible spacing and quotes
+    const cssMatches = indexHtml.match(/href\s*=\s*["'](\/assets\/[^"']+\.css)["']/g) || [];
+    const jsMatches = indexHtml.match(/src\s*=\s*["'](\/assets\/[^"']+\.js)["']/g) || [];
+    
+    const cssFiles = cssMatches.map(m => {
+      const match = m.match(/href\s*=\s*["']([^"']+)["']/);
+      return match ? match[1] : null;
+    }).filter(Boolean);
+    
+    const jsFiles = jsMatches.map(m => {
+      const match = m.match(/src\s*=\s*["']([^"']+)["']/);
+      return match ? match[1] : null;
+    }).filter(Boolean);
 
     const schemaMarkup = generateSchemaScripts(schemas);
 
