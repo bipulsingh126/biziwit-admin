@@ -8,6 +8,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { connectDB } from './src/config/db.js'
 import { ssrHandler } from './src/utils/ssrHandler.js'
+import { generateSitemap } from './src/utils/sitemapGenerator.js'
 import customReportRoutes from './src/routes/customReports.js'
 import megatrendSubmissionRoutes from './src/routes/megatrendSubmissions.js'
 import authRoutes from './src/routes/auth.js'
@@ -66,6 +67,28 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
   process.env.ADMIN_URL
 ].filter(Boolean) // Remove undefined values
+
+// --- www to non-www redirect (production only) ---
+// IMPORTANT: This redirects FROM www TO non-www
+// If you need the opposite (non-www to www), swap the logic
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    const host = req.headers.host || '';
+
+    // Redirect www.bizwitresearch.com → bizwitresearch.com
+    if (host.startsWith('www.')) {
+      const newHost = host.replace(/^www\./, '');
+      return res.redirect(301, `https://${newHost}${req.originalUrl}`);
+    }
+
+    // If you need to redirect non-www → www instead, use this:
+    // if (!host.startsWith('www.') && host.includes('bizwitresearch.com')) {
+    //   return res.redirect(301, `https://www.${host}${req.originalUrl}`);
+    // }
+
+    next();
+  });
+}
 
 // Security and CORS headers middleware
 app.use((req, res, next) => {
@@ -324,9 +347,44 @@ app.get('/images/*', (req, res, next) => {
 // Health check
 app.get('/health', (req, res) => res.json({ ok: true }))
 
-
 // Favicon route to prevent 404 errors
 app.get('/favicon.ico', (req, res) => res.status(204).end())
+
+// --- robots.txt ---
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain');
+  res.send(`User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /uploads/
+Disallow: /admin
+Disallow: /*?*download-sample
+Disallow: /*?*buy-now
+Disallow: /*?*inquiry
+
+Sitemap: https://www.bizwitresearch.com/sitemap.xml
+`);
+});
+
+// --- Dynamic sitemap.xml ---
+let sitemapCache = { xml: null, ts: 0 };
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const now = Date.now();
+    // Cache sitemap for 1 hour
+    if (sitemapCache.xml && (now - sitemapCache.ts) < 3600000) {
+      res.type('application/xml');
+      return res.send(sitemapCache.xml);
+    }
+    const xml = await generateSitemap();
+    sitemapCache = { xml, ts: now };
+    res.type('application/xml');
+    res.send(xml);
+  } catch (err) {
+    console.error('Sitemap generation error:', err);
+    res.status(500).send('Error generating sitemap');
+  }
+});
 
 // Root route moved to /api/status to allow SSR to handle homepage
 app.get('/api/status', (req, res) => {
@@ -366,12 +424,7 @@ app.use('/share', socialShareRoutes)
 // This must be BEFORE the SSR catch-all
 // Production Path: /var/www/bizwit_code/dist (if configured)
 // Local Path: ../frontend/dist
-const localPath = path.join(__dirname, '../../bizwit_code-main/dist');
-const remotePath = path.join(__dirname, '../../bizwit_code/dist');
-console.log(localPath, 'localPath')
-console.log(remotePath, 'remotePath')
-
-const frontendDistPath = fs.existsSync(remotePath) ? remotePath : localPath;
+const frontendDistPath = path.join(__dirname, '../frontend/dist');
 console.log(`📂 Serving frontend static files from: ${frontendDistPath}`);
 
 if (fs.existsSync(frontendDistPath)) {

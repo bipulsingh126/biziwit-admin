@@ -39,3 +39,4 @@ Allow: /*.gif
 Allow: /*.svg
 Allow: /*.webp
 Sitemap: https://www.bizwitresearch.com/sitemap.xml
+Host: https://www.bizwitresearch.com

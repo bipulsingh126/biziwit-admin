@@ -23,13 +23,212 @@ async function sendNotification(inquiry) {
   if (!transport) return
   const to = process.env.NOTIFY_EMAIL || process.env.SMTP_USER
   if (!to) return
-  const subject = `[bizwit] New Inquiry: ${inquiry.subject || inquiry.name}`
-  const text = `New inquiry received\n\nName: ${inquiry.name}\nEmail: ${inquiry.email}\nPhone: ${inquiry.phone || ''}\nCompany: ${inquiry.company || ''}\nSubject: ${inquiry.subject || ''}\n\nMessage:\n${inquiry.message}`
+
+  const subject = `[Bizwit] New Inquiry: ${inquiry.inquiryType || 'General'} - ${inquiry.name}`
+
+  // Structured HTML email format
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #0066cc; color: white; padding: 20px; text-align: center; }
+        .content { background: #f9f9f9; padding: 20px; border: 1px solid #ddd; }
+        .field { margin-bottom: 15px; }
+        .label { font-weight: bold; color: #0066cc; }
+        .value { margin-top: 5px; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h2>New Inquiry Received</h2>
+        </div>
+        <div class="content">
+          <div class="field">
+            <div class="label">Inquiry Number:</div>
+            <div class="value">${inquiry.inquiryNumber || 'N/A'}</div>
+          </div>
+          <div class="field">
+            <div class="label">Inquiry Type:</div>
+            <div class="value">${inquiry.inquiryType || 'General Inquiry'}</div>
+          </div>
+          <div class="field">
+            <div class="label">Priority:</div>
+            <div class="value">${inquiry.priority || 'medium'}</div>
+          </div>
+          <div class="field">
+            <div class="label">Name:</div>
+            <div class="value">${inquiry.name}</div>
+          </div>
+          <div class="field">
+            <div class="label">Email:</div>
+            <div class="value"><a href="mailto:${inquiry.email}">${inquiry.email}</a></div>
+          </div>
+          ${inquiry.phone ? `
+          <div class="field">
+            <div class="label">Phone:</div>
+            <div class="value"><a href="tel:${inquiry.phone}">${inquiry.phone}</a></div>
+          </div>
+          ` : ''}
+          ${inquiry.company ? `
+          <div class="field">
+            <div class="label">Company:</div>
+            <div class="value">${inquiry.company}</div>
+          </div>
+          ` : ''}
+          ${inquiry.subject ? `
+          <div class="field">
+            <div class="label">Subject:</div>
+            <div class="value">${inquiry.subject}</div>
+          </div>
+          ` : ''}
+          ${inquiry.pageReportTitle ? `
+          <div class="field">
+            <div class="label">Page/Report:</div>
+            <div class="value">${inquiry.pageReportTitle}</div>
+          </div>
+          ` : ''}
+          <div class="field">
+            <div class="label">Message:</div>
+            <div class="value">${inquiry.message}</div>
+          </div>
+          <div class="field">
+            <div class="label">Source:</div>
+            <div class="value">${inquiry.source || 'website'}</div>
+          </div>
+          <div class="field">
+            <div class="label">Received:</div>
+            <div class="value">${new Date(inquiry.createdAt).toLocaleString()}</div>
+          </div>
+        </div>
+        <div class="footer">
+          <p>This is an automated notification from Bizwit Research & Consulting LLP</p>
+          <p>Please respond to the customer at: <a href="mailto:${inquiry.email}">${inquiry.email}</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+
+  const text = `New inquiry received
+
+Inquiry Number: ${inquiry.inquiryNumber || 'N/A'}
+Inquiry Type: ${inquiry.inquiryType || 'General Inquiry'}
+Priority: ${inquiry.priority || 'medium'}
+
+Name: ${inquiry.name}
+Email: ${inquiry.email}
+Phone: ${inquiry.phone || 'N/A'}
+Company: ${inquiry.company || 'N/A'}
+Subject: ${inquiry.subject || 'N/A'}
+Page/Report: ${inquiry.pageReportTitle || 'N/A'}
+
+Message:
+${inquiry.message}
+
+Source: ${inquiry.source || 'website'}
+Received: ${new Date(inquiry.createdAt).toLocaleString()}
+
+---
+Please respond to the customer at: ${inquiry.email}`
+
   await transport.sendMail({
     from: process.env.MAIL_FROM || `no-reply@${(process.env.DOMAIN || 'bizwit.local')}`,
     to,
     subject,
     text,
+    html,
+  })
+}
+
+async function sendAutoResponse(inquiry) {
+  const transport = makeTransport()
+  if (!transport) return
+
+  const subject = `Thank you for contacting Bizwit Research`
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #0066cc; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; border-top: 1px solid #ddd; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h2>Thank You for Your Inquiry</h2>
+        </div>
+        <div class="content">
+          <p>Dear ${inquiry.name},</p>
+          
+          <p>Thank you for contacting Bizwit Research & Consulting LLP. We have received your inquiry and our team will review it shortly.</p>
+          
+          <p><strong>Your Inquiry Details:</strong></p>
+          <ul>
+            <li><strong>Inquiry Number:</strong> ${inquiry.inquiryNumber || 'Will be assigned shortly'}</li>
+            <li><strong>Type:</strong> ${inquiry.inquiryType || 'General Inquiry'}</li>
+            ${inquiry.pageReportTitle ? `<li><strong>Regarding:</strong> ${inquiry.pageReportTitle}</li>` : ''}
+          </ul>
+          
+          <p>Our team typically responds within 24 business hours. If your inquiry is urgent, please feel free to call us at <strong>+916 267 104147</strong>.</p>
+          
+          <p>In the meantime, you can:</p>
+          <ul>
+            <li>Browse our <a href="https://www.bizwitresearch.com/report-store">Report Store</a></li>
+            <li>Read our latest <a href="https://www.bizwitresearch.com/blogs">Industry Insights</a></li>
+            <li>Explore our <a href="https://www.bizwitresearch.com/megatrends">Megatrends</a></li>
+          </ul>
+          
+          <p>Best regards,<br>
+          <strong>Bizwit Research Team</strong></p>
+        </div>
+        <div class="footer">
+          <p><strong>Bizwit Research & Consulting LLP</strong></p>
+          <p>303, Atulya IT Park, Indore, India 452001</p>
+          <p>Email: <a href="mailto:sales@bizwitresearch.com">sales@bizwitresearch.com</a> | Phone: +916 267 104147</p>
+          <p><a href="https://www.bizwitresearch.com">www.bizwitresearch.com</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+
+  const text = `Dear ${inquiry.name},
+
+Thank you for contacting Bizwit Research & Consulting LLP. We have received your inquiry and our team will review it shortly.
+
+Your Inquiry Details:
+- Inquiry Number: ${inquiry.inquiryNumber || 'Will be assigned shortly'}
+- Type: ${inquiry.inquiryType || 'General Inquiry'}
+${inquiry.pageReportTitle ? `- Regarding: ${inquiry.pageReportTitle}` : ''}
+
+Our team typically responds within 24 business hours. If your inquiry is urgent, please feel free to call us at +916 267 104147.
+
+Best regards,
+Bizwit Research Team
+
+---
+Bizwit Research & Consulting LLP
+303, Atulya IT Park, Indore, India 452001
+Email: sales@bizwitresearch.com | Phone: +916 267 104147
+www.bizwitresearch.com`
+
+  await transport.sendMail({
+    from: process.env.MAIL_FROM || `no-reply@${(process.env.DOMAIN || 'bizwit.local')}`,
+    to: inquiry.email,
+    subject,
+    text,
+    html,
   })
 }
 
@@ -74,8 +273,15 @@ router.post('/submit', async (req, res, next) => {
       priority: req.body.priority || 'medium',
       meta: req.body.meta || {},
     })
-    // Send email notification (non-blocking)
-    sendNotification(doc).catch(() => { })
+
+    // Send email notifications (non-blocking)
+    Promise.all([
+      sendNotification(doc),
+      sendAutoResponse(doc)
+    ]).catch(err => {
+      console.error('Email notification error:', err)
+    })
+
     res.status(201).json({ ok: true, inquiry: doc })
   } catch (e) { next(e) }
 })
